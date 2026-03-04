@@ -3,7 +3,9 @@
 - Python 3.13+ (tested with `py -3`)
 - SQL Server (default: `localhost\SQLEXPRESS`)
 - ODBC Driver 17 for SQL Server installed
-- Internet access for Groq and initial embedding model download
+- SSMS. - Check tables scripts in dbscript.sql file. Insert dummy rows using LLM.
+- Groq Key https://console.groq.com/keys (It's free).
+- Install dependencies from requirements.txt
 
 ## Installation
 

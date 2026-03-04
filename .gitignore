@@ -3,3 +3,7 @@
 ################################################################################
 
 /.vs/slnx.sqlite
+/src/__pycache__
+/.vs/slnx.sqlite-journal
+/qdrant_data
+/.vs/VSWorkspaceState.json
