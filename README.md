@@ -203,7 +203,28 @@ This solution pushes heavy computation to SQL/database and uses context capsules
    - Inspect capsule metadata table
    - Delete selected capsule by id from the loaded list
 
-## Optional CLI usage
+## Embedding and Vector DB stack
+
+- Embedding technique:
+  - Dense sentence embeddings (semantic vector embeddings).
+
+- Embedding library:
+  - `fastembed` (Qdrant ecosystem), used in [src/embedding_service.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\embedding_service.py).
+  - Default model: `BAAI/bge-base-en-v1.5`.
+  - Called during ingestion by [src/embedding.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\embedding.py).
+
+- Vector DB:
+  - Qdrant, accessed via `qdrant-client` in [src/vector_store.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\vector_store.py).
+  - Running in local embedded mode using `QdrantClient(path=...)`.
+
+- Local storage on your PC:
+  - Default vector store directory: `qdrant_data` (project-relative).
+  - Effective default path in this project: `C:\Users\alavu\Projects\Patent Structure Data Set\qdrant_data`.
+  - You can override this with environment variable `QDRANT_PATH`.
+
+## Optional
+
+## CLI usage
 
 Run orchestrator:
 
@@ -225,22 +246,3 @@ py -3 -m src.embedding --query "Show latest activity"
   - scheduled refresh (daily/hourly) for critical SQL sources
   - incremental ingestion for newly introduced contexts
   - `replace_source` mode for deterministic rebuilds
-
-## Embedding and Vector DB stack
-
-- Embedding technique:
-  - Dense sentence embeddings (semantic vector embeddings).
-
-- Embedding library:
-  - `fastembed` (Qdrant ecosystem), used in [src/embedding_service.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\embedding_service.py).
-  - Default model: `BAAI/bge-base-en-v1.5`.
-  - Called during ingestion by [src/embedding.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\embedding.py).
-
-- Vector DB:
-  - Qdrant, accessed via `qdrant-client` in [src/vector_store.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\vector_store.py).
-  - Running in local embedded mode using `QdrantClient(path=...)`.
-
-- Local storage on your PC:
-  - Default vector store directory: `qdrant_data` (project-relative).
-  - Effective default path in this project: `C:\Users\alavu\Projects\Patent Structure Data Set\qdrant_data`.
-  - You can override this with environment variable `QDRANT_PATH`.
