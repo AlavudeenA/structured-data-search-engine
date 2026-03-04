@@ -11,11 +11,10 @@
 ## Analytical Intent
 
 - Which individuals appear repeatedly in trade request activity across the dataset?
-  - (When examining overall trading participation, which staff members seem unusually active?)
+  - OR (When examining overall trading participation, which staff members seem unusually active?)
 - Based on observed trading patterns, which broker-dealers play the most significant role?
-- Which security shows unusually high trading concentration on a given day?
-  - Return both the **security** and the **date**.
-  - (Detect when one security dominates trading on a given day.)
+- Which security shows unusually high trading concentration on a given day? Return both the **security** and the **date**.
+  - OR (Detect when one security dominates trading on a given day.)
 
 ## To Be
 
