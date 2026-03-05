@@ -10,6 +10,9 @@
 
 ## Analytical Intent
 
+- Which broker dealers operate outside the USA?
+- Which broker dealer appears first alphabetically?
+- Which broker dealers are registered in the USA?
 - Which individuals appear repeatedly in trade request activity across the dataset?
   - OR (When examining overall trading participation, which staff members seem unusually active?)
 - Based on observed trading patterns, which broker-dealers play the most significant role?

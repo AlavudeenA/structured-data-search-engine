@@ -9,7 +9,17 @@ import re
 from typing import Any
 from urllib import error, request
 
-from .database_connection import ALLOWED_TABLES, get_foreign_keys, get_schema_metadata
+from .app_constants import (
+    ALLOWED_TABLES,
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_SQL_MAX_OUTPUT_TOKENS,
+    DEFAULT_USER_AGENT,
+    GROQ_RESPONSES_API_URL,
+    HTTP_DEFAULT_TIMEOUT_SECONDS,
+    SQL_FALLBACK_TOP_N,
+    TEMPERATURE_ZERO,
+)
+from .database_connection import get_foreign_keys, get_schema_metadata
 
 
 def generate_sql_from_question(user_query: str) -> dict[str, str]:
@@ -34,7 +44,7 @@ def _generate_sql_with_groq(
     if not api_key:
         return None
 
-    model = os.getenv("GROQ_SQL_MODEL", "llama-3.3-70b-versatile")
+    model = os.getenv("GROQ_SQL_MODEL", DEFAULT_GROQ_MODEL)
     if debug:
         print("\n=== SQL GENERATION DEBUG ===")
         print("User Query:", user_query)
@@ -63,8 +73,8 @@ def _generate_sql_with_groq(
 
     payload: dict[str, Any] = {
         "model": model,
-        "temperature": 0,
-        "max_output_tokens": 200,
+        "temperature": TEMPERATURE_ZERO,
+        "max_output_tokens": DEFAULT_SQL_MAX_OUTPUT_TOKENS,
         "input": [
             {
                 "role": "system",
@@ -80,18 +90,18 @@ def _generate_sql_with_groq(
     }
 
     req = request.Request(
-        url="https://api.groq.com/openai/v1/responses",
+        url=GROQ_RESPONSES_API_URL,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "Compliance-Data-Assistant/1.0",
+            "User-Agent": DEFAULT_USER_AGENT,
         },
         method="POST",
     )
 
     try:
-        with request.urlopen(req, timeout=20) as resp:
+        with request.urlopen(req, timeout=HTTP_DEFAULT_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             if debug:
                 print("\nRAW LLM RESPONSE:")
@@ -140,11 +150,11 @@ def _generate_sql_fallback(user_query: str) -> dict[str, str]:
     table = next(iter(ALLOWED_TABLES), "")
     if table:
         return {
-            "sql": f"SELECT TOP 100 * FROM {table}",
+            "sql": f"SELECT TOP {SQL_FALLBACK_TOP_N} * FROM {table}",
             "reason": "Fallback generic query when LLM generation fails.",
         }
     return {
-        "sql": "SELECT TOP 100 TABLE_NAME FROM INFORMATION_SCHEMA.TABLES",
+        "sql": f"SELECT TOP {SQL_FALLBACK_TOP_N} TABLE_NAME FROM INFORMATION_SCHEMA.TABLES",
         "reason": "Fallback placeholder query when LLM generation fails.",
     }
 

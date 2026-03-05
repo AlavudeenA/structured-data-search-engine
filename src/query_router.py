@@ -10,9 +10,21 @@ from dataclasses import dataclass
 from typing import Any
 from urllib import error, request
 
-
-STRUCTURED_QUERY = "structured_query"
-ANALYTICAL_QUERY = "analytical_query"
+from .app_constants import (
+    ANALYTICAL_TERMS,
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_USER_AGENT,
+    GROQ_RESPONSES_API_URL,
+    HTTP_INTENT_TIMEOUT_SECONDS,
+    INTENT_ANALYTICAL_QUERY,
+    INTENT_CONFIDENCE_CLAMP_DEFAULT,
+    INTENT_FALLBACK_COMPARATIVE_CONFIDENCE,
+    INTENT_FALLBACK_DEFAULT_CONFIDENCE,
+    INTENT_REASON_MAX_WORDS,
+    INTENT_STRUCTURED_QUERY,
+    STRUCTURED_TERMS,
+    TEMPERATURE_ZERO,
+)
 
 
 @dataclass(frozen=True)
@@ -23,49 +35,12 @@ class IntentDecision:
     source: str
 
 
-_ANALYTICAL_TERMS = {
-    "trend",
-    "pattern",
-    "patterns",
-    "anomaly",
-    "anomalies",
-    "forecast",
-    "correlation",
-    "relationship",
-    "compare",
-    "comparison",
-    "over time",
-    "change",
-    "increase",
-    "decrease",
-    "distribution",
-    "why",
-    "explain",
-    "insight",
-    "behavior",
-}
-
-_STRUCTURED_TERMS = {
-    "show",
-    "list",
-    "count",
-    "how many",
-    "display",
-    "get",
-    "retrieve",
-    "select",
-    "where",
-    "group by",
-    "order by",
-}
-
-
 def route_query(user_query: str) -> IntentDecision:
     """Classify query intent as structured or analytical."""
     query = (user_query or "").strip()
     if not query:
         return IntentDecision(
-            intent=ANALYTICAL_QUERY,
+            intent=INTENT_ANALYTICAL_QUERY,
             confidence=0.0,
             reason="Empty query. Defaulting to analytical path.",
             source="fallback_rules",
@@ -83,19 +58,19 @@ def _classify_with_groq(query: str) -> IntentDecision | None:
     if not api_key:
         return None
 
-    model = os.getenv("GROQ_INTENT_MODEL", "llama-3.3-70b-versatile")
+    model = os.getenv("GROQ_INTENT_MODEL", DEFAULT_GROQ_MODEL)
     system_prompt = (
         "Classify query intent for data question routing.\n"
         "Return strict JSON with keys: intent, confidence, reason.\n"
-        "intent must be exactly one of: structured_query, analytical_query.\n"
+        f"intent must be exactly one of: {INTENT_STRUCTURED_QUERY}, {INTENT_ANALYTICAL_QUERY}.\n"
         "structured_query means direct, concrete table lookup/aggregation expressible in SQL.\n"
         "analytical_query means exploratory, insight-oriented, trend/anomaly/comparative reasoning.\n"
-        "Keep reason under 20 words."
+        f"Keep reason under {INTENT_REASON_MAX_WORDS} words."
     )
 
     payload: dict[str, Any] = {
         "model": model,
-        "temperature": 0,
+        "temperature": TEMPERATURE_ZERO,
         "input": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": query},
@@ -103,18 +78,18 @@ def _classify_with_groq(query: str) -> IntentDecision | None:
     }
 
     req = request.Request(
-        url="https://api.groq.com/openai/v1/responses",
+        url=GROQ_RESPONSES_API_URL,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "Compliance-Data-Assistant/1.0",
+            "User-Agent": DEFAULT_USER_AGENT,
         },
         method="POST",
     )
 
     try:
-        with request.urlopen(req, timeout=15) as resp:
+        with request.urlopen(req, timeout=HTTP_INTENT_TIMEOUT_SECONDS) as resp:
             raw = json.loads(resp.read().decode("utf-8"))
             message = _extract_response_text(raw)
             parsed = json.loads(message)
@@ -125,7 +100,7 @@ def _classify_with_groq(query: str) -> IntentDecision | None:
     reason = str(parsed.get("reason", "LLM intent classification.")).strip()
     confidence = _clamp_confidence(parsed.get("confidence"))
 
-    if intent not in {STRUCTURED_QUERY, ANALYTICAL_QUERY}:
+    if intent not in {INTENT_STRUCTURED_QUERY, INTENT_ANALYTICAL_QUERY}:
         return None
 
     return IntentDecision(
@@ -141,26 +116,26 @@ def _fallback_rule_classifier(query: str) -> IntentDecision:
 
     if any(k in text for k in [" vs ", " versus ", " compared to ", " compared with "]):
         return IntentDecision(
-            intent=ANALYTICAL_QUERY,
-            confidence=0.7,
+            intent=INTENT_ANALYTICAL_QUERY,
+            confidence=INTENT_FALLBACK_COMPARATIVE_CONFIDENCE,
             reason="Comparative query detected.",
             source="fallback_rules",
         )
 
-    analytical_hits = sum(1 for term in _ANALYTICAL_TERMS if term in text)
-    structured_hits = sum(1 for term in _STRUCTURED_TERMS if term in text)
+    analytical_hits = sum(1 for term in ANALYTICAL_TERMS if term in text)
+    structured_hits = sum(1 for term in STRUCTURED_TERMS if term in text)
 
     if analytical_hits > structured_hits:
         return IntentDecision(
-            intent=ANALYTICAL_QUERY,
-            confidence=0.66,
+            intent=INTENT_ANALYTICAL_QUERY,
+            confidence=INTENT_FALLBACK_DEFAULT_CONFIDENCE,
             reason="Analytical terms dominate query wording.",
             source="fallback_rules",
         )
 
     return IntentDecision(
-        intent=STRUCTURED_QUERY,
-        confidence=0.66,
+        intent=INTENT_STRUCTURED_QUERY,
+        confidence=INTENT_FALLBACK_DEFAULT_CONFIDENCE,
         reason="Structured retrieval/aggregation terms dominate query wording.",
         source="fallback_rules",
     )
@@ -170,7 +145,7 @@ def _clamp_confidence(value: Any) -> float:
     try:
         val = float(value)
     except (TypeError, ValueError):
-        return 0.5
+        return INTENT_CONFIDENCE_CLAMP_DEFAULT
     return max(0.0, min(1.0, val))
 
 

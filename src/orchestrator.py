@@ -7,6 +7,14 @@ import json
 import sys
 from typing import Any
 
+from .app_constants import (
+    CONFIDENCE_LOW_THRESHOLD,
+    DEFAULT_ANALYTICAL_MIN_SCORE,
+    DEFAULT_ANALYTICAL_TOP_K,
+    DEFAULT_ANALYTICAL_TOP_K_PER_TYPE,
+    FORCED_ANALYTICAL_TOP_K,
+    FORCED_ANALYTICAL_TOP_K_PER_TYPE,
+)
 from .analytical_retriever import retrieve_analytical_context
 from .intent_router_service import detect_intent
 from .result_summarizer import summarize_result
@@ -19,13 +27,37 @@ def handle_user_query(
     capsule_type_filter: str | None = None,
     entity_filter: str | None = None,
     capsule_topic_filter: str | None = None,
+    force_analytical: bool = False,
 ) -> dict[str, Any]:
     """Run the hybrid flow for a user question."""
     intent_data = detect_intent(user_query)
     intent = intent_data["intent"]
     confidence = float(intent_data.get("confidence", 0.0))
 
-    if confidence < 0.3:
+    if force_analytical:
+        analytical = retrieve_analytical_context(
+            user_query,
+            top_k=FORCED_ANALYTICAL_TOP_K,
+            min_score=DEFAULT_ANALYTICAL_MIN_SCORE,
+            top_k_per_type=FORCED_ANALYTICAL_TOP_K_PER_TYPE,
+            capsule_type=capsule_type_filter,
+            entity=entity_filter,
+            capsule_topic=capsule_topic_filter,
+        )
+        return {
+            "intent": {
+                **intent_data,
+                "forced_route": "analytical_query",
+            },
+            "route": analytical["route"],
+            "retrieval": {
+                "hits": analytical["hits"],
+                "supporting": analytical.get("supporting", {}),
+            },
+            "answer": analytical["answer"],
+        }
+
+    if confidence < CONFIDENCE_LOW_THRESHOLD:
         return {
             "intent": intent_data,
             "route": "invalid_query",
@@ -49,9 +81,9 @@ def handle_user_query(
 
     analytical = retrieve_analytical_context(
         user_query,
-        top_k=5,
-        min_score=0.2,
-        top_k_per_type=3,
+        top_k=DEFAULT_ANALYTICAL_TOP_K,
+        min_score=DEFAULT_ANALYTICAL_MIN_SCORE,
+        top_k_per_type=DEFAULT_ANALYTICAL_TOP_K_PER_TYPE,
         capsule_type=capsule_type_filter,
         entity=entity_filter,
         capsule_topic=capsule_topic_filter,

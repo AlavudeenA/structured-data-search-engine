@@ -8,14 +8,22 @@ import os
 from typing import Any
 from urllib import error, request
 
+from .app_constants import (
+    DEFAULT_CALL_LLM_MAX_OUTPUT_TOKENS,
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_USER_AGENT,
+    GROQ_RESPONSES_API_URL,
+    HTTP_LLM_SERVICE_TIMEOUT_SECONDS,
+    DEFAULT_ANALYTICAL_TEMPERATURE,
+)
 
 def call_llm(
     prompt: str,
     system_prompt: str = "You are a precise analytical assistant.",
     model_env_var: str = "GROQ_ANALYTICAL_MODEL",
-    default_model: str = "llama-3.3-70b-versatile",
-    temperature: float = 0.1,
-    max_output_tokens: int = 300,
+    default_model: str = DEFAULT_GROQ_MODEL,
+    temperature: float = DEFAULT_ANALYTICAL_TEMPERATURE,
+    max_output_tokens: int = DEFAULT_CALL_LLM_MAX_OUTPUT_TOKENS,
 ) -> str | None:
     """Call Groq Responses API and return assistant text."""
     api_key = os.getenv("GROQ_API_KEY")
@@ -34,18 +42,18 @@ def call_llm(
     }
 
     req = request.Request(
-        url="https://api.groq.com/openai/v1/responses",
+        url=GROQ_RESPONSES_API_URL,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "Compliance-Data-Assistant/1.0",
+            "User-Agent": DEFAULT_USER_AGENT,
         },
         method="POST",
     )
 
     try:
-        with request.urlopen(req, timeout=25) as resp:
+        with request.urlopen(req, timeout=HTTP_LLM_SERVICE_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             text = _extract_response_text(body).strip()
     except (error.URLError, error.HTTPError, TimeoutError, KeyError, ValueError):
