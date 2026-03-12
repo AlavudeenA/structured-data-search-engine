@@ -1,0 +1,1456 @@
+USE [master]
+GO
+/****** Object:  Database [Compliance]    Script Date: 3/12/2026 10:47:57 PM ******/
+CREATE DATABASE [Compliance]
+ CONTAINMENT = NONE
+ ON  PRIMARY 
+( NAME = N'Compliance', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\DATA\Compliance.mdf' , SIZE = 8192KB , MAXSIZE = UNLIMITED, FILEGROWTH = 65536KB )
+ LOG ON 
+( NAME = N'Compliance_log', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\DATA\Compliance_log.ldf' , SIZE = 8192KB , MAXSIZE = 2048GB , FILEGROWTH = 65536KB )
+ WITH CATALOG_COLLATION = DATABASE_DEFAULT, LEDGER = OFF
+GO
+ALTER DATABASE [Compliance] SET COMPATIBILITY_LEVEL = 160
+GO
+IF (1 = FULLTEXTSERVICEPROPERTY('IsFullTextInstalled'))
+begin
+EXEC [Compliance].[dbo].[sp_fulltext_database] @action = 'enable'
+end
+GO
+ALTER DATABASE [Compliance] SET ANSI_NULL_DEFAULT OFF 
+GO
+ALTER DATABASE [Compliance] SET ANSI_NULLS OFF 
+GO
+ALTER DATABASE [Compliance] SET ANSI_PADDING OFF 
+GO
+ALTER DATABASE [Compliance] SET ANSI_WARNINGS OFF 
+GO
+ALTER DATABASE [Compliance] SET ARITHABORT OFF 
+GO
+ALTER DATABASE [Compliance] SET AUTO_CLOSE ON 
+GO
+ALTER DATABASE [Compliance] SET AUTO_SHRINK OFF 
+GO
+ALTER DATABASE [Compliance] SET AUTO_UPDATE_STATISTICS ON 
+GO
+ALTER DATABASE [Compliance] SET CURSOR_CLOSE_ON_COMMIT OFF 
+GO
+ALTER DATABASE [Compliance] SET CURSOR_DEFAULT  GLOBAL 
+GO
+ALTER DATABASE [Compliance] SET CONCAT_NULL_YIELDS_NULL OFF 
+GO
+ALTER DATABASE [Compliance] SET NUMERIC_ROUNDABORT OFF 
+GO
+ALTER DATABASE [Compliance] SET QUOTED_IDENTIFIER OFF 
+GO
+ALTER DATABASE [Compliance] SET RECURSIVE_TRIGGERS OFF 
+GO
+ALTER DATABASE [Compliance] SET  ENABLE_BROKER 
+GO
+ALTER DATABASE [Compliance] SET AUTO_UPDATE_STATISTICS_ASYNC OFF 
+GO
+ALTER DATABASE [Compliance] SET DATE_CORRELATION_OPTIMIZATION OFF 
+GO
+ALTER DATABASE [Compliance] SET TRUSTWORTHY OFF 
+GO
+ALTER DATABASE [Compliance] SET ALLOW_SNAPSHOT_ISOLATION OFF 
+GO
+ALTER DATABASE [Compliance] SET PARAMETERIZATION SIMPLE 
+GO
+ALTER DATABASE [Compliance] SET READ_COMMITTED_SNAPSHOT OFF 
+GO
+ALTER DATABASE [Compliance] SET HONOR_BROKER_PRIORITY OFF 
+GO
+ALTER DATABASE [Compliance] SET RECOVERY SIMPLE 
+GO
+ALTER DATABASE [Compliance] SET  MULTI_USER 
+GO
+ALTER DATABASE [Compliance] SET PAGE_VERIFY CHECKSUM  
+GO
+ALTER DATABASE [Compliance] SET DB_CHAINING OFF 
+GO
+ALTER DATABASE [Compliance] SET FILESTREAM( NON_TRANSACTED_ACCESS = OFF ) 
+GO
+ALTER DATABASE [Compliance] SET TARGET_RECOVERY_TIME = 60 SECONDS 
+GO
+ALTER DATABASE [Compliance] SET DELAYED_DURABILITY = DISABLED 
+GO
+ALTER DATABASE [Compliance] SET ACCELERATED_DATABASE_RECOVERY = OFF  
+GO
+ALTER DATABASE [Compliance] SET QUERY_STORE = ON
+GO
+ALTER DATABASE [Compliance] SET QUERY_STORE (OPERATION_MODE = READ_WRITE, CLEANUP_POLICY = (STALE_QUERY_THRESHOLD_DAYS = 30), DATA_FLUSH_INTERVAL_SECONDS = 900, INTERVAL_LENGTH_MINUTES = 60, MAX_STORAGE_SIZE_MB = 1000, QUERY_CAPTURE_MODE = AUTO, SIZE_BASED_CLEANUP_MODE = AUTO, MAX_PLANS_PER_QUERY = 200, WAIT_STATS_CAPTURE_MODE = ON)
+GO
+USE [Compliance]
+GO
+/****** Object:  Table [dbo].[Account]    Script Date: 3/12/2026 10:47:58 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Account](
+	[AccountID] [int] NOT NULL,
+	[EmployeeID] [int] NOT NULL,
+	[BrokerDealerID] [int] NOT NULL,
+	[AccountNumber] [varchar](50) NULL,
+	[AccountType] [varchar](50) NULL,
+	[OpenDate] [date] NULL,
+	[Status] [varchar](20) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[AccountID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[BrokerDealer]    Script Date: 3/12/2026 10:47:58 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[BrokerDealer](
+	[BrokerDealerID] [int] NOT NULL,
+	[BrokerDealerName] [varchar](200) NOT NULL,
+	[Country] [varchar](100) NULL,
+	[RegistrationNumber] [varchar](100) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[BrokerDealerID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Employee]    Script Date: 3/12/2026 10:47:58 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Employee](
+	[EmployeeID] [int] NOT NULL,
+	[EmployeeName] [varchar](100) NOT NULL,
+	[Department] [varchar](100) NULL,
+	[JobTitle] [varchar](100) NULL,
+	[HireDate] [date] NULL,
+	[Status] [varchar](20) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[EmployeeID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Trade]    Script Date: 3/12/2026 10:47:58 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Trade](
+	[TradeID] [int] NOT NULL,
+	[TradeRequestID] [int] NOT NULL,
+	[AccountID] [int] NOT NULL,
+	[TradeDate] [date] NULL,
+	[SecuritySymbol] [varchar](20) NULL,
+	[TradeType] [varchar](10) NULL,
+	[Quantity] [int] NULL,
+	[Price] [decimal](12, 2) NULL,
+	[TradeAmount] [decimal](15, 2) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[TradeID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[TradeRequest]    Script Date: 3/12/2026 10:47:58 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[TradeRequest](
+	[TradeRequestID] [int] NOT NULL,
+	[EmployeeID] [int] NOT NULL,
+	[RequestDate] [date] NULL,
+	[SecuritySymbol] [varchar](20) NULL,
+	[TradeType] [varchar](10) NULL,
+	[Quantity] [int] NULL,
+	[Status] [varchar](20) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[TradeRequestID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (1, 1, 1, N'ACC1', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (2, 2, 2, N'ACC2', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (3, 3, 3, N'ACC3', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (4, 4, 4, N'ACC4', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (5, 5, 5, N'ACC5', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (6, 6, 1, N'ACC6', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (7, 7, 2, N'ACC7', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (8, 8, 3, N'ACC8', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (9, 9, 4, N'ACC9', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (10, 10, 5, N'ACC10', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (11, 11, 1, N'ACC11', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (12, 12, 2, N'ACC12', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (13, 13, 3, N'ACC13', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (14, 14, 4, N'ACC14', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (15, 15, 5, N'ACC15', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (16, 16, 1, N'ACC16', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (17, 17, 2, N'ACC17', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (18, 18, 3, N'ACC18', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (19, 19, 4, N'ACC19', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (20, 20, 5, N'ACC20', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (21, 1, 1, N'ACC21', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (22, 2, 2, N'ACC22', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (23, 3, 3, N'ACC23', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (24, 4, 4, N'ACC24', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (25, 5, 5, N'ACC25', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (26, 6, 1, N'ACC26', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (27, 7, 2, N'ACC27', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (28, 8, 3, N'ACC28', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (29, 9, 4, N'ACC29', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (30, 10, 5, N'ACC30', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (31, 11, 1, N'ACC31', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (32, 12, 2, N'ACC32', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (33, 13, 3, N'ACC33', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (34, 14, 4, N'ACC34', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (35, 15, 5, N'ACC35', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (36, 16, 1, N'ACC36', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (37, 17, 2, N'ACC37', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (38, 18, 3, N'ACC38', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (39, 19, 4, N'ACC39', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Account] ([AccountID], [EmployeeID], [BrokerDealerID], [AccountNumber], [AccountType], [OpenDate], [Status]) VALUES (40, 20, 5, N'ACC40', N'Individual', CAST(N'2022-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[BrokerDealer] ([BrokerDealerID], [BrokerDealerName], [Country], [RegistrationNumber]) VALUES (1, N'Fidelity', N'USA', N'FD123')
+GO
+INSERT [dbo].[BrokerDealer] ([BrokerDealerID], [BrokerDealerName], [Country], [RegistrationNumber]) VALUES (2, N'Charles Schwab', N'USA', N'CS456')
+GO
+INSERT [dbo].[BrokerDealer] ([BrokerDealerID], [BrokerDealerName], [Country], [RegistrationNumber]) VALUES (3, N'Morgan Stanley', N'USA', N'MS789')
+GO
+INSERT [dbo].[BrokerDealer] ([BrokerDealerID], [BrokerDealerName], [Country], [RegistrationNumber]) VALUES (4, N'ETrade', N'USA', N'ET111')
+GO
+INSERT [dbo].[BrokerDealer] ([BrokerDealerID], [BrokerDealerName], [Country], [RegistrationNumber]) VALUES (5, N'Robinhood', N'USA', N'RH222')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (1, N'John Smith', N'Investment Banking', N'Analyst', CAST(N'2021-01-10' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (2, N'Sarah Johnson', N'Compliance', N'Manager', CAST(N'2020-03-11' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (3, N'David Lee', N'Technology', N'Engineer', CAST(N'2019-04-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (4, N'Michael Brown', N'Trading', N'Trader', CAST(N'2018-02-05' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (5, N'Emily Davis', N'Risk', N'Analyst', CAST(N'2022-07-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (6, N'Daniel Wilson', N'Technology', N'Engineer', CAST(N'2021-08-15' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (7, N'Olivia Martinez', N'Investment Banking', N'Associate', CAST(N'2020-05-20' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (8, N'James Anderson', N'Trading', N'Trader', CAST(N'2019-11-10' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (9, N'Sophia Taylor', N'Compliance', N'Officer', CAST(N'2021-02-18' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (10, N'William Thomas', N'Risk', N'Manager', CAST(N'2017-09-09' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (11, N'Benjamin Moore', N'Technology', N'Engineer', CAST(N'2020-01-01' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (12, N'Mia Jackson', N'Investment Banking', N'Analyst', CAST(N'2022-04-21' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (13, N'Lucas White', N'Compliance', N'Officer', CAST(N'2021-06-15' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (14, N'Charlotte Harris', N'Risk', N'Analyst', CAST(N'2023-01-11' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (15, N'Henry Martin', N'Trading', N'Trader', CAST(N'2018-03-17' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (16, N'Amelia Thompson', N'Technology', N'Engineer', CAST(N'2019-10-30' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (17, N'Alexander Garcia', N'Investment Banking', N'Associate', CAST(N'2020-08-25' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (18, N'Evelyn Martinez', N'Compliance', N'Manager', CAST(N'2017-12-12' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (19, N'Jack Robinson', N'Risk', N'Analyst', CAST(N'2021-07-07' AS Date), N'Active')
+GO
+INSERT [dbo].[Employee] ([EmployeeID], [EmployeeName], [Department], [JobTitle], [HireDate], [Status]) VALUES (20, N'Harper Clark', N'Trading', N'Trader', CAST(N'2022-09-19' AS Date), N'Active')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (3, 3, CAST(N'2026-03-01' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (4, 4, CAST(N'2026-02-28' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (8, 8, CAST(N'2026-02-24' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (9, 9, CAST(N'2026-02-23' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (13, 13, CAST(N'2026-02-19' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (14, 14, CAST(N'2026-02-18' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (18, 18, CAST(N'2026-02-14' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (19, 19, CAST(N'2026-02-13' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (23, 3, CAST(N'2026-02-09' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (24, 4, CAST(N'2026-02-08' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (28, 8, CAST(N'2026-02-04' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (29, 9, CAST(N'2026-02-03' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (33, 13, CAST(N'2026-01-30' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (34, 14, CAST(N'2026-01-29' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (38, 18, CAST(N'2026-01-25' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (39, 19, CAST(N'2026-01-24' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (43, 3, CAST(N'2026-01-20' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (44, 4, CAST(N'2026-01-19' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (48, 8, CAST(N'2026-01-15' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (49, 9, CAST(N'2026-01-14' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (53, 13, CAST(N'2026-01-10' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (54, 14, CAST(N'2026-01-09' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (58, 18, CAST(N'2026-01-05' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (59, 19, CAST(N'2026-01-04' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (63, 3, CAST(N'2025-12-31' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (64, 4, CAST(N'2025-12-30' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (68, 8, CAST(N'2025-12-26' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (69, 9, CAST(N'2025-12-25' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (73, 13, CAST(N'2025-12-21' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (74, 14, CAST(N'2025-12-20' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (78, 18, CAST(N'2025-12-16' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (79, 19, CAST(N'2025-12-15' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (83, 3, CAST(N'2025-12-11' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (84, 4, CAST(N'2025-12-10' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (88, 8, CAST(N'2025-12-06' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (89, 9, CAST(N'2025-12-05' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (93, 13, CAST(N'2025-12-01' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (94, 14, CAST(N'2025-11-30' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (98, 18, CAST(N'2025-11-26' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (99, 19, CAST(N'2025-11-25' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (103, 3, CAST(N'2025-11-21' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (104, 4, CAST(N'2025-11-20' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (108, 8, CAST(N'2025-11-16' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (109, 9, CAST(N'2025-11-15' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (113, 13, CAST(N'2025-11-11' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (114, 14, CAST(N'2025-11-10' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (118, 18, CAST(N'2025-11-06' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (119, 19, CAST(N'2025-11-05' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (123, 3, CAST(N'2025-11-01' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (124, 4, CAST(N'2025-10-31' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (128, 8, CAST(N'2025-10-27' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (129, 9, CAST(N'2025-10-26' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (133, 13, CAST(N'2025-10-22' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (134, 14, CAST(N'2025-10-21' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (138, 18, CAST(N'2025-10-17' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (139, 19, CAST(N'2025-10-16' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (143, 3, CAST(N'2025-10-12' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (144, 4, CAST(N'2025-10-11' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (148, 8, CAST(N'2025-10-07' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (149, 9, CAST(N'2025-10-06' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (153, 13, CAST(N'2025-10-02' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (154, 14, CAST(N'2025-10-01' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (158, 18, CAST(N'2025-09-27' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (159, 19, CAST(N'2025-09-26' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (163, 3, CAST(N'2025-09-22' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (164, 4, CAST(N'2025-09-21' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (168, 8, CAST(N'2025-09-17' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (169, 9, CAST(N'2025-09-16' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (173, 13, CAST(N'2025-09-12' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (174, 14, CAST(N'2025-09-11' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (178, 18, CAST(N'2025-09-07' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (179, 19, CAST(N'2025-09-06' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (183, 3, CAST(N'2025-09-02' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (184, 4, CAST(N'2025-09-01' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (188, 8, CAST(N'2025-08-28' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (189, 9, CAST(N'2025-08-27' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (193, 13, CAST(N'2025-08-23' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (194, 14, CAST(N'2025-08-22' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (198, 18, CAST(N'2025-08-18' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (199, 19, CAST(N'2025-08-17' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (203, 3, CAST(N'2025-08-13' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (204, 4, CAST(N'2025-08-12' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (208, 8, CAST(N'2025-08-08' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (209, 9, CAST(N'2025-08-07' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (213, 13, CAST(N'2025-08-03' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (214, 14, CAST(N'2025-08-02' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (218, 18, CAST(N'2025-07-29' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (219, 19, CAST(N'2025-07-28' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (223, 3, CAST(N'2025-07-24' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (224, 4, CAST(N'2025-07-23' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (228, 8, CAST(N'2025-07-19' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (229, 9, CAST(N'2025-07-18' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (233, 13, CAST(N'2025-07-14' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (234, 14, CAST(N'2025-07-13' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (238, 18, CAST(N'2025-07-09' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (239, 19, CAST(N'2025-07-08' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (243, 3, CAST(N'2025-07-04' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (244, 4, CAST(N'2025-07-03' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (248, 8, CAST(N'2025-06-29' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (249, 9, CAST(N'2025-06-28' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (253, 13, CAST(N'2025-06-24' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (254, 14, CAST(N'2025-06-23' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (258, 18, CAST(N'2025-06-19' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (259, 19, CAST(N'2025-06-18' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (263, 3, CAST(N'2025-06-14' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (264, 4, CAST(N'2025-06-13' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (268, 8, CAST(N'2025-06-09' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (269, 9, CAST(N'2025-06-08' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (273, 13, CAST(N'2025-06-04' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (274, 14, CAST(N'2025-06-03' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (278, 18, CAST(N'2025-05-30' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (279, 19, CAST(N'2025-05-29' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (283, 3, CAST(N'2025-05-25' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (284, 4, CAST(N'2025-05-24' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (288, 8, CAST(N'2025-05-20' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (289, 9, CAST(N'2025-05-19' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (293, 13, CAST(N'2025-05-15' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (294, 14, CAST(N'2025-05-14' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (298, 18, CAST(N'2025-05-10' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (299, 19, CAST(N'2025-05-09' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (303, 3, CAST(N'2025-05-05' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (304, 4, CAST(N'2025-05-04' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (308, 8, CAST(N'2025-04-30' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (309, 9, CAST(N'2025-04-29' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (313, 13, CAST(N'2025-04-25' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (314, 14, CAST(N'2025-04-24' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (318, 18, CAST(N'2025-04-20' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (319, 19, CAST(N'2025-04-19' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (323, 3, CAST(N'2025-04-15' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (324, 4, CAST(N'2025-04-14' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (328, 8, CAST(N'2025-04-10' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (329, 9, CAST(N'2025-04-09' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (333, 13, CAST(N'2025-04-05' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (334, 14, CAST(N'2025-04-04' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (338, 18, CAST(N'2025-03-31' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (339, 19, CAST(N'2025-03-30' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (343, 3, CAST(N'2025-03-26' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (344, 4, CAST(N'2025-03-25' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (348, 8, CAST(N'2025-03-21' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (349, 9, CAST(N'2025-03-20' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (353, 13, CAST(N'2025-03-16' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (354, 14, CAST(N'2025-03-15' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (358, 18, CAST(N'2025-03-11' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (359, 19, CAST(N'2025-03-10' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (363, 3, CAST(N'2025-03-06' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (364, 4, CAST(N'2025-03-05' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (368, 8, CAST(N'2025-03-01' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (369, 9, CAST(N'2025-02-28' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (373, 13, CAST(N'2025-02-24' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (374, 14, CAST(N'2025-02-23' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (378, 18, CAST(N'2025-02-19' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (379, 19, CAST(N'2025-02-18' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (383, 3, CAST(N'2025-02-14' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (384, 4, CAST(N'2025-02-13' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (388, 8, CAST(N'2025-02-09' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (389, 9, CAST(N'2025-02-08' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (393, 13, CAST(N'2025-02-04' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (394, 14, CAST(N'2025-02-03' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (398, 18, CAST(N'2025-01-30' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (399, 19, CAST(N'2025-01-29' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (403, 3, CAST(N'2025-01-25' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (404, 4, CAST(N'2025-01-24' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (408, 8, CAST(N'2025-01-20' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (409, 9, CAST(N'2025-01-19' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (413, 13, CAST(N'2025-01-15' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (414, 14, CAST(N'2025-01-14' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (418, 18, CAST(N'2025-01-10' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (419, 19, CAST(N'2025-01-09' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (423, 3, CAST(N'2025-01-05' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (424, 4, CAST(N'2025-01-04' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (428, 8, CAST(N'2024-12-31' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (429, 9, CAST(N'2024-12-30' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (433, 13, CAST(N'2024-12-26' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (434, 14, CAST(N'2024-12-25' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (438, 18, CAST(N'2024-12-21' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (439, 19, CAST(N'2024-12-20' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (443, 3, CAST(N'2024-12-16' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (444, 4, CAST(N'2024-12-15' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (448, 8, CAST(N'2024-12-11' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (449, 9, CAST(N'2024-12-10' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (453, 13, CAST(N'2024-12-06' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (454, 14, CAST(N'2024-12-05' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (458, 18, CAST(N'2024-12-01' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (459, 19, CAST(N'2024-11-30' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (463, 3, CAST(N'2024-11-26' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (464, 4, CAST(N'2024-11-25' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (468, 8, CAST(N'2024-11-21' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (469, 9, CAST(N'2024-11-20' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (473, 13, CAST(N'2024-11-16' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (474, 14, CAST(N'2024-11-15' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (478, 18, CAST(N'2024-11-11' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (479, 19, CAST(N'2024-11-10' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (483, 3, CAST(N'2024-11-06' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (484, 4, CAST(N'2024-11-05' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (488, 8, CAST(N'2024-11-01' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (489, 9, CAST(N'2024-10-31' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (493, 13, CAST(N'2024-10-27' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (494, 14, CAST(N'2024-10-26' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (498, 18, CAST(N'2024-10-22' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (499, 19, CAST(N'2024-10-21' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (503, 3, CAST(N'2024-10-17' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (504, 4, CAST(N'2024-10-16' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (505, 5, CAST(N'2024-10-15' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (508, 8, CAST(N'2024-10-12' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (509, 9, CAST(N'2024-10-11' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (510, 10, CAST(N'2024-10-10' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (513, 13, CAST(N'2024-10-07' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (514, 14, CAST(N'2024-10-06' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (515, 15, CAST(N'2024-10-05' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (518, 18, CAST(N'2024-10-02' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (519, 19, CAST(N'2024-10-01' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (520, 20, CAST(N'2024-09-30' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (523, 3, CAST(N'2024-09-27' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (524, 4, CAST(N'2024-09-26' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (525, 5, CAST(N'2024-09-25' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (528, 8, CAST(N'2024-09-22' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (529, 9, CAST(N'2024-09-21' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (530, 10, CAST(N'2024-09-20' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (533, 13, CAST(N'2024-09-17' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (534, 14, CAST(N'2024-09-16' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (535, 15, CAST(N'2024-09-15' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (538, 18, CAST(N'2024-09-12' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (539, 19, CAST(N'2024-09-11' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (540, 20, CAST(N'2024-09-10' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (543, 3, CAST(N'2024-09-07' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (544, 4, CAST(N'2024-09-06' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (545, 5, CAST(N'2024-09-05' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (548, 8, CAST(N'2024-09-02' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (549, 9, CAST(N'2024-09-01' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (550, 10, CAST(N'2024-08-31' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (553, 13, CAST(N'2024-08-28' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (554, 14, CAST(N'2024-08-27' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (555, 15, CAST(N'2024-08-26' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (558, 18, CAST(N'2024-08-23' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (559, 19, CAST(N'2024-08-22' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (560, 20, CAST(N'2024-08-21' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (563, 3, CAST(N'2024-08-18' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (564, 4, CAST(N'2024-08-17' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (565, 5, CAST(N'2024-08-16' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (568, 8, CAST(N'2024-08-13' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (569, 9, CAST(N'2024-08-12' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (570, 10, CAST(N'2024-08-11' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (573, 13, CAST(N'2024-08-08' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (574, 14, CAST(N'2024-08-07' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (575, 15, CAST(N'2024-08-06' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (578, 18, CAST(N'2024-08-03' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (579, 19, CAST(N'2024-08-02' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (580, 20, CAST(N'2024-08-01' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (583, 3, CAST(N'2024-07-29' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (584, 4, CAST(N'2024-07-28' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (585, 5, CAST(N'2024-07-27' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (588, 8, CAST(N'2024-07-24' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (589, 9, CAST(N'2024-07-23' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (590, 10, CAST(N'2024-07-22' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (593, 13, CAST(N'2024-07-19' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (594, 14, CAST(N'2024-07-18' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (595, 15, CAST(N'2024-07-17' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (598, 18, CAST(N'2024-07-14' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (599, 19, CAST(N'2024-07-13' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (600, 20, CAST(N'2024-07-12' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (603, 3, CAST(N'2024-07-09' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (604, 4, CAST(N'2024-07-08' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (605, 5, CAST(N'2024-07-07' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (608, 8, CAST(N'2024-07-04' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (609, 9, CAST(N'2024-07-03' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (610, 10, CAST(N'2024-07-02' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (613, 13, CAST(N'2024-06-29' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (614, 14, CAST(N'2024-06-28' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (615, 15, CAST(N'2024-06-27' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (618, 18, CAST(N'2024-06-24' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (619, 19, CAST(N'2024-06-23' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (620, 20, CAST(N'2024-06-22' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (623, 3, CAST(N'2024-06-19' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (624, 4, CAST(N'2024-06-18' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (625, 5, CAST(N'2024-06-17' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (628, 8, CAST(N'2024-06-14' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (629, 9, CAST(N'2024-06-13' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (630, 10, CAST(N'2024-06-12' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (633, 13, CAST(N'2024-06-09' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (634, 14, CAST(N'2024-06-08' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (635, 15, CAST(N'2024-06-07' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (638, 18, CAST(N'2024-06-04' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (639, 19, CAST(N'2024-06-03' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (640, 20, CAST(N'2024-06-02' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (643, 3, CAST(N'2024-05-30' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (644, 4, CAST(N'2024-05-29' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (645, 5, CAST(N'2024-05-28' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (648, 8, CAST(N'2024-05-25' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (649, 9, CAST(N'2024-05-24' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (650, 10, CAST(N'2024-05-23' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (653, 13, CAST(N'2024-05-20' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (654, 14, CAST(N'2024-05-19' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (655, 15, CAST(N'2024-05-18' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (658, 18, CAST(N'2024-05-15' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (659, 19, CAST(N'2024-05-14' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (660, 20, CAST(N'2024-05-13' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (663, 3, CAST(N'2024-05-10' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (664, 4, CAST(N'2024-05-09' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (665, 5, CAST(N'2024-05-08' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (668, 8, CAST(N'2024-05-05' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (669, 9, CAST(N'2024-05-04' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (670, 10, CAST(N'2024-05-03' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (673, 13, CAST(N'2024-04-30' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (674, 14, CAST(N'2024-04-29' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (675, 15, CAST(N'2024-04-28' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (678, 18, CAST(N'2024-04-25' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (679, 19, CAST(N'2024-04-24' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (680, 20, CAST(N'2024-04-23' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (683, 3, CAST(N'2024-04-20' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (684, 4, CAST(N'2024-04-19' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (685, 5, CAST(N'2024-04-18' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (688, 8, CAST(N'2024-04-15' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (689, 9, CAST(N'2024-04-14' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (690, 10, CAST(N'2024-04-13' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (693, 13, CAST(N'2024-04-10' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (694, 14, CAST(N'2024-04-09' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (695, 15, CAST(N'2024-04-08' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (698, 18, CAST(N'2024-04-05' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (699, 19, CAST(N'2024-04-04' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (700, 20, CAST(N'2024-04-03' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (703, 3, CAST(N'2024-03-31' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (704, 4, CAST(N'2024-03-30' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (705, 5, CAST(N'2024-03-29' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (708, 8, CAST(N'2024-03-26' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (709, 9, CAST(N'2024-03-25' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (710, 10, CAST(N'2024-03-24' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (713, 13, CAST(N'2024-03-21' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (714, 14, CAST(N'2024-03-20' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (715, 15, CAST(N'2024-03-19' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (718, 18, CAST(N'2024-03-16' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (719, 19, CAST(N'2024-03-15' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (720, 20, CAST(N'2024-03-14' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (723, 3, CAST(N'2024-03-11' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (724, 4, CAST(N'2024-03-10' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (725, 5, CAST(N'2024-03-09' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (728, 8, CAST(N'2024-03-06' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (729, 9, CAST(N'2024-03-05' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (730, 10, CAST(N'2024-03-04' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (733, 13, CAST(N'2024-03-01' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (734, 14, CAST(N'2024-02-29' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (735, 15, CAST(N'2024-02-28' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (738, 18, CAST(N'2024-02-25' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (739, 19, CAST(N'2024-02-24' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (740, 20, CAST(N'2024-02-23' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (743, 3, CAST(N'2024-02-20' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (744, 4, CAST(N'2024-02-19' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (745, 5, CAST(N'2024-02-18' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (748, 8, CAST(N'2024-02-15' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (749, 9, CAST(N'2024-02-14' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (750, 10, CAST(N'2024-02-13' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (751, 11, CAST(N'2024-02-12' AS Date), N'AAPL', N'BUY', 11, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (753, 13, CAST(N'2024-02-10' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (754, 14, CAST(N'2024-02-09' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (755, 15, CAST(N'2024-02-08' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (756, 16, CAST(N'2024-02-07' AS Date), N'AAPL', N'SELL', 16, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (758, 18, CAST(N'2024-02-05' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (759, 19, CAST(N'2024-02-04' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (760, 20, CAST(N'2024-02-03' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (761, 1, CAST(N'2024-02-02' AS Date), N'AAPL', N'BUY', 21, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (763, 3, CAST(N'2024-01-31' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (764, 4, CAST(N'2024-01-30' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (765, 5, CAST(N'2024-01-29' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (766, 6, CAST(N'2024-01-28' AS Date), N'AAPL', N'SELL', 26, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (768, 8, CAST(N'2024-01-26' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (769, 9, CAST(N'2024-01-25' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (770, 10, CAST(N'2024-01-24' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (771, 11, CAST(N'2024-01-23' AS Date), N'AAPL', N'BUY', 31, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (773, 13, CAST(N'2024-01-21' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (774, 14, CAST(N'2024-01-20' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (775, 15, CAST(N'2024-01-19' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (776, 16, CAST(N'2024-01-18' AS Date), N'AAPL', N'SELL', 36, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (778, 18, CAST(N'2024-01-16' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (779, 19, CAST(N'2024-01-15' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (780, 20, CAST(N'2024-01-14' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (781, 1, CAST(N'2024-01-13' AS Date), N'AAPL', N'BUY', 41, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (783, 3, CAST(N'2024-01-11' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (784, 4, CAST(N'2024-01-10' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (785, 5, CAST(N'2024-01-09' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (786, 6, CAST(N'2024-01-08' AS Date), N'AAPL', N'SELL', 46, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (788, 8, CAST(N'2024-01-06' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (789, 9, CAST(N'2024-01-05' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (790, 10, CAST(N'2024-01-04' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (791, 11, CAST(N'2024-01-03' AS Date), N'AAPL', N'BUY', 51, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (793, 13, CAST(N'2024-01-01' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (794, 14, CAST(N'2023-12-31' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (795, 15, CAST(N'2023-12-30' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (796, 16, CAST(N'2023-12-29' AS Date), N'AAPL', N'SELL', 56, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (798, 18, CAST(N'2023-12-27' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (799, 19, CAST(N'2023-12-26' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (800, 20, CAST(N'2023-12-25' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (801, 1, CAST(N'2023-12-24' AS Date), N'AAPL', N'BUY', 11, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (803, 3, CAST(N'2023-12-22' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (804, 4, CAST(N'2023-12-21' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (805, 5, CAST(N'2023-12-20' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (806, 6, CAST(N'2023-12-19' AS Date), N'AAPL', N'SELL', 16, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (808, 8, CAST(N'2023-12-17' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (809, 9, CAST(N'2023-12-16' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (810, 10, CAST(N'2023-12-15' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (811, 11, CAST(N'2023-12-14' AS Date), N'AAPL', N'BUY', 21, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (813, 13, CAST(N'2023-12-12' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (814, 14, CAST(N'2023-12-11' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (815, 15, CAST(N'2023-12-10' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (816, 16, CAST(N'2023-12-09' AS Date), N'AAPL', N'SELL', 26, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (818, 18, CAST(N'2023-12-07' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (819, 19, CAST(N'2023-12-06' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (820, 20, CAST(N'2023-12-05' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (821, 1, CAST(N'2023-12-04' AS Date), N'AAPL', N'BUY', 31, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (823, 3, CAST(N'2023-12-02' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (824, 4, CAST(N'2023-12-01' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (825, 5, CAST(N'2023-11-30' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (826, 6, CAST(N'2023-11-29' AS Date), N'AAPL', N'SELL', 36, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (828, 8, CAST(N'2023-11-27' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (829, 9, CAST(N'2023-11-26' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (830, 10, CAST(N'2023-11-25' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (831, 11, CAST(N'2023-11-24' AS Date), N'AAPL', N'BUY', 41, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (833, 13, CAST(N'2023-11-22' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (834, 14, CAST(N'2023-11-21' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (835, 15, CAST(N'2023-11-20' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (836, 16, CAST(N'2023-11-19' AS Date), N'AAPL', N'SELL', 46, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (838, 18, CAST(N'2023-11-17' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (839, 19, CAST(N'2023-11-16' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (840, 20, CAST(N'2023-11-15' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (841, 1, CAST(N'2023-11-14' AS Date), N'AAPL', N'BUY', 51, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (843, 3, CAST(N'2023-11-12' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (844, 4, CAST(N'2023-11-11' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (845, 5, CAST(N'2023-11-10' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (846, 6, CAST(N'2023-11-09' AS Date), N'AAPL', N'SELL', 56, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (848, 8, CAST(N'2023-11-07' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (849, 9, CAST(N'2023-11-06' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (850, 10, CAST(N'2023-11-05' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (851, 11, CAST(N'2023-11-04' AS Date), N'AAPL', N'BUY', 11, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (853, 13, CAST(N'2023-11-02' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (854, 14, CAST(N'2023-11-01' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (855, 15, CAST(N'2023-10-31' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (856, 16, CAST(N'2023-10-30' AS Date), N'AAPL', N'SELL', 16, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (858, 18, CAST(N'2023-10-28' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (859, 19, CAST(N'2023-10-27' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (860, 20, CAST(N'2023-10-26' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (861, 1, CAST(N'2023-10-25' AS Date), N'AAPL', N'BUY', 21, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (863, 3, CAST(N'2023-10-23' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (864, 4, CAST(N'2023-10-22' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (865, 5, CAST(N'2023-10-21' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (866, 6, CAST(N'2023-10-20' AS Date), N'AAPL', N'SELL', 26, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (868, 8, CAST(N'2023-10-18' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (869, 9, CAST(N'2023-10-17' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (870, 10, CAST(N'2023-10-16' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (871, 11, CAST(N'2023-10-15' AS Date), N'AAPL', N'BUY', 31, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (873, 13, CAST(N'2023-10-13' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (874, 14, CAST(N'2023-10-12' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (875, 15, CAST(N'2023-10-11' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (876, 16, CAST(N'2023-10-10' AS Date), N'AAPL', N'SELL', 36, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (878, 18, CAST(N'2023-10-08' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (879, 19, CAST(N'2023-10-07' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (880, 20, CAST(N'2023-10-06' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (881, 1, CAST(N'2023-10-05' AS Date), N'AAPL', N'BUY', 41, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (883, 3, CAST(N'2023-10-03' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (884, 4, CAST(N'2023-10-02' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (885, 5, CAST(N'2023-10-01' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (886, 6, CAST(N'2023-09-30' AS Date), N'AAPL', N'SELL', 46, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (888, 8, CAST(N'2023-09-28' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (889, 9, CAST(N'2023-09-27' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (890, 10, CAST(N'2023-09-26' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (891, 11, CAST(N'2023-09-25' AS Date), N'AAPL', N'BUY', 51, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (893, 13, CAST(N'2023-09-23' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (894, 14, CAST(N'2023-09-22' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (895, 15, CAST(N'2023-09-21' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (896, 16, CAST(N'2023-09-20' AS Date), N'AAPL', N'SELL', 56, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (898, 18, CAST(N'2023-09-18' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (899, 19, CAST(N'2023-09-17' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (900, 20, CAST(N'2023-09-16' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (901, 1, CAST(N'2023-09-15' AS Date), N'AAPL', N'BUY', 11, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (903, 3, CAST(N'2023-09-13' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (904, 4, CAST(N'2023-09-12' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (905, 5, CAST(N'2023-09-11' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (906, 6, CAST(N'2023-09-10' AS Date), N'AAPL', N'SELL', 16, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (908, 8, CAST(N'2023-09-08' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (909, 9, CAST(N'2023-09-07' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (910, 10, CAST(N'2023-09-06' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (911, 11, CAST(N'2023-09-05' AS Date), N'AAPL', N'BUY', 21, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (913, 13, CAST(N'2023-09-03' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (914, 14, CAST(N'2023-09-02' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (915, 15, CAST(N'2023-09-01' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (916, 16, CAST(N'2023-08-31' AS Date), N'AAPL', N'SELL', 26, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (918, 18, CAST(N'2023-08-29' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (919, 19, CAST(N'2023-08-28' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (920, 20, CAST(N'2023-08-27' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (921, 1, CAST(N'2023-08-26' AS Date), N'AAPL', N'BUY', 31, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (923, 3, CAST(N'2023-08-24' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (924, 4, CAST(N'2023-08-23' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (925, 5, CAST(N'2023-08-22' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (926, 6, CAST(N'2023-08-21' AS Date), N'AAPL', N'SELL', 36, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (928, 8, CAST(N'2023-08-19' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (929, 9, CAST(N'2023-08-18' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (930, 10, CAST(N'2023-08-17' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (931, 11, CAST(N'2023-08-16' AS Date), N'AAPL', N'BUY', 41, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (933, 13, CAST(N'2023-08-14' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (934, 14, CAST(N'2023-08-13' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (935, 15, CAST(N'2023-08-12' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (936, 16, CAST(N'2023-08-11' AS Date), N'AAPL', N'SELL', 46, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (938, 18, CAST(N'2023-08-09' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (939, 19, CAST(N'2023-08-08' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (940, 20, CAST(N'2023-08-07' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (941, 1, CAST(N'2023-08-06' AS Date), N'AAPL', N'BUY', 51, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (943, 3, CAST(N'2023-08-04' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (944, 4, CAST(N'2023-08-03' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (945, 5, CAST(N'2023-08-02' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (946, 6, CAST(N'2023-08-01' AS Date), N'AAPL', N'SELL', 56, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (948, 8, CAST(N'2023-07-30' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (949, 9, CAST(N'2023-07-29' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (950, 10, CAST(N'2023-07-28' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (951, 11, CAST(N'2023-07-27' AS Date), N'AAPL', N'BUY', 11, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (953, 13, CAST(N'2023-07-25' AS Date), N'GOOG', N'BUY', 13, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (954, 14, CAST(N'2023-07-24' AS Date), N'TSLA', N'SELL', 14, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (955, 15, CAST(N'2023-07-23' AS Date), N'AMZN', N'BUY', 15, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (956, 16, CAST(N'2023-07-22' AS Date), N'AAPL', N'SELL', 16, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (958, 18, CAST(N'2023-07-20' AS Date), N'GOOG', N'SELL', 18, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (959, 19, CAST(N'2023-07-19' AS Date), N'TSLA', N'BUY', 19, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (960, 20, CAST(N'2023-07-18' AS Date), N'AMZN', N'SELL', 20, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (961, 1, CAST(N'2023-07-17' AS Date), N'AAPL', N'BUY', 21, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (963, 3, CAST(N'2023-07-15' AS Date), N'GOOG', N'BUY', 23, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (964, 4, CAST(N'2023-07-14' AS Date), N'TSLA', N'SELL', 24, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (965, 5, CAST(N'2023-07-13' AS Date), N'AMZN', N'BUY', 25, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (966, 6, CAST(N'2023-07-12' AS Date), N'AAPL', N'SELL', 26, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (968, 8, CAST(N'2023-07-10' AS Date), N'GOOG', N'SELL', 28, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (969, 9, CAST(N'2023-07-09' AS Date), N'TSLA', N'BUY', 29, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (970, 10, CAST(N'2023-07-08' AS Date), N'AMZN', N'SELL', 30, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (971, 11, CAST(N'2023-07-07' AS Date), N'AAPL', N'BUY', 31, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (973, 13, CAST(N'2023-07-05' AS Date), N'GOOG', N'BUY', 33, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (974, 14, CAST(N'2023-07-04' AS Date), N'TSLA', N'SELL', 34, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (975, 15, CAST(N'2023-07-03' AS Date), N'AMZN', N'BUY', 35, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (976, 16, CAST(N'2023-07-02' AS Date), N'AAPL', N'SELL', 36, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (978, 18, CAST(N'2023-06-30' AS Date), N'GOOG', N'SELL', 38, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (979, 19, CAST(N'2023-06-29' AS Date), N'TSLA', N'BUY', 39, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (980, 20, CAST(N'2023-06-28' AS Date), N'AMZN', N'SELL', 40, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (981, 1, CAST(N'2023-06-27' AS Date), N'AAPL', N'BUY', 41, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (983, 3, CAST(N'2023-06-25' AS Date), N'GOOG', N'BUY', 43, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (984, 4, CAST(N'2023-06-24' AS Date), N'TSLA', N'SELL', 44, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (985, 5, CAST(N'2023-06-23' AS Date), N'AMZN', N'BUY', 45, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (986, 6, CAST(N'2023-06-22' AS Date), N'AAPL', N'SELL', 46, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (988, 8, CAST(N'2023-06-20' AS Date), N'GOOG', N'SELL', 48, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (989, 9, CAST(N'2023-06-19' AS Date), N'TSLA', N'BUY', 49, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (990, 10, CAST(N'2023-06-18' AS Date), N'AMZN', N'SELL', 50, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (991, 11, CAST(N'2023-06-17' AS Date), N'AAPL', N'BUY', 51, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (993, 13, CAST(N'2023-06-15' AS Date), N'GOOG', N'BUY', 53, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (994, 14, CAST(N'2023-06-14' AS Date), N'TSLA', N'SELL', 54, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (995, 15, CAST(N'2023-06-13' AS Date), N'AMZN', N'BUY', 55, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (996, 16, CAST(N'2023-06-12' AS Date), N'AAPL', N'SELL', 56, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (998, 18, CAST(N'2023-06-10' AS Date), N'GOOG', N'SELL', 58, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (999, 19, CAST(N'2023-06-09' AS Date), N'TSLA', N'BUY', 59, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1000, 20, CAST(N'2023-06-08' AS Date), N'AMZN', N'SELL', 10, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1010, 1, CAST(N'2026-03-05' AS Date), N'GOOG', N'BUY', 120, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1011, 2, CAST(N'2026-03-05' AS Date), N'GOOG', N'SELL', 80, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1012, 3, CAST(N'2026-03-05' AS Date), N'GOOG', N'BUY', 95, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1013, 4, CAST(N'2026-03-05' AS Date), N'GOOG', N'BUY', 110, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1014, 5, CAST(N'2026-03-05' AS Date), N'GOOG', N'SELL', 105, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1015, 6, CAST(N'2026-03-05' AS Date), N'GOOG', N'BUY', 90, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1016, 7, CAST(N'2026-03-05' AS Date), N'GOOG', N'BUY', 85, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1017, 8, CAST(N'2026-03-05' AS Date), N'GOOG', N'SELL', 100, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1018, 9, CAST(N'2026-03-05' AS Date), N'GOOG', N'BUY', 115, N'Approved')
+GO
+INSERT [dbo].[TradeRequest] ([TradeRequestID], [EmployeeID], [RequestDate], [SecuritySymbol], [TradeType], [Quantity], [Status]) VALUES (1019, 10, CAST(N'2026-03-05' AS Date), N'GOOG', N'BUY', 130, N'Approved')
+GO
+ALTER TABLE [dbo].[Account]  WITH CHECK ADD  CONSTRAINT [FK_Account_BrokerDealer] FOREIGN KEY([BrokerDealerID])
+REFERENCES [dbo].[BrokerDealer] ([BrokerDealerID])
+GO
+ALTER TABLE [dbo].[Account] CHECK CONSTRAINT [FK_Account_BrokerDealer]
+GO
+ALTER TABLE [dbo].[Account]  WITH CHECK ADD  CONSTRAINT [FK_Account_Employee] FOREIGN KEY([EmployeeID])
+REFERENCES [dbo].[Employee] ([EmployeeID])
+GO
+ALTER TABLE [dbo].[Account] CHECK CONSTRAINT [FK_Account_Employee]
+GO
+ALTER TABLE [dbo].[Trade]  WITH CHECK ADD  CONSTRAINT [FK_Trade_Account] FOREIGN KEY([AccountID])
+REFERENCES [dbo].[Account] ([AccountID])
+GO
+ALTER TABLE [dbo].[Trade] CHECK CONSTRAINT [FK_Trade_Account]
+GO
+ALTER TABLE [dbo].[Trade]  WITH CHECK ADD  CONSTRAINT [FK_Trade_TradeRequest] FOREIGN KEY([TradeRequestID])
+REFERENCES [dbo].[TradeRequest] ([TradeRequestID])
+GO
+ALTER TABLE [dbo].[Trade] CHECK CONSTRAINT [FK_Trade_TradeRequest]
+GO
+ALTER TABLE [dbo].[TradeRequest]  WITH CHECK ADD  CONSTRAINT [FK_TradeRequest_Employee] FOREIGN KEY([EmployeeID])
+REFERENCES [dbo].[Employee] ([EmployeeID])
+GO
+ALTER TABLE [dbo].[TradeRequest] CHECK CONSTRAINT [FK_TradeRequest_Employee]
+GO
+USE [master]
+GO
+ALTER DATABASE [Compliance] SET  READ_WRITE 
+GO
