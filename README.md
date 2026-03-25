@@ -61,8 +61,9 @@ When the user clicks `Run Question`, the app:
    - executes the SQL
    - summarizes the result
 3. For analytical questions:
-   - retrieves the most relevant capsules from Qdrant
-   - if analytical capsules are strong enough, answers from capsule context
+   - first retrieves the most relevant analytical capsules from Qdrant
+   - this is the primary analytical path and is designed for trends, aggregations, anomalies, and broader analytical reasoning
+   - if the analytical capsules are strong enough, the system answers directly from capsule context instead of going straight to SQL
    - if retrieval is weak, empty, or the top guidance is `schema_context`, it switches to SQL planning mode
 4. In SQL planning mode, the LLM receives:
    - the user question
@@ -85,12 +86,12 @@ Analytical capsules:
 - `summary`
 
 Schema-context capsules:
-- metadata-focused planning capsules built from:
-  - tables
-  - columns
-  - foreign keys
-  - join paths
-  - situation patterns
+- metadata-focused planning capsules
+- built from tables
+- built from columns
+- built from foreign keys
+- built from join paths
+- built from situation patterns
 
 Schema-context capsules help the LLM choose:
 - which tables to join
