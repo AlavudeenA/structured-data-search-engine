@@ -37,7 +37,12 @@ from src.app_constants import (
 )
 from src.database_connection import execute_select
 from src.capsule_generator import preview_capsule_sql_plans
-from src.embedding import generate_and_ingest_capsules, ingest_capsules
+from src.embedding import (
+    generate_and_ingest_capsules,
+    ingest_capsules,
+    refresh_analytical_capsules,
+    refresh_schema_context_capsules,
+)
 from src.orchestrator import handle_user_query
 from src.vector_store import (
     DEFAULT_COLLECTION,
@@ -103,6 +108,9 @@ st.caption("Structured queries -> Text-to-SQL | Analytical queries -> Vector Ret
 st.markdown(
     """
     <style>
+    div[data-testid="stHorizontalBlock"] {
+        gap: 0.05rem !important;
+    }
     .st-key-delete_selected_capsule_btn button {
         border: 2px solid #b00020 !important;
         border-radius: 8px !important;
@@ -170,11 +178,6 @@ with tab1:
         placeholder="Example: Show top broker dealers by trade count",
         height=120,
     )
-    force_capsule_retrieval = st.checkbox(
-        "Force capsule retrieval (skip Text-to-SQL)",
-        value=False,
-        help="Useful when you want answers only from vector-retrieved capsule context.",
-    )
     run_question = st.button("Run Question", type="primary")
 
     if run_question:
@@ -182,10 +185,7 @@ with tab1:
             st.warning("Enter a question first.")
         else:
             with st.spinner("Running workflow..."):
-                result = handle_user_query(
-                    user_question.strip(),
-                    force_analytical=force_capsule_retrieval,
-                )
+                result = handle_user_query(user_question.strip())
 
             st.success(f"Route: {result.get('route')}")
             st.write("Intent:", result.get("intent", {}))
@@ -199,8 +199,14 @@ with tab1:
 
             if execution:
                 execution = result.get("execution", {})
+                if execution.get("autofix_applied"):
+                    st.info(f"SQL autofix applied: {execution.get('autofix_reason', 'Corrected after execution error.')}")
+                sql_reason = str(result.get("sql_reason", "")).strip()
                 st.write("Generated SQL:")
                 st.code(execution.get("sql", ""), language="sql")
+                if sql_reason:
+                    st.write("SQL Reason:")
+                    st.code(sql_reason, language="text")
                 st.write(f"Rows: {execution.get('row_count', 0)}")
                 rows = execution.get("rows", [])
                 if rows:
@@ -257,11 +263,27 @@ with tab2:
         )
 
     rows_value = int(rows_per_capsule)
-    run_generate = st.button(
-        "Generate Capsules",
-        type="primary",
-        key="run_generate_capsules_",
-    )
+    action_col1, action_col2, action_col3, _action_spacer = st.columns([1, 1, 1, 6], gap="small")
+    with action_col1:
+        run_generate = st.button(
+            "Generate Capsules",
+            type="primary",
+            key="run_generate_capsules_",
+        )
+    with action_col2:
+        run_refresh = st.button(
+            "Refresh Capsules",
+            type="primary",
+            key="refresh_capsules_btn",
+            help="Rebuild analytical capsules from the exact saved plan set using the latest source data.",
+        )
+    with action_col3:
+        run_schema_refresh = st.button(
+            "Schema Refresh",
+            type="primary",
+            key="schema_refresh_capsules_btn",
+            help="When schema changes, rebuild schema-context capsules, analytical capsules, and the analytical refresh plan together.",
+        )
 
     if run_generate:
         if rows_value >= GEN_ROWS_MAX_EXCLUSIVE or rows_value < GEN_ROWS_MIN:
@@ -300,6 +322,38 @@ with tab2:
             except Exception as exc:
                 st.error(f" generation failed: {exc}")
                 st.session_state["latest_planned_sqls"] = []
+
+    if run_refresh:
+        try:
+            with st.spinner("Refreshing analytical capsules from the saved plan set..."):
+                result = refresh_analytical_capsules(
+                    collection_name=DEFAULT_COLLECTION,
+                    ingestion_mode=INGESTION_MODE_APPEND_UNIQUE,
+                )
+            st.success("Analytical capsules refreshed from saved plans.")
+            st.json(result)
+            st.session_state["latest_planned_sqls"] = result.get("saved_plan_sqls", []) or []
+        except Exception as exc:
+            st.error(f"Refresh failed: {exc}")
+
+    if run_schema_refresh:
+        try:
+            with st.spinner("Refreshing schema-context capsules and analytical plan metadata..."):
+                result = refresh_schema_context_capsules(
+                    collection_name=DEFAULT_COLLECTION,
+                    ingestion_mode=INGESTION_MODE_APPEND_UNIQUE,
+                )
+            if result.get("schema_changed"):
+                st.success("Schema refresh complete. Capsules and plans were rebuilt for the new schema.")
+            else:
+                st.info(str(result.get("message", "No schema changes detected.")))
+            st.json(result)
+            st.session_state["latest_planned_sqls"] = result.get("saved_plan_sqls", []) or st.session_state.get(
+                "latest_planned_sqls",
+                [],
+            )
+        except Exception as exc:
+            st.error(f"Schema refresh failed: {exc}")
 
     latest_plans = st.session_state.get("latest_planned_sqls", [])
     with st.expander(f"Planned SQL queries ({len(latest_plans)})", expanded=False):

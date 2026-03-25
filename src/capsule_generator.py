@@ -58,10 +58,9 @@ def generate_capsules_(
     preferred_rows = max(GEN_ROWS_MIN, min(target_rows, row_cap))
 
     capsules: list[dict[str, Any]] = []
-    sql_plans: list[dict[str, Any]] = build_capsule_sql_plans(
-        schema=schema,
-        preferred_rows=preferred_rows,
-        row_cap=row_cap,
+    sql_plans = build_analytical_sql_plans(
+        target_rows=target_rows,
+        max_rows_per_capsule=max_rows_per_capsule,
         include_temporal_aggregations=include_temporal_aggregations,
         max_group_cols_per_table=max_group_cols_per_table,
     )
@@ -81,6 +80,28 @@ def generate_capsules_(
     return capsules
 
 
+def build_analytical_sql_plans(
+    target_rows: int = DEFAULT_ROWS_PER_CAPSULE,
+    max_rows_per_capsule: int = GEN_ROWS_MAX_EXCLUSIVE,
+    include_temporal_aggregations: bool = True,
+    max_group_cols_per_table: int = DEFAULT_MAX_GROUP_COLS_PER_TABLE,
+) -> list[dict[str, Any]]:
+    """Build the canonical analytical SQL plan set from the live schema."""
+    schema = get_schema_metadata()
+    if not schema:
+        return []
+
+    row_cap = max(GEN_ROWS_MIN, min(max_rows_per_capsule, GEN_ROWS_MAX_ALLOWED))
+    preferred_rows = max(GEN_ROWS_MIN, min(target_rows, row_cap))
+    return build_capsule_sql_plans(
+        schema=schema,
+        preferred_rows=preferred_rows,
+        row_cap=row_cap,
+        include_temporal_aggregations=include_temporal_aggregations,
+        max_group_cols_per_table=max_group_cols_per_table,
+    )
+
+
 def preview_capsule_sql_plans(
     target_rows: int = DEFAULT_ROWS_PER_CAPSULE,
     max_rows_per_capsule: int = GEN_ROWS_MAX_EXCLUSIVE,
@@ -88,19 +109,33 @@ def preview_capsule_sql_plans(
     max_group_cols_per_table: int = DEFAULT_MAX_GROUP_COLS_PER_TABLE,
 ) -> list[str]:
     """Return generated SQL plan texts for UI preview/debug."""
-    schema = get_schema_metadata()
-    if not schema:
-        return []
-    row_cap = max(GEN_ROWS_MIN, min(max_rows_per_capsule, GEN_ROWS_MAX_ALLOWED))
-    preferred_rows = max(GEN_ROWS_MIN, min(target_rows, row_cap))
-    plans = build_capsule_sql_plans(
-        schema=schema,
-        preferred_rows=preferred_rows,
-        row_cap=row_cap,
+    plans = build_analytical_sql_plans(
+        target_rows=target_rows,
+        max_rows_per_capsule=max_rows_per_capsule,
         include_temporal_aggregations=include_temporal_aggregations,
         max_group_cols_per_table=max_group_cols_per_table,
     )
     return [str(p.get("sql", "")).strip() for p in plans if str(p.get("sql", "")).strip()]
+
+
+def generate_capsules_from_plans(
+    sql_plans: list[dict[str, Any]],
+    max_rows_per_capsule: int = GEN_ROWS_MAX_EXCLUSIVE,
+    use_llm_summaries: bool = False,
+) -> list[dict[str, Any]]:
+    """Rebuild analytical capsules from an exact saved SQL plan set."""
+    row_cap = max(GEN_ROWS_MIN, min(max_rows_per_capsule, GEN_ROWS_MAX_ALLOWED))
+    capsules: list[dict[str, Any]] = []
+    for plan in sql_plans:
+        capsule = _run_plan_to_capsule(
+            plan=plan,
+            row_cap=row_cap,
+            use_llm_summaries=use_llm_summaries,
+        )
+        if capsule is None:
+            continue
+        capsules.append(capsule)
+    return capsules
 
 
 def _run_plan_to_capsule(

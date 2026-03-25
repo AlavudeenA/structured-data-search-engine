@@ -15,14 +15,12 @@ from .app_constants import (
     DEFAULT_SCHEMA_CONTEXT_TOP_K,
     DEFAULT_ANALYTICAL_TOP_K,
     DEFAULT_ANALYTICAL_TOP_K_PER_TYPE,
-    FORCED_ANALYTICAL_TOP_K,
-    FORCED_ANALYTICAL_TOP_K_PER_TYPE,
     SCHEMA_CONTEXT_MIN_SCORE,
 )
 from .analytical_retriever import retrieve_analytical_context
 from .intent_router_service import detect_intent
 from .result_summarizer import summarize_result
-from .sql_executor import execute_sql
+from .sql_executor import execute_sql_with_autofix
 from .text_to_sql import generate_sql_from_question
 
 
@@ -31,45 +29,11 @@ def handle_user_query(
     capsule_type_filter: str | None = None,
     entity_filter: str | None = None,
     capsule_topic_filter: str | None = None,
-    force_analytical: bool = False,
 ) -> dict[str, Any]:
     """Run the hybrid flow for a user question."""
     intent_data = detect_intent(user_query)
     intent = intent_data["intent"]
     confidence = float(intent_data.get("confidence", 0.0))
-
-    if force_analytical:
-        analytical = retrieve_analytical_context(
-            user_query,
-            top_k=FORCED_ANALYTICAL_TOP_K,
-            min_score=DEFAULT_ANALYTICAL_MIN_SCORE,
-            top_k_per_type=FORCED_ANALYTICAL_TOP_K_PER_TYPE,
-            capsule_type=capsule_type_filter,
-            entity=entity_filter,
-            capsule_topic=capsule_topic_filter,
-        )
-        forced_result = _maybe_switch_to_schema_context_sql(
-            user_query=user_query,
-            intent_data={
-                **intent_data,
-                "forced_route": "analytical_query",
-            },
-            analytical=analytical,
-        )
-        if forced_result is not None:
-            return forced_result
-        return {
-            "intent": {
-                **intent_data,
-                "forced_route": "analytical_query",
-            },
-            "route": analytical["route"],
-            "retrieval": {
-                "hits": analytical["hits"],
-                "supporting": analytical.get("supporting", {}),
-            },
-            "answer": analytical["answer"],
-        }
 
     if confidence < CONFIDENCE_LOW_THRESHOLD:
         return {
@@ -83,7 +47,7 @@ def handle_user_query(
 
     if intent == "structured_query":
         sql_data = generate_sql_from_question(user_query)
-        execution = execute_sql(sql_data["sql"])
+        execution = execute_sql_with_autofix(sql_data["sql"])
         summary = summarize_result(user_query, execution)
         return {
             "intent": intent_data,
@@ -130,7 +94,7 @@ def _maybe_switch_to_schema_context_sql(
 
     schema_hits = _resolve_schema_context_hits(user_query, analytical)
     sql_data = generate_sql_from_question(user_query, schema_capsules=schema_hits)
-    execution = execute_sql(sql_data["sql"])
+    execution = execute_sql_with_autofix(sql_data["sql"], schema_capsules=schema_hits)
     summary = summarize_result(user_query, execution)
     return {
         "intent": intent_data,
