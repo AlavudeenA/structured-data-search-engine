@@ -6,6 +6,20 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .app_constants import (
+    ANALYTICAL_FALLBACK_OTHERS_LIMIT,
+    ANALYTICAL_FALLBACK_PREVIEW_FIELDS,
+    ANALYTICAL_ROWS_SAMPLE_SIZE,
+    CAPSULE_TYPE_SUMMARY,
+    DEFAULT_ANALYTICAL_TOP_K,
+    DEFAULT_ANALYTICAL_TEMPERATURE,
+    DEFAULT_ANALYTICAL_MAX_OUTPUT_TOKENS,
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_MIN_SCORE,
+    PRIORITY_BOOST_HIGH,
+    PRIORITY_BOOST_LOW,
+    PRIORITY_BOOST_MEDIUM,
+)
 from .embedding_service import embed_texts
 from .llm_service import call_llm
 from .vector_store import DEFAULT_COLLECTION, scroll_capsules_by_sql_hash, search_capsules
@@ -14,8 +28,8 @@ from .vector_store import DEFAULT_COLLECTION, scroll_capsules_by_sql_hash, searc
 def retrieve_analytical_context(
     user_query: str,
     collection_name: str = DEFAULT_COLLECTION,
-    top_k: int = 5,
-    min_score: float = 0.0,
+    top_k: int = DEFAULT_ANALYTICAL_TOP_K,
+    min_score: float = DEFAULT_MIN_SCORE,
     top_k_per_type: int | None = None,
     capsule_type: str | None = None,
     entity: str | None = None,
@@ -87,13 +101,17 @@ def _build_analytical_answer(
     source_sql_hash = str(payload.get("source_sql_hash", "")).strip()
 
     if not source_sql_hash:
-        rows = _collect_rows_from_hits([top_hit])
+        #  path: source_sql_hash may be empty by design, so use all retrieved hits.
+        rows = _collect_rows_from_hits(hits)
         summary = _summarize_rows(rows, user_query)
-        payload_name = str(payload.get("capsule_name", "N/A"))
+        names = _unique_capsule_names(hits)
+        payload_name = str(payload.get("capsule_name", "")).strip()
+        if not names and payload_name:
+            names = [payload_name]
         supporting = {
-            "mode": "single",
-            "capsule_names": [payload_name],
-            "capsule_count": 1,
+            "mode": "multi_hit",
+            "capsule_names": names,
+            "capsule_count": len(hits),
             "source_sql_hash": "",
         }
         return summary or "Capsule retrieved but could not interpret rows.", supporting
@@ -168,7 +186,7 @@ def _summarize_rows(rows: list[Any], question: str) -> str | None:
 
 def _summarize_rows_with_llm(rows: list[Any], question: str) -> str | None:
     """Use LLM to infer entities/metrics from row sample and question."""
-    sample_rows = rows[:50]
+    sample_rows = rows[:ANALYTICAL_ROWS_SAMPLE_SIZE]
     prompt = (
         "User question:\n"
         f"{question}\n\n"
@@ -194,9 +212,9 @@ def _summarize_rows_with_llm(rows: list[Any], question: str) -> str | None:
             "Return clear, factual explanations from provided rows."
         ),
         model_env_var="GROQ_ANALYTICAL_MODEL",
-        default_model="llama-3.3-70b-versatile",
-        temperature=0.1,
-        max_output_tokens=250,
+        default_model=DEFAULT_GROQ_MODEL,
+        temperature=DEFAULT_ANALYTICAL_TEMPERATURE,
+        max_output_tokens=DEFAULT_ANALYTICAL_MAX_OUTPUT_TOKENS,
     )
 
 
@@ -220,7 +238,7 @@ def _summarize_rows_fallback(rows: list[Any]) -> str | None:
 
     if not numeric_cols:
         preview = ", ".join(
-            f"{k}={v}" for k, v in list(first_row.items())[:3]
+            f"{k}={v}" for k, v in list(first_row.items())[:ANALYTICAL_FALLBACK_PREVIEW_FIELDS]
         )
         return f"Top record suggests {preview}"
 
@@ -250,7 +268,7 @@ def _summarize_rows_fallback(rows: list[Any]) -> str | None:
 
     top_entity, top_value = normalized[0]
 
-    others = normalized[1:4]
+    others = normalized[1:ANALYTICAL_FALLBACK_OTHERS_LIMIT]
 
     if others:
         other_text = ", ".join(
@@ -301,7 +319,7 @@ def _apply_type_limits(
     for hit in hits:
 
         ctype = str(
-            hit.get("payload", {}).get("capsule_type", "summary")
+            hit.get("payload", {}).get("capsule_type", CAPSULE_TYPE_SUMMARY)
         )
 
         used = counts.get(ctype, 0)
@@ -323,7 +341,11 @@ def _rerank_by_priority(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
     Slightly boost capsules marked as high priority.
     """
 
-    boost = {"high": 0.05, "medium": 0.02, "low": 0.0}
+    boost = {
+        "high": PRIORITY_BOOST_HIGH,
+        "medium": PRIORITY_BOOST_MEDIUM,
+        "low": PRIORITY_BOOST_LOW,
+    }
 
     def score(hit: dict[str, Any]) -> float:
 

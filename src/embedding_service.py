@@ -7,8 +7,7 @@ import os
 
 from fastembed import TextEmbedding
 
-
-DEFAULT_EMBED_MODEL = "BAAI/bge-base-en-v1.5"
+from .app_constants import DEFAULT_EMBED_MODEL
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:

@@ -9,31 +9,23 @@ from typing import Any, Iterator
 
 import pyodbc
 
-
-DEFAULT_CONN_STR = (
-    "DRIVER={ODBC Driver 17 for SQL Server};"
-    "SERVER=localhost\\SQLEXPRESS;"
-    "DATABASE=Compliance;"
-    "Trusted_Connection=yes;"
+from .app_constants import (
+    ALLOWED_TABLES,
+    DB_CONNECTION_TIMEOUT_SECONDS,
+    DB_DEFAULT_CONN_STR,
+    DB_EXECUTE_SELECT_MAX_ROWS,
 )
-
-ALLOWED_TABLES = {
-    "Employee",
-    "BrokerDealer",
-    "Account",
-    "TradeRequest",
-}
 
 
 def get_connection_string() -> str:
     """Return SQL Server connection string from env or defaults."""
-    return os.getenv("SQLSERVER_CONN_STR", DEFAULT_CONN_STR)
+    return os.getenv("SQLSERVER_CONN_STR", DB_DEFAULT_CONN_STR)
 
 
 @contextmanager
 def get_connection() -> Iterator[pyodbc.Connection]:
     """Yield a SQL Server connection using Windows authentication."""
-    conn = pyodbc.connect(get_connection_string(), timeout=10)
+    conn = pyodbc.connect(get_connection_string(), timeout=DB_CONNECTION_TIMEOUT_SECONDS)
     try:
         yield conn
     finally:
@@ -41,7 +33,7 @@ def get_connection() -> Iterator[pyodbc.Connection]:
 
 
 def execute_select(
-    sql: str, params: tuple[Any, ...] | None = None, max_rows: int = 500
+    sql: str, params: tuple[Any, ...] | None = None, max_rows: int = DB_EXECUTE_SELECT_MAX_ROWS
 ) -> dict[str, Any]:
     """Execute a read-only SELECT query and return a structured result."""
     normalized = sql.strip().lower()
@@ -92,6 +84,15 @@ def get_schema_metadata() -> dict[str, list[dict[str, str]]]:
 
 def get_foreign_keys() -> list[str]:
     """Load foreign key relationships for allowed tables."""
+    fk_rows = get_foreign_key_metadata()
+    return [
+        f"{row['parent_table']}.{row['parent_column']} -> {row['ref_table']}.{row['ref_column']}"
+        for row in fk_rows
+    ]
+
+
+def get_foreign_key_metadata() -> list[dict[str, str]]:
+    """Load structured foreign key metadata for allowed tables."""
     tables = _effective_allowed_tables()
     if not tables:
         return []
@@ -107,7 +108,7 @@ def get_foreign_keys() -> list[str]:
         ON f.object_id = fc.constraint_object_id
     ORDER BY parent_table, parent_column
     """
-    relationships: list[str] = []
+    relationships: list[dict[str, str]] = []
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(sql)
@@ -117,7 +118,12 @@ def get_foreign_keys() -> list[str]:
             if p_table not in tables or r_table not in tables:
                 continue
             relationships.append(
-                f"{p_table}.{parent_column} -> {r_table}.{ref_column}"
+                {
+                    "parent_table": p_table,
+                    "parent_column": str(parent_column),
+                    "ref_table": r_table,
+                    "ref_column": str(ref_column),
+                }
             )
     return relationships
 

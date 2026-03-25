@@ -9,14 +9,27 @@ import re
 from typing import Any
 from urllib import error, request
 
-from .database_connection import ALLOWED_TABLES, get_foreign_keys, get_schema_metadata
+from .app_constants import (
+    ALLOWED_TABLES,
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_SQL_MAX_OUTPUT_TOKENS,
+    DEFAULT_USER_AGENT,
+    GROQ_RESPONSES_API_URL,
+    HTTP_DEFAULT_TIMEOUT_SECONDS,
+    SQL_FALLBACK_TOP_N,
+    TEMPERATURE_ZERO,
+)
+from .database_connection import get_foreign_keys, get_schema_metadata
 
 
-def generate_sql_from_question(user_query: str) -> dict[str, str]:
+def generate_sql_from_question(
+    user_query: str,
+    schema_capsules: list[dict[str, Any]] | None = None,
+) -> dict[str, str]:
     """Generate safe SQL for structured queries."""
     schema = get_schema_metadata()
     relationships = get_foreign_keys()
-    generated = _generate_sql_with_groq(user_query, schema, relationships)
+    generated = _generate_sql_with_groq(user_query, schema, relationships, schema_capsules or [])
     if generated:
         return generated
     return _generate_sql_fallback(user_query)
@@ -26,6 +39,7 @@ def _generate_sql_with_groq(
     user_query: str,
     schema: dict[str, list[dict[str, str]]],
     relationships: list[str],
+    schema_capsules: list[dict[str, Any]],
 ) -> dict[str, str] | None:
     api_key = os.getenv("GROQ_API_KEY")
     debug = os.getenv("SQL_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -34,13 +48,14 @@ def _generate_sql_with_groq(
     if not api_key:
         return None
 
-    model = os.getenv("GROQ_SQL_MODEL", "llama-3.3-70b-versatile")
+    model = os.getenv("GROQ_SQL_MODEL", DEFAULT_GROQ_MODEL)
     if debug:
         print("\n=== SQL GENERATION DEBUG ===")
         print("User Query:", user_query)
         print("Model:", model)
     schema_text = _schema_to_text(schema)
     relationships_text = _relationships_to_text(relationships)
+    schema_capsules_text = _schema_capsules_to_text(schema_capsules)
     prompt = (
         "Database schema\n"
         "---------------\n"
@@ -48,6 +63,9 @@ def _generate_sql_with_groq(
         "Relationships\n"
         "-------------\n"
         f"{relationships_text}\n\n"
+        "Schema context capsules\n"
+        "-----------------------\n"
+        f"{schema_capsules_text}\n\n"
         "Instructions\n"
         "------------\n"
         "Generate one SQL Server SELECT query answering the user's question.\n"
@@ -56,15 +74,16 @@ def _generate_sql_with_groq(
         "2. If ranking entities, use aggregation functions like COUNT, SUM, or AVG with GROUP BY.\n"
         "3. Use JOINs when data from multiple tables is required.\n"
         "4. Prefer human-readable columns (e.g., names or labels) rather than numeric IDs in output.\n"
-        "5. Return exactly one SELECT statement with no semicolon.\n\n"
+        "5. When schema context capsules are relevant, prefer their join paths, filters, and SQL templates.\n"
+        "6. Return exactly one SELECT statement with no semicolon.\n\n"
         "Return strict JSON with keys: query_plan, sql, reason.\n\n"
         f"User question: {user_query}\n"
     )
 
     payload: dict[str, Any] = {
         "model": model,
-        "temperature": 0,
-        "max_output_tokens": 200,
+        "temperature": TEMPERATURE_ZERO,
+        "max_output_tokens": DEFAULT_SQL_MAX_OUTPUT_TOKENS,
         "input": [
             {
                 "role": "system",
@@ -80,18 +99,18 @@ def _generate_sql_with_groq(
     }
 
     req = request.Request(
-        url="https://api.groq.com/openai/v1/responses",
+        url=GROQ_RESPONSES_API_URL,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "Compliance-Data-Assistant/1.0",
+            "User-Agent": DEFAULT_USER_AGENT,
         },
         method="POST",
     )
 
     try:
-        with request.urlopen(req, timeout=20) as resp:
+        with request.urlopen(req, timeout=HTTP_DEFAULT_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             if debug:
                 print("\nRAW LLM RESPONSE:")
@@ -140,11 +159,11 @@ def _generate_sql_fallback(user_query: str) -> dict[str, str]:
     table = next(iter(ALLOWED_TABLES), "")
     if table:
         return {
-            "sql": f"SELECT TOP 100 * FROM {table}",
+            "sql": f"SELECT TOP {SQL_FALLBACK_TOP_N} * FROM {table}",
             "reason": "Fallback generic query when LLM generation fails.",
         }
     return {
-        "sql": "SELECT TOP 100 TABLE_NAME FROM INFORMATION_SCHEMA.TABLES",
+        "sql": f"SELECT TOP {SQL_FALLBACK_TOP_N} TABLE_NAME FROM INFORMATION_SCHEMA.TABLES",
         "reason": "Fallback placeholder query when LLM generation fails.",
     }
 
@@ -161,6 +180,46 @@ def _relationships_to_text(relationships: list[str]) -> str:
     if not relationships:
         return "None"
     return "\n".join(relationships)
+
+
+def _schema_capsules_to_text(schema_capsules: list[dict[str, Any]]) -> str:
+    if not schema_capsules:
+        return "None"
+
+    lines: list[str] = []
+    for idx, hit in enumerate(schema_capsules[:6], start=1):
+        payload = hit.get("payload", hit) if isinstance(hit, dict) else {}
+        if not isinstance(payload, dict):
+            continue
+        capsule_name = str(payload.get("capsule_name", f"schema_capsule_{idx}")).strip()
+        summary = str(payload.get("summary_text", "")).strip()
+        tables_used = ", ".join(_normalize_list(payload.get("tables_used", []))[:6]) or "N/A"
+        relevant_columns = ", ".join(_normalize_list(payload.get("relevant_columns", []))[:10]) or "N/A"
+        recommended_joins = " | ".join(_normalize_list(payload.get("recommended_joins", []))[:6]) or "N/A"
+        recommended_filters = " | ".join(_normalize_list(payload.get("recommended_filters", []))[:6]) or "N/A"
+        example_questions = " | ".join(_normalize_list(payload.get("example_questions", []))[:4]) or "N/A"
+        sql_template = str(payload.get("sql_template", "")).strip() or "N/A"
+        lines.append(
+            "\n".join(
+                [
+                    f"{idx}. {capsule_name}",
+                    f"   Summary: {summary or 'N/A'}",
+                    f"   Tables: {tables_used}",
+                    f"   Relevant columns: {relevant_columns}",
+                    f"   Recommended joins: {recommended_joins}",
+                    f"   Recommended filters: {recommended_filters}",
+                    f"   Example questions: {example_questions}",
+                    f"   SQL template: {sql_template}",
+                ]
+            )
+        )
+    return "\n".join(lines) if lines else "None"
+
+
+def _normalize_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def _is_safe_sql(sql: str) -> bool:

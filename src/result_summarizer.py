@@ -8,6 +8,14 @@ import os
 from typing import Any
 from urllib import error, request
 
+from .app_constants import (
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_SUMMARY_TEMPERATURE,
+    DEFAULT_USER_AGENT,
+    GROQ_RESPONSES_API_URL,
+    HTTP_DEFAULT_TIMEOUT_SECONDS,
+    SUMMARY_ROWS_SAMPLE_SIZE,
+)
 
 def summarize_result(user_query: str, execution_result: dict[str, Any]) -> str:
     summary = _summarize_with_groq(user_query, execution_result)
@@ -21,8 +29,8 @@ def _summarize_with_groq(user_query: str, execution_result: dict[str, Any]) -> s
     if not api_key:
         return None
 
-    model = os.getenv("GROQ_SUMMARY_MODEL", "llama-3.3-70b-versatile")
-    compact_rows = execution_result.get("rows", [])[:25]
+    model = os.getenv("GROQ_SUMMARY_MODEL", DEFAULT_GROQ_MODEL)
+    compact_rows = execution_result.get("rows", [])[:SUMMARY_ROWS_SAMPLE_SIZE]
     prompt_payload = {
         "user_query": user_query,
         "sql": execution_result.get("sql"),
@@ -33,7 +41,7 @@ def _summarize_with_groq(user_query: str, execution_result: dict[str, Any]) -> s
     }
     payload: dict[str, Any] = {
         "model": model,
-        "temperature": 0.2,
+        "temperature": DEFAULT_SUMMARY_TEMPERATURE,
         "input": [
             {
                 "role": "system",
@@ -51,18 +59,18 @@ def _summarize_with_groq(user_query: str, execution_result: dict[str, Any]) -> s
     }
 
     req = request.Request(
-        url="https://api.groq.com/openai/v1/responses",
+        url=GROQ_RESPONSES_API_URL,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "Compliance-Data-Assistant/1.0",
+            "User-Agent": DEFAULT_USER_AGENT,
         },
         method="POST",
     )
 
     try:
-        with request.urlopen(req, timeout=20) as resp:
+        with request.urlopen(req, timeout=HTTP_DEFAULT_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             text = _extract_response_text(body).strip()
     except (error.URLError, error.HTTPError, TimeoutError, KeyError, ValueError):
