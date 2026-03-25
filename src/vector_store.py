@@ -337,6 +337,47 @@ def delete_capsule_by_id(
         client.close()
 
 
+def delete_capsules_by_types(
+    capsule_types: list[str] | tuple[str, ...],
+    collection_name: str = DEFAULT_COLLECTION,
+) -> dict[str, Any]:
+    """Delete all capsules whose capsule_type is in the provided set."""
+    normalized_types = {
+        str(capsule_type).strip().lower()
+        for capsule_type in capsule_types
+        if str(capsule_type).strip()
+    }
+    if not normalized_types:
+        return {"deleted_count": 0, "deleted_ids": [], "capsule_types": []}
+
+    client = QdrantClient(path=_get_qdrant_path())
+    try:
+        if not client.collection_exists(collection_name):
+            return {"deleted_count": 0, "deleted_ids": [], "capsule_types": sorted(normalized_types)}
+
+        all_points = _scroll_all_points(client=client, collection_name=collection_name)
+        delete_ids: list[Any] = []
+        for point in all_points:
+            payload = dict(point.payload or {})
+            capsule_type = str(payload.get("capsule_type", "")).strip().lower()
+            if capsule_type in normalized_types:
+                delete_ids.append(point.id)
+
+        if delete_ids:
+            client.delete(
+                collection_name=collection_name,
+                points_selector=models.PointIdsList(points=delete_ids),
+            )
+
+        return {
+            "deleted_count": len(delete_ids),
+            "deleted_ids": delete_ids,
+            "capsule_types": sorted(normalized_types),
+        }
+    finally:
+        client.close()
+
+
 def apply_retention_policies(
     collection_name: str = DEFAULT_COLLECTION,
     max_random_per_table: int = DEFAULT_MAX_RANDOM_PER_TABLE,

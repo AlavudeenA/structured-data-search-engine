@@ -1,4 +1,15 @@
-﻿## Requirements
+# Structured Data Search Engine
+
+This project is a hybrid question-answering system for structured enterprise data.
+
+It combines:
+- Text-to-SQL for direct, executable data questions
+- Vector retrieval over capsules for analytical context
+- Schema-context guidance to improve SQL generation when analytical retrieval is weak
+
+The goal is to answer business questions without sending full tables to the LLM, while still falling back to live SQL when exact or up-to-date answers are needed.
+
+## Requirements
 
 - Python 3.13+ (tested with `py -3`)
 - SQL Server (default: `localhost\SQLEXPRESS`)
@@ -20,171 +31,221 @@ py -3 -m streamlit run streamlit_app.py
 
 ## Environment Variables
 
-- Required for LLM features:
-  - `GROQ_API_KEY`
+Required for LLM features:
+- `GROQ_API_KEY`
 
-- Optional model overrides:
-  - `GROQ_INTENT_MODEL`
-  - `GROQ_SQL_MODEL`
-  - `GROQ_SUMMARY_MODEL`
-  - `GROQ_SQL_FIX_MODEL`
-  - `GROQ_ANALYTICAL_MODEL`
+Optional model overrides:
+- `GROQ_INTENT_MODEL`
+- `GROQ_SQL_MODEL`
+- `GROQ_SUMMARY_MODEL`
+- `GROQ_SQL_FIX_MODEL`
+- `GROQ_ANALYTICAL_MODEL`
 
-- Optional DB/vector settings:
-  - `SQLSERVER_CONN_STR`
-  - `EMBED_MODEL`
-  - `QDRANT_PATH`
+Optional DB and vector settings:
+- `SQLSERVER_CONN_STR`
+- `EMBED_MODEL`
+- `QDRANT_PATH`
 
-- Optional debug:
-  - `SQL_DEBUG=1`
+Optional debug:
+- `SQL_DEBUG=1`
 
-# Context-Driven Intelligence for Structured Enterprise Data
+## How It Works
 
-This project uses a hybrid architecture:
+### Run Question
 
-- Structured questions -> Text-to-SQL -> SQL Server -> concise business summary
-- Analytical questions -> Vector retrieval over context capsules -> LLM reasoning
+When the user clicks `Run Question`, the app:
 
-The goal is to avoid sending full relational tables to the LLM and instead use compact capsule context.
+1. Detects whether the question is structured or analytical.
+2. For structured questions:
+   - generates SQL from live schema and relationships
+   - executes the SQL
+   - summarizes the result
+3. For analytical questions:
+   - retrieves the most relevant capsules from Qdrant
+   - if analytical capsules are strong enough, answers from capsule context
+   - if retrieval is weak, empty, or the top guidance is `schema_context`, it switches to SQL planning mode
+4. In SQL planning mode, the LLM receives:
+   - the user question
+   - live schema
+   - foreign-key relationships
+   - top retrieved `schema_context` capsules
+5. The system generates SQL, executes it, and summarizes the result.
+6. If SQL fails with an error like `Invalid column name ...`, it retries once using an autofix prompt that includes the SQL error plus schema guidance.
 
-## Current High-Level Flow
+### Capsule Types
 
-1. User asks a question in Tab 1.
-2. Intent routing decides structured vs analytical (or forced analytical).
-3. Structured path:
-   - Generate safe SQL from schema + relationships
-   - Execute read-only SQL
-   - Summarize result
-4. Analytical path:
-   - Embed question
-   - Retrieve top capsules from Qdrant
-   - Merge rows from retrieved hits
-   - LLM-first answer with deterministic fallback
-5. Capsule ingestion path:
-   - Auto-generate schema-driven SQL plans (random/aggregation/distribution/trend/anomaly), or
-   - Manually insert a single SQL-backed capsule
-   - Embed capsule text
-   - Upsert to vector store
-   - Apply retention policies
+The system uses two capsule families.
 
-## What Changed (Latest)
+Analytical capsules:
+- `random_sample`
+- `aggregation`
+- `distribution`
+- `trend`
+- `anomaly`
+- `summary`
 
-- Centralized operational constants into one file:
-  - [app_constants.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\app_constants.py)
-- Added dedicated schema-driven SQL planner:
-  - [capsule_query_planner.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\capsule_query_planner.py)
-- Removed console SQL plan printing; moved to UI expander in Tab 2.
-- Removed `capsule_sanity_simulator` from runtime flow.
-- Reset behavior is now hard clear:
-  - purge local Qdrant storage + reset all collections.
-- Collection name is fixed to default (`context_capsules`) in Tab 2/3/4 (not user-editable).
-- Ingestion mode is fixed to `append_unique` in UI.
-- Temporal plans are always generated in auto capsule generation.
-- Manual insert UI simplified to minimal fields.
-- Capsule retention controls in generation:
-  - keep latest N random capsules per table
-  - replace similar aggregation/distribution capsules
+Schema-context capsules:
+- metadata-focused planning capsules built from:
+  - tables
+  - columns
+  - foreign keys
+  - join paths
+  - situation patterns
 
-## UI Tabs (Current)
+Schema-context capsules help the LLM choose:
+- which tables to join
+- which columns matter
+- which filters are typical
+- which SQL pattern fits the question
 
-1. `Ask Question`
-   - English question input
-   - Optional `Force capsule retrieval`
-   - Shows route, answer, confidence, and supporting capsules
+## UI Tabs
 
-2. `Ingest SQL to Vector DB`
-   - Auto-generate and ingest Capsule
-   - Inputs:
-     - `Target capsules (count)`
-     - `Rows per capsule (must be < 100)`
-     - `Use LLM summaries`
-     - `Max random capsules per table`
-     - `Max group columns per table`
-   - Shows generation result JSON
-   - Shows `Planned SQL queries (N)` as last section (fresh per run)
+### 1. Ask Question
 
-3. `Manual Capsule Insert`
-   - Minimal manual flow:
-     - SQL query
-     - Capsule type
-     - Summary text
-   - Enforces row limit: query must return `<= 100` rows
+Use this tab to ask questions in plain English.
 
-4. `Manage Capsules`
-   - Load capsules
-   - View capsule table
-   - Delete selected capsule
+The UI shows:
+- route
+- detected intent
+- answer
+- generated SQL when SQL was executed
+- SQL reason
+- returned rows
+- supporting capsules
+- SQL autofix notice when a retry was needed
 
-5. `Reset Vector DB`
-   - Full reset with confirmation
-   - Purges local vector storage and resets collections
+### 2. Generate Capsules
 
-## Capsule Strategy
+This tab now has three actions:
 
-Capsule generation is schema-agnostic and metadata-driven:
+- `Generate Capsules`
+  - full build
+  - generates analytical capsules and schema-context capsules
+  - saves the analytical refresh plan
+  - saves the schema fingerprint
 
-- Random sample capsules
-- Aggregation capsules
-- Distribution capsules
-- Trend capsules (temporal)
-- Anomaly capsules (temporal spikes + numeric outliers)
+- `Refresh Capsules`
+  - data refresh only
+  - deletes old analytical capsules
+  - reloads the saved analytical SQL plan set
+  - reruns that exact plan set against current data
+  - rebuilds and re-indexes analytical capsules
+  - keeps `schema_context` untouched
 
-Each capsule stores:
+- `Schema Refresh`
+  - schema-aware full rebuild
+  - detects schema changes using a saved schema fingerprint
+  - deletes old analytical capsules and old `schema_context` capsules
+  - regenerates fresh `schema_context` capsules from the current schema
+  - regenerates the analytical refresh plan for the current schema
+  - reruns that new analytical plan
+  - rebuilds and re-indexes everything together
 
-- `capsule_id`
-- `capsule_type`
-- `tables_used`
-- `key_columns`
-- `tags`
-- `summary_text`
-- `rows_json`
-- `row_count`
-- `created_at`
-- `metrics`
+### 3. Insert Capsule
 
-## Retrieval Strategy
+Manual SQL-backed capsule insertion.
 
-- Embed user query
-- Search vector DB for top hits
-- Dedupe and rerank hits
-- Build answer from merged hit rows
-- Return supporting capsule metadata for transparency
+Used for:
+- custom SQL
+- custom capsule type
+- manual summary text
 
-## Embedding + Vector Store
+### 4. Manage Capsules
 
-- Embedding library/model:
-  - `fastembed`
-  - default model: `BAAI/bge-base-en-v1.5`
-- Vector DB:
-  - Qdrant via `qdrant-client`
-  - local embedded path (`qdrant_data` by default)
+Use this tab to:
+- load capsules
+- inspect stored capsule metadata
+- delete a selected capsule
+
+### 5. Reset Vector DB
+
+Use this tab to clear local vector storage and reset collections.
+
+## Refresh Model
+
+The app separates data refresh from schema refresh.
+
+### Data Refresh
+
+Use `Refresh Capsules` when:
+- row values changed
+- counts changed
+- trends changed
+- schema did not change
+
+This keeps analytical capsules current while preserving schema-context capsules.
+
+### Schema Refresh
+
+Use `Schema Refresh` when:
+- a new table was added
+- a column was added or removed
+- a foreign key changed
+- table relationships changed
+
+This rebuilds both capsule families so `Run Question` uses one consistent semantic layer.
+
+## What Gets Sent To the LLM in SQL Planning Mode
+
+When the system switches from analytical retrieval to SQL planning, it sends:
+
+- live database schema
+- foreign-key relationships
+- top retrieved `schema_context` capsules
+
+For each retrieved schema-context capsule, the prompt includes:
+- capsule name
+- summary
+- tables
+- relevant columns
+- recommended joins
+- exact join columns
+- recommended filters
+- example questions
+- SQL template
+
+## Storage
+
+Vector store:
+- Qdrant via `qdrant-client`
+- local path: `qdrant_data`
+
+Embeddings:
+- `fastembed`
+- default model: `BAAI/bge-base-en-v1.5`
+
+Refresh metadata files:
+- analytical refresh plan: `.analytical_capsule_refresh_plan.json`
+- schema fingerprint: `.schema_capsule_fingerprint.json`
 
 ## Key Files
 
-- [streamlit_app.py](C:\Users\alavu\Projects\Patent Structure Data Set\streamlit_app.py): UI tabs and actions
-- [orchestrator.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\orchestrator.py): routing coordinator
-- [query_router.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\query_router.py): intent classification
-- [text_to_sql.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\text_to_sql.py): schema-grounded SQL generation
-- [database_connection.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\database_connection.py): SQL Server access
-- [capsule_query_planner.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\capsule_query_planner.py): plan generation logic
-- [capsule_generator.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\capsule_generator.py): execute plans -> capsules
-- [embedding.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\embedding.py): generate+ingest pipeline
-- [embedding_service.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\embedding_service.py): embeddings
-- [vector_store.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\vector_store.py): upsert/search/list/delete/reset
-- [analytical_retriever.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\analytical_retriever.py): analytical retrieval + answering
-- [result_summarizer.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\result_summarizer.py): structured result summary
-- [llm_service.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\llm_service.py): shared Groq caller
-- [app_constants.py](C:\Users\alavu\Projects\Patent Structure Data Set\src\app_constants.py): centralized constants
+- `streamlit_app.py`: Streamlit UI
+- `src/orchestrator.py`: main routing and execution flow
+- `src/query_router.py`: intent classification
+- `src/text_to_sql.py`: SQL generation with schema-context guidance
+- `src/sql_executor.py`: SQL execution and autofix retry
+- `src/sql_autofix.py`: SQL correction on execution failure
+- `src/database_connection.py`: SQL Server access and schema metadata
+- `src/capsule_query_planner.py`: analytical SQL plan generation
+- `src/capsule_generator.py`: build analytical capsules from SQL plans
+- `src/schema_capsule_generator.py`: build schema-context capsules
+- `src/embedding.py`: generation, refresh, ingestion, plan persistence
+- `src/vector_store.py`: Qdrant operations
+- `src/analytical_retriever.py`: analytical retrieval and answer building
+- `src/result_summarizer.py`: SQL result summarization
+- `src/llm_service.py`: shared Groq helper
+- `src/app_constants.py`: shared constants
 
 ## CLI
 
 Run orchestrator:
 
 ```powershell
-py -3 -m src.orchestrator "Which entities are most active?"
+py -3 -m src.orchestrator "Which broker-dealer has the most trade requests?"
 ```
 
-Run capsule generation/ingestion:
+Run capsule generation:
 
 ```powershell
 py -3 -m src.embedding --generate- --limit 1000
