@@ -170,11 +170,6 @@ with tab1:
         placeholder="Example: Show top broker dealers by trade count",
         height=120,
     )
-    force_capsule_retrieval = st.checkbox(
-        "Force capsule retrieval (skip Text-to-SQL)",
-        value=False,
-        help="Useful when you want answers only from vector-retrieved capsule context.",
-    )
     run_question = st.button("Run Question", type="primary")
 
     if run_question:
@@ -182,10 +177,7 @@ with tab1:
             st.warning("Enter a question first.")
         else:
             with st.spinner("Running workflow..."):
-                result = handle_user_query(
-                    user_question.strip(),
-                    force_analytical=force_capsule_retrieval,
-                )
+                result = handle_user_query(user_question.strip())
 
             st.success(f"Route: {result.get('route')}")
             st.write("Intent:", result.get("intent", {}))
@@ -199,6 +191,8 @@ with tab1:
 
             if execution:
                 execution = result.get("execution", {})
+                if execution.get("autofix_applied"):
+                    st.info(f"SQL autofix applied: {execution.get('autofix_reason', 'Corrected after execution error.')}")
                 st.write("Generated SQL:")
                 st.code(execution.get("sql", ""), language="sql")
                 st.write(f"Rows: {execution.get('row_count', 0)}")

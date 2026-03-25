@@ -466,6 +466,7 @@ def _capsules_to_points(
         recommended_joins = _normalize_string_list(capsule.get("recommended_joins", []))
         recommended_filters = _normalize_string_list(capsule.get("recommended_filters", []))
         example_questions = _normalize_string_list(capsule.get("example_questions", []))
+        join_columns = _normalize_string_list(capsule.get("join_columns", []))
         time_columns = _normalize_string_list(capsule.get("time_columns", []))
         entity_columns = _normalize_string_list(capsule.get("entity_columns", []))
         metric_columns = _normalize_string_list(capsule.get("metric_columns", []))
@@ -486,6 +487,7 @@ def _capsules_to_points(
             "recommended_joins": recommended_joins,
             "recommended_filters": recommended_filters,
             "example_questions": example_questions,
+            "join_columns": join_columns,
             "time_columns": time_columns,
             "entity_columns": entity_columns,
             "metric_columns": metric_columns,
@@ -532,6 +534,7 @@ def _build_content_hash(capsule: dict[str, Any], source_sql: str) -> str:
         "recommended_joins": _normalize_string_list(capsule.get("recommended_joins", [])),
         "recommended_filters": _normalize_string_list(capsule.get("recommended_filters", [])),
         "example_questions": _normalize_string_list(capsule.get("example_questions", [])),
+        "join_columns": _normalize_string_list(capsule.get("join_columns", [])),
         "sql_template": str(capsule.get("sql_template", "")),
         "row_count": int(capsule.get("row_count", 0)),
         "summary_text": capsule.get("summary_text", ""),

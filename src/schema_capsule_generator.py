@@ -56,6 +56,7 @@ def _build_table_overview_capsule(table_name: str, columns: list[dict[str, str]]
             f"Show records from {table_name}",
             f"What are the main columns in {table_name}?",
         ],
+        join_columns=[],
         metric_columns=numeric_columns,
         time_columns=date_columns,
         entity_columns=entity_columns,
@@ -78,6 +79,7 @@ def _build_join_capsules(
             f"JOIN [{ref_table}] r ON p.[{parent_column}] = r.[{ref_column}]"
         )
         join_desc = f"{parent_table}.{parent_column} -> {ref_table}.{ref_column}"
+        join_columns = [f"{parent_table}.{parent_column}", f"{ref_table}.{ref_column}"]
         parent_entity_cols = _entity_columns_from_schema(schema.get(parent_table, []))
         ref_entity_cols = _entity_columns_from_schema(schema.get(ref_table, []))
         date_columns = _date_columns_from_schema(schema.get(parent_table, [])) + _date_columns_from_schema(
@@ -96,7 +98,13 @@ def _build_join_capsules(
                 relevant_tables=[parent_table, ref_table],
                 relevant_columns=list(
                     dict.fromkeys(
-                        [parent_column, ref_column, *parent_entity_cols[:3], *ref_entity_cols[:3], *date_columns[:2]]
+                        [
+                            *join_columns,
+                            *[f"{parent_table}.{col}" for col in parent_entity_cols[:3]],
+                            *[f"{ref_table}.{col}" for col in ref_entity_cols[:3]],
+                            *[f"{parent_table}.{col}" for col in date_columns[:2]],
+                            *[f"{ref_table}.{col}" for col in date_columns[:2]],
+                        ]
                     )
                 ),
                 recommended_joins=[join_desc],
@@ -109,6 +117,7 @@ def _build_join_capsules(
                     f"Show {ref_table} activity connected to {parent_table}",
                     f"Which {ref_table} records are associated with each {parent_table}?",
                 ],
+                join_columns=join_columns,
                 metric_columns=[],
                 time_columns=date_columns[:4],
                 entity_columns=list(dict.fromkeys(parent_entity_cols + ref_entity_cols))[:8],
@@ -176,6 +185,7 @@ def _build_situation_capsules(
                         "Which broker-dealer's trading activity is increasing over time?",
                         "Show top broker dealers by trade request count",
                     ],
+                    join_columns=_join_columns_from_lines(join_lines),
                     metric_columns=["COUNT(*)"],
                     time_columns=[trade_date] if trade_date else [],
                     entity_columns=_collect_columns(
@@ -224,6 +234,7 @@ def _build_situation_capsules(
                         "Which employees are most active in trading requests?",
                         "Which department appears most active in trade requests?",
                     ],
+                    join_columns=_join_columns_from_lines(join_lines),
                     metric_columns=["COUNT(*)"],
                     time_columns=[trade_date] if trade_date else [],
                     entity_columns=_collect_columns(schema, [employee], prefer_tokens=("name", "department")),
@@ -246,6 +257,7 @@ def _build_schema_capsule(
     recommended_filters: list[str],
     sql_template: str,
     example_questions: list[str],
+    join_columns: list[str],
     metric_columns: list[str],
     time_columns: list[str],
     entity_columns: list[str],
@@ -259,6 +271,7 @@ def _build_schema_capsule(
         "recommended_filters": recommended_filters,
         "sql_template": sql_template,
         "example_questions": example_questions,
+        "join_columns": join_columns,
         "metric_columns": metric_columns,
         "time_columns": time_columns,
         "entity_columns": entity_columns,
@@ -286,6 +299,7 @@ def _build_schema_capsule(
         "relevant_columns": relevant_columns,
         "sql_template": sql_template,
         "example_questions": example_questions,
+        "join_columns": join_columns,
         "time_columns": time_columns,
         "entity_columns": entity_columns,
         "metric_columns": metric_columns,
@@ -388,6 +402,14 @@ def _recommend_filters(date_columns: list[str], entity_columns: list[str]) -> li
     for column in entity_columns[:2]:
         filters.append(f"Filter exact entity names on [{column}]")
     return filters
+
+
+def _join_columns_from_lines(join_lines: list[str]) -> list[str]:
+    columns: list[str] = []
+    for line in join_lines:
+        left, right = [part.strip() for part in line.split("->", 1)]
+        columns.extend([left, right])
+    return list(dict.fromkeys(columns))
 
 
 def _collect_columns(

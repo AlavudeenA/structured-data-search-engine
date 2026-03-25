@@ -196,6 +196,7 @@ def _schema_capsules_to_text(schema_capsules: list[dict[str, Any]]) -> str:
         tables_used = ", ".join(_normalize_list(payload.get("tables_used", []))[:6]) or "N/A"
         relevant_columns = ", ".join(_normalize_list(payload.get("relevant_columns", []))[:10]) or "N/A"
         recommended_joins = " | ".join(_normalize_list(payload.get("recommended_joins", []))[:6]) or "N/A"
+        join_columns = " | ".join(_normalize_list(payload.get("join_columns", []))[:8]) or "N/A"
         recommended_filters = " | ".join(_normalize_list(payload.get("recommended_filters", []))[:6]) or "N/A"
         example_questions = " | ".join(_normalize_list(payload.get("example_questions", []))[:4]) or "N/A"
         sql_template = str(payload.get("sql_template", "")).strip() or "N/A"
@@ -207,6 +208,7 @@ def _schema_capsules_to_text(schema_capsules: list[dict[str, Any]]) -> str:
                     f"   Tables: {tables_used}",
                     f"   Relevant columns: {relevant_columns}",
                     f"   Recommended joins: {recommended_joins}",
+                    f"   Exact join columns: {join_columns}",
                     f"   Recommended filters: {recommended_filters}",
                     f"   Example questions: {example_questions}",
                     f"   SQL template: {sql_template}",
