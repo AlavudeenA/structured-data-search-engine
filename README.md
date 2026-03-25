@@ -1,8 +1,9 @@
-# Structured Data Search Engine
+﻿# Structured Data Search Engine
 
 This project is a hybrid question-answering system for structured enterprise data.
 
 It combines:
+
 - Text-to-SQL for direct, executable data questions
 - Vector retrieval over capsules for analytical context
 - Schema-context guidance to improve SQL generation when analytical retrieval is weak
@@ -32,9 +33,11 @@ py -3 -m streamlit run streamlit_app.py
 ## Environment Variables
 
 Required for LLM features:
+
 - `GROQ_API_KEY`
 
 Optional model overrides:
+
 - `GROQ_INTENT_MODEL`
 - `GROQ_SQL_MODEL`
 - `GROQ_SUMMARY_MODEL`
@@ -42,11 +45,13 @@ Optional model overrides:
 - `GROQ_ANALYTICAL_MODEL`
 
 Optional DB and vector settings:
+
 - `SQLSERVER_CONN_STR`
 - `EMBED_MODEL`
 - `QDRANT_PATH`
 
 Optional debug:
+
 - `SQL_DEBUG=1`
 
 ## How It Works
@@ -61,8 +66,9 @@ When the user clicks `Run Question`, the app:
    - executes the SQL
    - summarizes the result
 3. For analytical questions:
-   - retrieves the most relevant capsules from Qdrant
-   - if analytical capsules are strong enough, answers from capsule context
+   - first retrieves the most relevant analytical capsules from Qdrant
+   - this is the primary analytical path and is designed for trends, aggregations, anomalies, and broader analytical reasoning
+   - if the analytical capsules are strong enough, the system answers directly from capsule context instead of going straight to SQL
    - if retrieval is weak, empty, or the top guidance is `schema_context`, it switches to SQL planning mode
 4. In SQL planning mode, the LLM receives:
    - the user question
@@ -77,6 +83,7 @@ When the user clicks `Run Question`, the app:
 The system uses two capsule families.
 
 Analytical capsules:
+
 - `random_sample`
 - `aggregation`
 - `distribution`
@@ -85,18 +92,20 @@ Analytical capsules:
 - `summary`
 
 Schema-context capsules:
+
 - metadata-focused planning capsules built from:
-  - tables
-  - columns
-  - foreign keys
-  - join paths
-  - situation patterns
+- `tables`
+- `columns`
+- `foreign keys`
+- `join paths`
+- `situation patterns`
 
 Schema-context capsules help the LLM choose:
-- which tables to join
-- which columns matter
-- which filters are typical
-- which SQL pattern fits the question
+
+- `which tables to join`
+- `which columns matter`
+- `which filters are typical`
+- `which SQL pattern fits the question`
 
 ## UI Tabs
 
@@ -105,6 +114,7 @@ Schema-context capsules help the LLM choose:
 Use this tab to ask questions in plain English.
 
 The UI shows:
+
 - route
 - detected intent
 - answer
@@ -146,6 +156,7 @@ This tab now has three actions:
 Manual SQL-backed capsule insertion.
 
 Used for:
+
 - custom SQL
 - custom capsule type
 - manual summary text
@@ -153,6 +164,7 @@ Used for:
 ### 4. Manage Capsules
 
 Use this tab to:
+
 - load capsules
 - inspect stored capsule metadata
 - delete a selected capsule
@@ -168,6 +180,7 @@ The app separates data refresh from schema refresh.
 ### Data Refresh
 
 Use `Refresh Capsules` when:
+
 - row values changed
 - counts changed
 - trends changed
@@ -178,6 +191,7 @@ This keeps analytical capsules current while preserving schema-context capsules.
 ### Schema Refresh
 
 Use `Schema Refresh` when:
+
 - a new table was added
 - a column was added or removed
 - a foreign key changed
@@ -194,6 +208,7 @@ When the system switches from analytical retrieval to SQL planning, it sends:
 - top retrieved `schema_context` capsules
 
 For each retrieved schema-context capsule, the prompt includes:
+
 - capsule name
 - summary
 - tables
@@ -207,14 +222,17 @@ For each retrieved schema-context capsule, the prompt includes:
 ## Storage
 
 Vector store:
+
 - Qdrant via `qdrant-client`
 - local path: `qdrant_data`
 
 Embeddings:
+
 - `fastembed`
 - default model: `BAAI/bge-base-en-v1.5`
 
 Refresh metadata files:
+
 - analytical refresh plan: `.analytical_capsule_refresh_plan.json`
 - schema fingerprint: `.schema_capsule_fingerprint.json`
 
