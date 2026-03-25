@@ -22,11 +22,14 @@ from .app_constants import (
 from .database_connection import get_foreign_keys, get_schema_metadata
 
 
-def generate_sql_from_question(user_query: str) -> dict[str, str]:
+def generate_sql_from_question(
+    user_query: str,
+    schema_capsules: list[dict[str, Any]] | None = None,
+) -> dict[str, str]:
     """Generate safe SQL for structured queries."""
     schema = get_schema_metadata()
     relationships = get_foreign_keys()
-    generated = _generate_sql_with_groq(user_query, schema, relationships)
+    generated = _generate_sql_with_groq(user_query, schema, relationships, schema_capsules or [])
     if generated:
         return generated
     return _generate_sql_fallback(user_query)
@@ -36,6 +39,7 @@ def _generate_sql_with_groq(
     user_query: str,
     schema: dict[str, list[dict[str, str]]],
     relationships: list[str],
+    schema_capsules: list[dict[str, Any]],
 ) -> dict[str, str] | None:
     api_key = os.getenv("GROQ_API_KEY")
     debug = os.getenv("SQL_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -51,6 +55,7 @@ def _generate_sql_with_groq(
         print("Model:", model)
     schema_text = _schema_to_text(schema)
     relationships_text = _relationships_to_text(relationships)
+    schema_capsules_text = _schema_capsules_to_text(schema_capsules)
     prompt = (
         "Database schema\n"
         "---------------\n"
@@ -58,6 +63,9 @@ def _generate_sql_with_groq(
         "Relationships\n"
         "-------------\n"
         f"{relationships_text}\n\n"
+        "Schema context capsules\n"
+        "-----------------------\n"
+        f"{schema_capsules_text}\n\n"
         "Instructions\n"
         "------------\n"
         "Generate one SQL Server SELECT query answering the user's question.\n"
@@ -66,7 +74,8 @@ def _generate_sql_with_groq(
         "2. If ranking entities, use aggregation functions like COUNT, SUM, or AVG with GROUP BY.\n"
         "3. Use JOINs when data from multiple tables is required.\n"
         "4. Prefer human-readable columns (e.g., names or labels) rather than numeric IDs in output.\n"
-        "5. Return exactly one SELECT statement with no semicolon.\n\n"
+        "5. When schema context capsules are relevant, prefer their join paths, filters, and SQL templates.\n"
+        "6. Return exactly one SELECT statement with no semicolon.\n\n"
         "Return strict JSON with keys: query_plan, sql, reason.\n\n"
         f"User question: {user_query}\n"
     )
@@ -171,6 +180,46 @@ def _relationships_to_text(relationships: list[str]) -> str:
     if not relationships:
         return "None"
     return "\n".join(relationships)
+
+
+def _schema_capsules_to_text(schema_capsules: list[dict[str, Any]]) -> str:
+    if not schema_capsules:
+        return "None"
+
+    lines: list[str] = []
+    for idx, hit in enumerate(schema_capsules[:6], start=1):
+        payload = hit.get("payload", hit) if isinstance(hit, dict) else {}
+        if not isinstance(payload, dict):
+            continue
+        capsule_name = str(payload.get("capsule_name", f"schema_capsule_{idx}")).strip()
+        summary = str(payload.get("summary_text", "")).strip()
+        tables_used = ", ".join(_normalize_list(payload.get("tables_used", []))[:6]) or "N/A"
+        relevant_columns = ", ".join(_normalize_list(payload.get("relevant_columns", []))[:10]) or "N/A"
+        recommended_joins = " | ".join(_normalize_list(payload.get("recommended_joins", []))[:6]) or "N/A"
+        recommended_filters = " | ".join(_normalize_list(payload.get("recommended_filters", []))[:6]) or "N/A"
+        example_questions = " | ".join(_normalize_list(payload.get("example_questions", []))[:4]) or "N/A"
+        sql_template = str(payload.get("sql_template", "")).strip() or "N/A"
+        lines.append(
+            "\n".join(
+                [
+                    f"{idx}. {capsule_name}",
+                    f"   Summary: {summary or 'N/A'}",
+                    f"   Tables: {tables_used}",
+                    f"   Relevant columns: {relevant_columns}",
+                    f"   Recommended joins: {recommended_joins}",
+                    f"   Recommended filters: {recommended_filters}",
+                    f"   Example questions: {example_questions}",
+                    f"   SQL template: {sql_template}",
+                ]
+            )
+        )
+    return "\n".join(lines) if lines else "None"
+
+
+def _normalize_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def _is_safe_sql(sql: str) -> bool:

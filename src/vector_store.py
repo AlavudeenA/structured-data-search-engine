@@ -462,6 +462,14 @@ def _capsules_to_points(
         key_columns = _normalize_string_list(capsule.get("key_columns", []))
         tags = _normalize_string_list(capsule.get("tags", capsule.get("metric_tags", [])))
         tables_used = _normalize_string_list(capsule.get("tables_used", []))
+        relevant_columns = _normalize_string_list(capsule.get("relevant_columns", []))
+        recommended_joins = _normalize_string_list(capsule.get("recommended_joins", []))
+        recommended_filters = _normalize_string_list(capsule.get("recommended_filters", []))
+        example_questions = _normalize_string_list(capsule.get("example_questions", []))
+        time_columns = _normalize_string_list(capsule.get("time_columns", []))
+        entity_columns = _normalize_string_list(capsule.get("entity_columns", []))
+        metric_columns = _normalize_string_list(capsule.get("metric_columns", []))
+        business_intents = _normalize_string_list(capsule.get("business_intents", []))
         created_at = str(capsule.get("created_at", capsule.get("refreshed_at_utc", "")))
         refreshed_at = str(capsule.get("refreshed_at_utc", created_at))
         payload = {
@@ -474,10 +482,20 @@ def _capsules_to_points(
             "key_columns": key_columns,
             "tags": tags,
             "tables_used": tables_used,
+            "relevant_columns": relevant_columns,
+            "recommended_joins": recommended_joins,
+            "recommended_filters": recommended_filters,
+            "example_questions": example_questions,
+            "time_columns": time_columns,
+            "entity_columns": entity_columns,
+            "metric_columns": metric_columns,
+            "business_intents": business_intents,
             "metric_tags": _normalize_string_list(capsule.get("metric_tags", tags)),
             "capsule_priority": str(capsule.get("capsule_priority", "low")),
             "capsule_version": str(capsule.get("capsule_version", "")),
             "schema_version": str(capsule.get("schema_version", "")),
+            "schema_context_json": str(capsule.get("schema_context_json", "")),
+            "sql_template": str(capsule.get("sql_template", "")),
             "content_hash": content_hash,
             "source_sql_hash": capsule_source_hash,
             "source_query_hash": str(capsule.get("source_query_hash", "")),
@@ -510,6 +528,11 @@ def _build_content_hash(capsule: dict[str, Any], source_sql: str) -> str:
         "tables_used": _normalize_string_list(capsule.get("tables_used", [])),
         "key_columns": _normalize_string_list(capsule.get("key_columns", [])),
         "tags": _normalize_string_list(capsule.get("tags", capsule.get("metric_tags", []))),
+        "relevant_columns": _normalize_string_list(capsule.get("relevant_columns", [])),
+        "recommended_joins": _normalize_string_list(capsule.get("recommended_joins", [])),
+        "recommended_filters": _normalize_string_list(capsule.get("recommended_filters", [])),
+        "example_questions": _normalize_string_list(capsule.get("example_questions", [])),
+        "sql_template": str(capsule.get("sql_template", "")),
         "row_count": int(capsule.get("row_count", 0)),
         "summary_text": capsule.get("summary_text", ""),
         "metrics": capsule.get("metrics", {}),

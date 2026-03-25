@@ -89,6 +89,7 @@ CAPSULE_TYPE_DISTRIBUTION = "distribution"
 CAPSULE_TYPE_TREND = "trend"
 CAPSULE_TYPE_ANOMALY = "anomaly"
 CAPSULE_TYPE_SUMMARY = "summary"
+CAPSULE_TYPE_SCHEMA_CONTEXT = "schema_context"
 
 # Retrieval / orchestration
 DEFAULT_ANALYTICAL_TOP_K = 5
@@ -96,12 +97,22 @@ DEFAULT_TOP_K_PER_TYPE = 5
 DEFAULT_MIN_SCORE = 0.0
 DEFAULT_ANALYTICAL_MIN_SCORE = 0.2
 DEFAULT_ANALYTICAL_TOP_K_PER_TYPE = 3
+DEFAULT_SCHEMA_CONTEXT_TOP_K = 6
+SCHEMA_CONTEXT_MIN_SCORE = 0.15
 FORCED_ANALYTICAL_TOP_K = 10
 FORCED_ANALYTICAL_TOP_K_PER_TYPE = 5
 CONFIDENCE_LOW_THRESHOLD = 0.3
 CONFIDENCE_MEDIUM_THRESHOLD = 0.5
 CONFIDENCE_HIGH_THRESHOLD = 0.75
 INTENT_REASON_MAX_WORDS = 20
+ANALYTICAL_INSUFFICIENT_ANSWER_MARKERS = (
+    "no analytical context capsules found",
+    "could not interpret rows",
+    "no clear signal exists",
+    "no clear signal",
+    "lacks specific",
+    "no usable rows found",
+)
 
 # UI listing defaults
 UI_VIEW_MIN_ITEMS = 10

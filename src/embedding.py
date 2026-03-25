@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .app_constants import (
+    CAPSULE_TYPE_SCHEMA_CONTEXT,
     DEFAULT_MAX_GROUP_COLS_PER_TABLE,
     DEFAULT_MAX_RANDOM_PER_TABLE,
     DEFAULT_ROWS_PER_CAPSULE,
@@ -23,6 +24,7 @@ from .app_constants import (
 )
 from .capsule_generator import generate_capsules_
 from .embedding_service import embed_texts
+from .schema_capsule_generator import generate_schema_context_capsules
 from .vector_store import DEFAULT_COLLECTION, apply_retention_policies, upsert_capsules
 
 
@@ -97,7 +99,7 @@ def generate_and_ingest_capsules(
     )
     with _generation_lock():
         ingest_run_id = str(uuid.uuid4())
-        capsules = generate_capsules_(
+        analytical_capsules = generate_capsules_(
             target_capsules=target_capsules,
             target_rows=target_rows,
             max_rows_per_capsule=max_rows_per_capsule,
@@ -105,6 +107,8 @@ def generate_and_ingest_capsules(
             max_group_cols_per_table=max_group_cols_per_table,
             use_llm_summaries=use_llm_summaries,
         )
+        schema_capsules = generate_schema_context_capsules()
+        capsules = [*analytical_capsules, *schema_capsules]
         result = ingest_capsules(
             capsules=capsules,
             collection_name=collection_name,
@@ -112,6 +116,8 @@ def generate_and_ingest_capsules(
             ingest_run_id=ingest_run_id,
         )
     result["generated_capsules"] = len(capsules)
+    result["generated_analytical_capsules"] = len(analytical_capsules)
+    result["generated_schema_context_capsules"] = len(schema_capsules)
     result["capsule_schema"] = ""
     result["ingest_run_id"] = ingest_run_id
     retention = apply_retention_policies(
@@ -169,6 +175,25 @@ def _capsule_to_embedding_text(capsule: dict[str, Any]) -> str:
         tables_used = []
     tables_text = ", ".join(str(x) for x in tables_used if str(x).strip())
 
+    example_questions = capsule.get("example_questions", [])
+    if not isinstance(example_questions, list):
+        example_questions = []
+    example_questions_text = " | ".join(
+        str(x).strip() for x in example_questions[:4] if str(x).strip()
+    )
+
+    recommended_joins = capsule.get("recommended_joins", [])
+    if not isinstance(recommended_joins, list):
+        recommended_joins = []
+    joins_text = " | ".join(str(x).strip() for x in recommended_joins[:4] if str(x).strip())
+
+    relevant_columns = capsule.get("relevant_columns", [])
+    if not isinstance(relevant_columns, list):
+        relevant_columns = []
+    relevant_columns_text = ", ".join(str(x).strip() for x in relevant_columns[:8] if str(x).strip())
+
+    sql_template = str(capsule.get("sql_template", "")).strip()
+
     capsule_type = str(capsule.get("capsule_type", "")).strip()
 
     parts = [summary]
@@ -180,6 +205,14 @@ def _capsule_to_embedding_text(capsule: dict[str, Any]) -> str:
         parts.append(f"Key columns: {key_columns_text}.")
     if tags_text:
         parts.append(f"Tags: {tags_text}.")
+    if joins_text:
+        parts.append(f"Recommended joins: {joins_text}.")
+    if relevant_columns_text:
+        parts.append(f"Relevant columns: {relevant_columns_text}.")
+    if example_questions_text:
+        parts.append(f"Example questions: {example_questions_text}.")
+    if capsule_type == CAPSULE_TYPE_SCHEMA_CONTEXT and sql_template:
+        parts.append(f"SQL template: {sql_template}.")
     return _normalize_text(" ".join(p for p in parts if p))
 
 

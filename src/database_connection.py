@@ -84,6 +84,15 @@ def get_schema_metadata() -> dict[str, list[dict[str, str]]]:
 
 def get_foreign_keys() -> list[str]:
     """Load foreign key relationships for allowed tables."""
+    fk_rows = get_foreign_key_metadata()
+    return [
+        f"{row['parent_table']}.{row['parent_column']} -> {row['ref_table']}.{row['ref_column']}"
+        for row in fk_rows
+    ]
+
+
+def get_foreign_key_metadata() -> list[dict[str, str]]:
+    """Load structured foreign key metadata for allowed tables."""
     tables = _effective_allowed_tables()
     if not tables:
         return []
@@ -99,7 +108,7 @@ def get_foreign_keys() -> list[str]:
         ON f.object_id = fc.constraint_object_id
     ORDER BY parent_table, parent_column
     """
-    relationships: list[str] = []
+    relationships: list[dict[str, str]] = []
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(sql)
@@ -109,7 +118,12 @@ def get_foreign_keys() -> list[str]:
             if p_table not in tables or r_table not in tables:
                 continue
             relationships.append(
-                f"{p_table}.{parent_column} -> {r_table}.{ref_column}"
+                {
+                    "parent_table": p_table,
+                    "parent_column": str(parent_column),
+                    "ref_table": r_table,
+                    "ref_column": str(ref_column),
+                }
             )
     return relationships
 

@@ -13,6 +13,7 @@ from src.app_constants import (
     CAPSULE_TYPE_ANOMALY,
     CAPSULE_TYPE_DISTRIBUTION,
     CAPSULE_TYPE_RANDOM_SAMPLE,
+    CAPSULE_TYPE_SCHEMA_CONTEXT,
     CAPSULE_TYPE_SUMMARY,
     CAPSULE_TYPE_TREND,
     CONFIDENCE_HIGH_THRESHOLD,
@@ -191,7 +192,12 @@ with tab1:
             st.write("Answer:")
             st.code(result.get("answer", ""), language="text")
 
-            if result.get("route") == "text_to_sql":
+            execution = result.get("execution", {}) or {}
+            retrieval = result.get("retrieval", {}) or {}
+            hits = retrieval.get("hits", [])
+            supporting = retrieval.get("supporting", {})
+
+            if execution:
                 execution = result.get("execution", {})
                 st.write("Generated SQL:")
                 st.code(execution.get("sql", ""), language="sql")
@@ -199,10 +205,7 @@ with tab1:
                 rows = execution.get("rows", [])
                 if rows:
                     st.dataframe(rows)
-            else:
-                retrieval = result.get("retrieval", {}) or {}
-                hits = retrieval.get("hits", [])
-                supporting = retrieval.get("supporting", {})
+            if retrieval:
                 confidence = _compute_analytical_confidence(hits)
                 st.write(f"Confidence: {confidence}")
                 st.write("Supporting capsule name:", _supporting_capsule_name(hits, supporting))
@@ -214,7 +217,7 @@ with tab1:
 with tab2:
     st.subheader("Generate and Ingest Context Capsules")
     st.caption(
-        "Primary mode: schema-agnostic generation of random, aggregation, and distribution capsules. "
+        "Generates analytical capsules plus schema-context planning capsules for fallback SQL guidance."
     )
     st.session_state["latest_planned_sqls"] = []
     gen_col1, gen_col2 = st.columns(2)
@@ -322,9 +325,10 @@ with tab3:
             CAPSULE_TYPE_DISTRIBUTION,
             CAPSULE_TYPE_TREND,
             CAPSULE_TYPE_ANOMALY,
+            CAPSULE_TYPE_SCHEMA_CONTEXT,
             CAPSULE_TYPE_SUMMARY,
         ],
-        index=5,
+        index=6,
         key="manual_capsule_type",
     )
     manual_summary = st.text_area(
