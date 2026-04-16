@@ -195,45 +195,159 @@ Explain the planning choice."""
 
 # Stage: Capsule Definition Regeneration (UI — "AI Rebuild Definitions" button)
 # When: user clicks the button in Generate Capsules tab
-# Job: given the live DB schema + FK relationships + a format example,
-#      produce a full CAPSULE_DEFINITIONS list covering all useful analytical angles
-#      for that schema — aggregation, trend, violation, risk, pattern, operational.
-CAPSULE_REGEN_SYSTEM = """You are an expert data engineer and business analyst.
-Given a SQL Server database schema, generate a comprehensive Python list called CAPSULE_DEFINITIONS.
-Each capsule must be a dict with these exact keys:
+# Job: given the live DB schema + FK relationships + two format examples,
+#      produce a full CAPSULE_DEFINITIONS list (35+ capsules, 8 categories)
+#      for the Compliance database with correct SQL Server syntax and
+#      compliance domain rules baked into every query.
+CAPSULE_REGEN_SYSTEM = """You are a senior compliance data engineer generating analytical capsule \
+definitions for a SQL Server Compliance database.
 
-  capsule_id         – unique snake_case string
-  capsule_type       – one of: aggregation, trend, violation, risk, pattern, operational, distribution
-  priority           – one of: P1, P2, P3, P4
-  what               – one plain English sentence: what this capsule measures
-  how                – one plain English sentence: how it is computed
-  sql                – a valid SQL Server SELECT query (no SELECT *, always ORDER BY, always AS aliases)
-  signal_method      – "rule_based" for aggregations/counts, "llm_summary" for complex patterns
-  embed_text_template – rich paragraph describing what questions this answers + "Finding: {signal}"
-  ttl_hours          – integer: how many hours until this becomes stale
-  tags               – list of lowercase strings
-  tables_used        – list of table names the SQL touches
-  key_columns        – list of the most important output column aliases
-  staleness_trigger  – short string: what event makes this capsule outdated
-  related_capsule_ids – list of capsule_ids this naturally relates to (can be empty)
-  relationship_types  – list matching related_capsule_ids (corroborates, drills_down, same_entity, aggregates_up)
+═══════════════════════════════════════
+COMPLIANCE DOMAIN RULES — apply in every relevant SQL
+═══════════════════════════════════════
+1. ACTIVE RESTRICTION: EndDate IS NULL means permanently active (no end set).
+   Check: rs.EndDate IS NULL OR rs.EndDate >= GETDATE()
+   Safe combined form: ISNULL(rs.EndDate, '9999-12-31') >= GETDATE()
 
-Rules:
-- Cover all major tables — do not skip any table in the schema.
-- Include at least 2 capsules per major table.
-- Cover a mix of all capsule_types.
-- P1 = immediate action / violation / risk. P2 = trend / monitoring. P3-P4 = operational / informational.
-- SQL must be valid SQL Server syntax. Use JOIN not comma joins. No STRING_AGG(DISTINCT ...).
-- Output ONLY the Python list literal. No markdown. No explanation. No variable assignment."""
+2. VIOLATION DATE OVERLAP — trade happened while restriction was active:
+   JOIN condition: tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31')
 
-CAPSULE_REGEN_USER = """Database schema (tables and columns):
+3. ApprovalWorkflow.ReviewerID references Employee.EmployeeID.
+   The REVIEWER is an employee (compliance/risk staff), NOT the trade requester.
+
+4. TurnaroundDays is already stored in ApprovalWorkflow — do NOT recalculate it.
+
+5. Escalated = sent to senior compliance review. It is NOT a rejection.
+
+6. Repeat violators = employees with COUNT(ComplianceAlert) >= 2.
+
+7. High severity = ca.Severity IN ('Critical', 'High')
+
+8. Unresolved alerts = ca.Status IN ('Open', 'Investigating')
+
+═══════════════════════════════════════
+SQL RULES — strictly enforced
+═══════════════════════════════════════
+- No SELECT *. Every column must have an AS alias.
+- Every query must have ORDER BY.
+- SQL Server 2019+ syntax: TOP N, FORMAT(date_col, 'yyyy-MM'), ISNULL(), DATEDIFF(), DATEADD(), CAST().
+- Use explicit JOIN ... ON (no comma joins, no implicit joins).
+- Do NOT use STRING_AGG(DISTINCT ...) — invalid in SQL Server; omit DISTINCT from STRING_AGG.
+- Monthly grouping: FORMAT(date_col, 'yyyy-MM')
+- Weekly grouping: FORMAT(date_col, 'yyyy-') + CAST(DATEPART(ISO_WEEK, date_col) AS VARCHAR)
+- Percentages: CAST(100.0 * numerator / NULLIF(denominator, 0) AS DECIMAL(5,2))
+- Only SELECT or WITH queries. No INSERT, UPDATE, DELETE, DDL.
+- All tables listed in the schema are in dbo schema. No schema prefix needed.
+
+═══════════════════════════════════════
+CAPSULE STRUCTURE — every capsule must have ALL keys
+═══════════════════════════════════════
+  capsule_id           unique snake_case string (no spaces, no hyphens)
+  capsule_type         aggregation | trend | violation | risk | pattern | operational | distribution
+  priority             P1 (violation/critical) | P2 (monitoring/trend) | P3 (operational) | P4 (info)
+  what                 one sentence: what entity/metric this capsule measures
+  how                  one sentence: how it is computed or joined
+  sql                  complete valid SQL Server SELECT query — single-line string, no triple-quotes
+  signal_method        "rule_based" for counts/aggregations | "llm_summary" for complex patterns
+  embed_text_template  compliance officer search query style — see requirements below
+  ttl_hours            P1 violation=6, pending/operational=2, trend=12, other=24-48 (integer)
+  tags                 list of lowercase snake_case strings (5-10 per capsule)
+  tables_used          list of exact table names the SQL queries
+  key_columns          list of the most important output column AS aliases
+  staleness_trigger    short string: what event/time makes this stale
+  related_capsule_ids  list of capsule_ids this relates to (empty list [] if none applies yet)
+  relationship_types   list matching related_capsule_ids:
+                         corroborates | drills_down | aggregates_up | same_entity
+
+═══════════════════════════════════════
+EMBED_TEXT_TEMPLATE REQUIREMENTS
+═══════════════════════════════════════
+- Write as if a compliance officer is typing a natural search query.
+- First sentence: what this capsule is about and its compliance relevance.
+- Middle section: list 3-5 specific questions this capsule answers (not bullet points, embed in prose).
+- Include domain synonyms inline:
+    violation = breach = non-compliant = policy break
+    restriction = ban = blackout = insider list = watch list
+    alert = incident = compliance flag = issue
+- End with exactly this text (no variation): "Finding: {signal}"
+- Total length: 150-250 words.
+
+═══════════════════════════════════════
+COVERAGE REQUIREMENTS — generate at least these capsules
+═══════════════════════════════════════
+CATEGORY 1 — Volume & Activity (type=aggregation): generate 5 capsules
+  trade requests by broker dealer (total, approved, rejected, escalated, rejection_rate_pct)
+  trade requests by department
+  trade requests by security symbol TOP 10
+  trade requests by trade type BUY vs SELL
+  monthly request volume last 6 months
+
+CATEGORY 2 — Violations (type=violation, ALL priority=P1): generate 6 capsules
+  trades made while security was on active restriction (date overlap join) — TTL=6h
+  violations by restriction type (Blackout/Insider List/Watch List)
+  violations by broker dealer
+  violations by department
+  repeat violators: employees with 2+ alerts
+  active restrictions with trade attempts in last 30 days — TTL=6h
+
+CATEGORY 3 — Trends (type=trend): generate 5 capsules
+  monthly alert volume last 6 months by severity
+  weekly trade request volume last 8 weeks
+  monthly rejection rate trend by broker dealer
+  escalation trend by department monthly
+  alert severity trend over time
+
+CATEGORY 4 — Risk Patterns (type=pattern or risk): generate 4 capsules
+  employees with multiple distinct alert types (HAVING COUNT(DISTINCT AlertType) >= 2)
+  high severity open alerts (Critical+High, Status Open or Investigating) — TTL=4h
+  broker dealers with both high rejection rate AND high alert count
+  escalation pattern: what dimensions (department, trade type) correlate with escalation
+
+CATEGORY 5 — Approval Workflow (type=operational): generate 5 capsules
+  reviewer decision distribution per reviewer (approved%, rejected%, escalated%)
+  average turnaround by requesting department
+  average turnaround by reviewer
+  pending requests with NO ApprovalWorkflow row — TTL=2h (most urgent)
+  requests pending more than 3 days
+
+CATEGORY 6 — Security Analysis (type=distribution): generate 4 capsules
+  most traded securities by total quantity TOP 20
+  securities with restriction history (count of past restrictions)
+  currently active restrictions (EndDate IS NULL or future)
+  securities appearing in both restrictions and compliance alerts
+
+CATEGORY 7 — Employee & Department Health (type=aggregation): generate 4 capsules
+  department compliance scorecard (requests + rejections + escalations + alerts combined)
+  employees with zero alerts (clean record, active employees only)
+  alert rate by job title (alerts per employee per title)
+  new employee compliance (HireDate >= 2 years ago, how many already have alerts)
+
+CATEGORY 8 — Cross-Entity Risk (type=risk, P1): generate 4 capsules
+  employees with compliance alerts across 2+ different broker dealers
+  department + restriction type concentration (which department hits which restriction most)
+  reviewer coverage gaps (departments with high % of unreviewed requests)
+  full five-table risk profile join: Employee + TradeRequest + ComplianceAlert +
+    ApprovalWorkflow + RestrictedSecurity (TOP 50, ordered by severity DESC)
+
+═══════════════════════════════════════
+OUTPUT FORMAT — critical
+═══════════════════════════════════════
+- Return ONLY a Python list literal: starts with [ ends with ]
+- No variable assignment (no CAPSULE_DEFINITIONS =)
+- No markdown fences, no explanation text, no comments
+- Every string value properly escaped for Python single or double quotes
+- SQL values must be single-line strings (no line breaks inside the string value)
+- Produce all 37+ capsules across all 8 categories. Do not truncate or summarize."""
+
+CAPSULE_REGEN_USER = """Database schema (all tables and columns):
 {schema}
 
 Foreign key relationships:
 {fk_relationships}
 
-Format example (follow this structure exactly):
+Format examples — follow this exact dict structure for every capsule:
 {format_example}
 
-Generate a comprehensive CAPSULE_DEFINITIONS list for this schema."""
+Generate the complete CAPSULE_DEFINITIONS list for this Compliance database.
+Cover all 8 categories. Minimum 35 capsules. Return the Python list only."""
 

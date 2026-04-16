@@ -207,37 +207,64 @@ with generate_tab:
         if progress_rows:
             st.dataframe(progress_rows, use_container_width=True)
 
-    if col4.button("AI Rebuild Definitions", type="secondary", use_container_width=True):
+    if col4.button("AI Rebuild Definitions", type="primary", use_container_width=True):
         from src.capsule_builder.definitions_generator import (
             generate_capsule_definitions_via_llm,
             save_generated_definitions,
+            validate_definitions_output,
         )
-        import os
 
-        with st.spinner("Analysing live schema and generating capsule definitions via LLM... (may take 30–60 seconds)"):
-            raw_output = generate_capsule_definitions_via_llm()
-
-        st.success("LLM generated a new CAPSULE_DEFINITIONS list. Review below before saving.")
-        st.info(
-            "This output is a Python list you can save directly to `capsule_definitions.py`. "
-            "After saving, click **Generate All Capsules** to rebuild the vector store."
-        )
-        st.code(raw_output, language="python")
-
-        definitions_path = os.path.join(
-            os.path.dirname(__file__),
-            "src", "business_schema", "capsule_definitions.py",
-        )
-        if st.button("💾 Save to capsule_definitions.py", type="primary", key="save_regen"):
+        with st.spinner(
+            "Reading live schema → building prompt → calling Groq 70b → generating 35+ capsules… "
+            "This takes 30–90 seconds."
+        ):
             try:
-                save_generated_definitions(
-                    raw_output,
-                    os.path.join(os.path.dirname(os.path.abspath("streamlit_app.py")),
-                                 "src", "business_schema", "capsule_definitions.py")
+                raw_output = generate_capsule_definitions_via_llm()
+                st.session_state["regen_raw_output"] = raw_output
+            except Exception as exc:
+                st.error(f"Generation failed: {exc}")
+                raw_output = None
+
+        if raw_output:
+            is_valid, validation_error = validate_definitions_output(raw_output)
+
+            if is_valid:
+                # Count capsules by scanning for { "capsule_id" patterns
+                import re as _re
+                capsule_count = len(_re.findall(r'"capsule_id"\s*:', raw_output))
+                st.success(
+                    f"✅ LLM generated **{capsule_count} capsules** — valid Python syntax confirmed."
                 )
-                st.success("Saved! Click **Generate All Capsules** to rebuild the vector store with the new definitions.")
+            else:
+                st.warning(f"⚠️ Syntax warning: {validation_error}. Review before saving.")
+
+            st.info(
+                "Review the generated definitions below. "
+                "Click **💾 Save & Activate** to overwrite `capsule_definitions.py`, "
+                "then click **Generate All Capsules** to rebuild the vector store."
+            )
+
+            with st.expander("Generated CAPSULE_DEFINITIONS (Python)", expanded=True):
+                st.code(raw_output, language="python")
+
+    # Save button lives outside the generate block so it persists across reruns
+    if st.session_state.get("regen_raw_output"):
+        raw_output = st.session_state["regen_raw_output"]
+        col_save, col_clear = st.columns([2, 1])
+        if col_save.button("💾 Save & Activate", type="primary", key="save_regen"):
+            from src.capsule_builder.definitions_generator import save_generated_definitions
+            try:
+                save_generated_definitions(raw_output)
+                st.success(
+                    "✅ Saved to `src/business_schema/capsule_definitions.py`. "
+                    "Click **Generate All Capsules** to rebuild the vector store."
+                )
+                st.session_state.pop("regen_raw_output", None)
             except Exception as exc:
                 st.error(f"Save failed: {exc}")
+        if col_clear.button("🗑️ Discard", key="clear_regen"):
+            st.session_state.pop("regen_raw_output", None)
+            st.rerun()
 
 with explorer_tab:
     st.subheader("Capsule Explorer")
