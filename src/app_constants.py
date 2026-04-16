@@ -47,7 +47,8 @@ MAX_HOP_DEPTH = 2
 MAX_LINKED_CAPSULES = 3
 MIN_SHARED_TAGS_FOR_RELATION = 2
 
-DATA_DIR = Path("data")
+DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 ANALYTICAL_REFRESH_PLAN_FILE = DATA_DIR / ".analytical_refresh_plan.json"
 SCHEMA_FINGERPRINT_FILE = DATA_DIR / ".schema_fingerprint.json"
 CAPSULE_GRAPH_FILE = DATA_DIR / ".capsule_graph.json"

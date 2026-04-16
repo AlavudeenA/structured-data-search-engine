@@ -16,9 +16,9 @@ from src.app_constants import (
     INTENT_STRUCTURED,
     UI_MAX_HISTORY,
 )
-from src.pipeline1.relationship_builder import load_graph
-from src.pipeline1.store_manager import collection_stats, generate_all_capsule_collections, refresh_data_only, schema_refresh
-from src.pipeline2.orchestrator import handle_query
+from src.capsule_builder.relationship_builder import load_graph
+from src.capsule_builder.store_manager import collection_stats, generate_all_capsule_collections, refresh_data_only, schema_refresh
+from src.query_engine.orchestrator import handle_query
 from src.vector_store import clear_collection, collection_counts, delete_by_capsule_id, reset_all_collections, scroll_all, upsert_capsule
 from src.database_connection import execute_select
 from src.embedding import embed_single
@@ -159,8 +159,8 @@ with generate_tab:
         progress = st.progress(0, text="Starting full build")
         progress_rows: list[dict] = []
 
-        def on_progress(capsule_id: str, status: str, preview: str) -> None:
-            progress_rows.append({"capsule_id": capsule_id, "status": status, "signal_preview": preview})
+        def on_progress(capsule_id: str, status: str, preview: str, collection: str = "analytical_capsules") -> None:
+            progress_rows.append({"collection": collection, "capsule_id": capsule_id, "status": status, "signal_preview": preview})
             total = max(len(progress_rows), 1)
             progress.progress(min(total / 32, 1.0), text=f"Built {capsule_id}")
 
@@ -181,8 +181,8 @@ with generate_tab:
     if col2.button("Refresh Data", type="primary", use_container_width=True):
         progress_rows: list[dict] = []
 
-        def on_progress(capsule_id: str, status: str, preview: str) -> None:
-            progress_rows.append({"capsule_id": capsule_id, "status": status, "signal_preview": preview})
+        def on_progress(capsule_id: str, status: str, preview: str, collection: str = "analytical_capsules") -> None:
+            progress_rows.append({"collection": collection, "capsule_id": capsule_id, "status": status, "signal_preview": preview})
 
         with st.spinner("Refreshing analytical capsules from saved plan..."):
             summary = refresh_data_only(progress_callback=on_progress)
@@ -193,8 +193,8 @@ with generate_tab:
     if col3.button("Schema Refresh", type="primary", use_container_width=True):
         progress_rows: list[dict] = []
 
-        def on_progress(capsule_id: str, status: str, preview: str) -> None:
-            progress_rows.append({"capsule_id": capsule_id, "status": status, "signal_preview": preview})
+        def on_progress(capsule_id: str, status: str, preview: str, collection: str = "analytical_capsules") -> None:
+            progress_rows.append({"collection": collection, "capsule_id": capsule_id, "status": status, "signal_preview": preview})
 
         with st.spinner("Refreshing schema and rebuilding all collections..."):
             summary = schema_refresh(progress_callback=on_progress)
@@ -359,7 +359,7 @@ with insert_tab:
             if not invalid_sql:
                 with st.spinner("Determining metadata via LLM and saving..."):
                     from src.llm_service import call_llm_json
-                    from src.pipeline1.append_capsules import append_to_capsule_definitions_file
+                    from src.capsule_builder.append_capsules import append_to_capsule_definitions_file
                     
                     sys_prompt = (
                         "You are a smart data analytics engine. Given a capsule summary and SQL, return a JSON object containing "
@@ -465,4 +465,7 @@ with reset_tab:
         with st.spinner("Resetting vector store..."):
             st.session_state.explorer_capsules = []
             reset_all_collections()
+            with sidebar_collections.container():
+                st.markdown("### Collections")
+                st.json(collection_counts())
         st.success("Vector store reset complete.")
