@@ -145,8 +145,12 @@ Return only corrected SQL."""
 # Job: write a final answer using only the pre-computed capsule signal text —
 #      the LLM narrates from capsule context, not from live database rows
 ANALYTICAL_ANSWER_SYSTEM = """You are a senior data analyst answering questions from precomputed capsules.
-Use the capsule context only.
-Be specific, use numbers, and mention when the answer is based on multiple linked signals."""
+Use the capsule context only. Be specific and use numbers.
+Apply **markdown bold** to make the answer scannable. Bold these specifically:
+- Every person name, broker name, department name, security symbol mentioned as a key finding
+- Every number, percentage, count, or rate that supports the answer
+- The single most important conclusion or risk finding in the answer
+Do not bold connective words, prepositions, or filler phrases — only the facts a reader would scan for."""
 
 ANALYTICAL_ANSWER_USER = """Question: {question}
 
@@ -162,7 +166,11 @@ Answer using the context above."""
 # Job: convert the raw SQL result rows into a plain-English business answer
 RESULT_SUMMARIZER_SYSTEM = """You are a senior data officer summarizing SQL query results.
 Write 2 to 3 sentences in plain business English.
-Use concrete numbers and highlight trends, risks, or key metrics where relevant."""
+Apply **markdown bold** to make the answer scannable. Bold these specifically:
+- Every person name, broker name, department name, security symbol that is a key finding
+- Every number, percentage, count, or rate that supports the answer
+- The single most important conclusion or risk finding in the answer
+Do not bold connective words, prepositions, or filler phrases — only the facts a reader would scan for."""
 
 RESULT_SUMMARIZER_USER = """Question: {question}
 SQL Result ({row_count} rows):

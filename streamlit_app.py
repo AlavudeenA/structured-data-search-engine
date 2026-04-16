@@ -48,13 +48,34 @@ def init_state() -> None:
 init_state()
 
 
-def render_intent_badge(intent: str, confidence: float) -> None:
-    color, label = INTENT_BADGE.get(intent, ("gray", intent.title()))
+_ROUTE_STYLE = {
+    "sql_direct":               ("steelblue", "SQL Direct"),
+    "sql_with_schema_guidance": ("steelblue", "SQL + Schema"),
+    "capsule_direct":           ("green",     "Capsule Answer"),
+    "vector_retrieval":         ("purple",    "Vector Retrieval"),
+    "hybrid":                   ("orange",    "Hybrid"),
+    "sql_generation_failed":    ("crimson",   "Generation Failed"),
+}
+
+
+def _pill(color: str, text: str) -> None:
     st.markdown(
-        f"<span style='background:{color};color:white;padding:4px 10px;border-radius:999px;font-size:0.9rem;'>"
-        f"{label} ({confidence:.0%})</span>",
+        f"<span style='background:{color};color:white;padding:4px 10px;"
+        f"border-radius:999px;font-size:0.9rem;'>{text}</span>",
         unsafe_allow_html=True,
     )
+
+
+def render_intent_badge(intent: str, confidence: float) -> None:
+    color, label = INTENT_BADGE.get(intent, ("gray", intent.title()))
+    _pill(color, f"{label} ({confidence:.0%})")
+
+
+def render_route_badge(route: str) -> None:
+    color, label = _ROUTE_STYLE.get(
+        route, ("gray", route.replace("_", " ").title())
+    )
+    _pill(color, label)
 
 
 def record_telemetry(result) -> None:
@@ -119,10 +140,11 @@ with ask_tab:
             st.markdown("**Intent detected**")
             render_intent_badge(result.intent, result.confidence)
         with col2:
-            st.markdown(f"**Route taken**  ` {result.route_taken} `")
+            st.markdown("**Route taken**")
+            render_route_badge(result.route_taken)
 
         st.markdown("### Answer")
-        st.write(result.answer)
+        st.markdown(result.answer)
 
         if result.sql_reason:
             st.markdown("**SQL Reason**")

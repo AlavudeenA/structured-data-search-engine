@@ -14,3 +14,4 @@
 *.pyc
 /src/pipeline1/__pycache__/__init__.cpython-313.pyc
 /src/qdrant_test_data/.lock
+*.py.tmp.*
