@@ -194,78 +194,169 @@ Inside `capsule_definitions.py` there are two lists:
 
 ---
 
-## Project Structure
+## Project Structure & What Each File Does
 
 ```
-streamlit_app.py            ← the web UI
-requirements.txt
-.env                        ← secrets (API keys, DB connection string)
+streamlit_app.py            ← Web UI entry point (all tabs rendered here)
+requirements.txt            ← Python dependencies
+.env                        ← Your secrets (API keys, DB connection) — never commit this
 README.md
 
 src/
-  app_constants.py          ← engine-wide settings (collection names, thresholds)
-  config.py                 ← reads .env settings
-  models.py                 ← data models shared across both pipelines
-  prompts.py                ← all LLM system prompts (business-agnostic)
-  database_connection.py    ← SQL Server connection + dynamic schema discovery
-  llm_service.py            ← Groq API calls
-  embedding.py              ← fastembed vector generation
-  vector_store.py           ← Qdrant local read/write operations
+  config.py                 ← Reads .env into a typed Settings object (pydantic-settings)
+  app_constants.py          ← Shared constants: collection names, score thresholds, path config
+  models.py                 ← Data models (GeneratedCapsule, SchemaContextCapsule, BuildSummary...)
+  prompts.py                ← All LLM system + user prompts (business-agnostic instruction strings)
+  database_connection.py    ← SQL Server connection pool, schema metadata discovery via INFORMATION_SCHEMA
+  llm_service.py            ← Thin wrapper around Groq API (call_llm / call_llm_json)
+  embedding.py              ← Text → vector via fastembed; also manages fingerprint + refresh plan files
+  vector_store.py           ← Qdrant read/write: upsert, scroll, search, delete, reset
 
-  capsule_builder/          ← Pipeline 1: builds knowledge
-    capsule_generator.py    ← runs SQL, extracts signal, returns GeneratedCapsule
-    schema_capsule_generator.py  ← builds schema maps from SCHEMA_DEFINITIONS
-    ml_enricher.py          ← anomaly scores, trend direction
-    relationship_builder.py ← links capsules, generates anomaly alerts
-    store_manager.py        ← orchestrates the full build + persists to Qdrant
-    append_capsules.py      ← writes new capsules from UI to capsule_definitions.py
+  capsule_builder/          ← Pipeline 1 — runs offline to build the knowledge base
+    store_manager.py        ← Master orchestrator: calls all generators, persists results, saves plan
+    capsule_generator.py    ← Runs each capsule's SQL, optionally calls LLM for signal, returns capsule
+    schema_capsule_generator.py  ← Turns SCHEMA_DEFINITIONS into embedded schema context capsules
+    ml_enricher.py          ← Adds anomaly score (z-score on numeric cols) and trend direction
+    relationship_builder.py ← Finds capsule overlaps by entity, generates related risk capsules
+    append_capsules.py      ← Writes a new capsule dict into capsule_definitions.py + embeds it
 
-  query_engine/             ← Pipeline 2: answers questions
-    query_router.py         ← classifies intent (structured / analytical / hybrid)
-    context_searcher.py     ← searches Qdrant for relevant capsules
-    context_packager.py     ← assembles context for the LLM
-    analytical_retriever.py ← returns answer directly from capsule signal
-    sql_generator.py        ← generates SQL using schema capsules as guides
-    sql_executor.py         ← runs SQL against SQL Server
-    sql_autofix.py          ← retries once with LLM-corrected SQL on failure
-    result_summarizer.py    ← converts SQL rows into a natural-language answer
-    orchestrator.py         ← coordinates all of the above end-to-end
+  query_engine/             ← Pipeline 2 — runs on every user question
+    orchestrator.py         ← Entry point: coordinates all steps, returns final AnswerResult
+    query_router.py         ← Calls LLM to classify intent as structured/analytical/hybrid/operational
+    context_searcher.py     ← Vector searches all 3 Qdrant collections for relevant capsules
+    context_packager.py     ← Ranks and packages primary + linked + schema + related context
+    analytical_retriever.py ← Answers directly from capsule signal when confidence is high enough
+    sql_generator.py        ← Sends schema context + question to LLM, gets back a SELECT query
+    sql_executor.py         ← Executes the SQL query against SQL Server, returns row dicts
+    sql_autofix.py          ← On SQL error, sends broken SQL + error to LLM for one fix attempt
+    result_summarizer.py    ← Summarizes SQL result rows into plain-English business answer
 
-  business_schema/          ← your domain-specific configuration (swap to change domains)
-    capsule_definitions.py
-    sql_schema.txt
-    Sample_Questions.md
+  business_schema/          ← Domain configuration — swap this folder to change database domains
+    capsule_definitions.py  ← CAPSULE_DEFINITIONS list (SQL + metadata per capsule) + SCHEMA_DEFINITIONS
+    dbscript.sql            ← Full DDL + sample data for this domain's SQL Server database
+    Sample_Questions.md     ← Example questions that work well with this schema
 
-data/                       ← runtime cache (auto-created, safe to delete)
-  .analytical_refresh_plan.json   ← tracks which capsules exist and when they expire
-  .schema_fingerprint.json        ← fingerprint of DB schema for change detection
-  .capsule_graph.json             ← capsule relationship graph for the Graph tab
+data/                       ← Runtime cache files (auto-created, safe to delete)
+  .analytical_refresh_plan.json  ← Last-run capsule plan (used by Refresh Data button)
+  .schema_fingerprint.json       ← Hash of DB schema (used by Schema Refresh button)
+  .capsule_graph.json            ← Capsule relationship graph (used by Capsule Graph tab)
 
-qdrant_data/                ← local Qdrant vector store (auto-created)
+qdrant_data/                ← Local Qdrant vector store persistence (auto-created)
 ```
 
 ---
 
-## Setup
+## End-to-End Flow: Generating Capsules
 
-### 1. Install dependencies
-```bash
-py -3 -m pip install -r requirements.txt
+> This runs when you click **Generate All Capsules** in the UI.
+> The goal: pre-run all SQL queries, extract meaningful signals, and store everything as searchable vectors.
+
+```
+capsule_definitions.py
+       │
+       │  provides: list of capsule dicts
+       │  (each has: capsule_id, SQL, what, how, ttl_hours, tags, priority...)
+       ▼
+store_manager.py  ← master coordinator
+       │
+       ├─── capsule_generator.py
+       │         │  reads each capsule definition
+       │         │  runs SQL against SQL Server (database_connection.py)
+       │         │  if signal_method = "llm_summary":
+       │         │      calls Groq with SIGNAL_GENERATION_SYSTEM prompt (prompts.py)
+       │         │      LLM writes 2–3 sentence signal from the raw rows
+       │         │  if signal_method = "rule_based":
+       │         │      picks top rows / computes summary without LLM
+       │         │  then calls ml_enricher.py:
+       │         │      computes anomaly_score (z-score on numeric columns)
+       │         │      computes trend_direction (rising/falling/flat)
+       │         └─► returns GeneratedCapsule (signal + rows + scores + embed_text)
+       │
+       ├─── schema_capsule_generator.py
+       │         │  reads SCHEMA_DEFINITIONS from capsule_definitions.py
+       │         │  (these describe how tables relate, FK paths, example questions)
+       │         └─► returns SchemaContextCapsule list (no SQL needed — pure metadata)
+       │
+       ├─── relationship_builder.py
+       │         │  compares entity values across all analytical capsules
+       │         │  finds capsules that share entity names (broker, employee, security)
+       │         │  for each high-anomaly capsule:
+       │         │      calls Groq with RELATED_SIGNAL_SYSTEM prompt (prompts.py)
+       │         │      LLM writes a 2-sentence risk alert for that entity
+       │         └─► returns RelatedCapsule list + saves .capsule_graph.json
+       │
+       ├─── embedding.py
+       │         │  takes embed_text from every capsule
+       │         └─► calls fastembed → 768-dim float vector
+       │
+       └─── vector_store.py
+                 │  upserts each (capsule_id, vector, payload) into Qdrant
+                 └─► analytical_capsules, schema_context_capsules, related_capsules
+
+Final saves:
+  .analytical_refresh_plan.json  ← capsule IDs + expiry (for Refresh Data)
+  .schema_fingerprint.json       ← DB schema hash (for Schema Refresh)
 ```
 
-### 2. Configure `.env`
-```
-GROQ_API_KEY=your_groq_key_here
-SQLSERVER_CONN_STR=DRIVER={ODBC Driver 17 for SQL Server};SERVER=...;DATABASE=...;...
-```
+**Key distinction:** `capsule_definitions.py` defines *what to query and what context to carry*. `prompts.py` defines *how the LLM should interpret and summarize those query results*. They work at different stages but both feed the same output: the capsule's `signal` text.
 
-### 3. Run the app
-```bash
-py -3 -m streamlit run streamlit_app.py
-```
+---
 
-### 4. Generate capsules (first time)
-In the browser, go to the **Generate Capsules** tab and click **Generate All Capsules**. This runs all the SQL queries and builds the vector knowledge base. It takes a minute or two.
+## End-to-End Flow: Answering a Question
+
+> This runs every time a user types a question and clicks Ask.
+> The goal: return a plain-English answer using either pre-computed capsule signals or live SQL.
+
+```
+User types: "Which broker dealer has the highest rejection rate?"
+       │
+       ▼
+orchestrator.py  ← entry point
+       │
+       ├─ Step 1: query_router.py
+       │       sends question to Groq with INTENT_DETECTION_SYSTEM prompt (prompts.py)
+       │       LLM classifies intent → "structured" / "analytical" / "hybrid" / "operational"
+       │       also extracts structured_parts and analytical_parts
+       │
+       ├─ Step 2: context_searcher.py
+       │       embeds the question (embedding.py → fastembed)
+       │       vector searches all 3 Qdrant collections (vector_store.py)
+       │       returns top-K matching capsules from each collection
+       │
+       ├─ Step 3: context_packager.py
+       │       ranks and groups the retrieved capsules:
+       │         • primary capsule   = best single match
+       │         • linked capsules   = capsules related via relationship graph
+       │         • schema capsules   = best schema_context_capsule matches
+       │         • related capsules  = any anomaly/risk alerts relevant to question
+       │
+       ├─ Step 4A: if intent = "analytical" AND confidence ≥ threshold
+       │       analytical_retriever.py
+       │           packages the combined capsule signals as context
+       │           calls Groq with ANALYTICAL_ANSWER_SYSTEM prompt (prompts.py)
+       │           LLM writes answer using pre-computed signal text only (no new SQL)
+       │           → Answer returned immediately (milliseconds)
+       │
+       └─ Step 4B: if intent = "structured" / "operational" / low confidence
+               sql_generator.py
+                   assembles: question + schema capsule context + FK relationships
+                   calls Groq with SQL_GENERATION_SYSTEM prompt (prompts.py)
+                   LLM returns a raw SQL SELECT query
+                   → sql_executor.py runs it against SQL Server
+                   → if SQL error: sql_autofix.py sends broken SQL + error to Groq
+                                   (SQL_AUTOFIX_SYSTEM prompt), gets corrected SQL, retries once
+                   → result_summarizer.py calls Groq with RESULT_SUMMARIZER_SYSTEM
+                                   LLM summarizes the actual rows into plain English
+                   → Answer returned with SQL shown + raw rows expandable
+
+Displayed to user:
+  - Plain-English answer
+  - Route taken (capsule / SQL / hybrid)
+  - Confidence score
+  - Source SQL (if SQL path)
+  - Raw result rows (expandable)
+  - Telemetry log entry appended
+```
 
 ---
 
@@ -288,21 +379,8 @@ In the browser, go to the **Generate Capsules** tab and click **Generate All Cap
 | Button | What it does | When to use |
 |---|---|---|
 | **Generate All Capsules** | Full rebuild — wipes Qdrant and regenerates everything from scratch | First run, after changing `capsule_definitions.py`, or when something is broken |
-| **Refresh Data** | Re-runs only the analytical SQL queries; leaves schema and related capsules untouched | Daily/routine refresh when DB data has changed but structure hasn't |
-| **Schema Refresh** | Detects whether the DB schema has changed (via fingerprint) and rebuilds everything if it has | After adding or removing columns/tables in SQL Server |
-
----
-
-## How a Question Gets Answered
-
-1. **Intent detection** — Is this a structured fact lookup, an analytical insight question, a hybrid, or an operational check?
-2. **Vector search** — Top matching capsules are retrieved from all three Qdrant collections.
-3. **Routing decision:**
-   - High-confidence analytical match → answer directly from the capsule's pre-computed signal
-   - Low-confidence or structured question → generate and execute live SQL
-   - Hybrid → deliver both
-4. **SQL path** — LLM receives the question + schema context capsules (joining guidance) + FK relationships → generates a `SELECT` query → runs it → auto-fixes once if it fails → summarizes the rows in plain English
-5. **Answer** is shown with the source SQL and the raw data expandable below it
+| **Refresh Data** | Re-runs only the analytical SQL queries; leaves schema and related capsules untouched | Daily/routine refresh when DB data changed but structure hasn't |
+| **Schema Refresh** | Detects whether the DB schema changed (via fingerprint) and rebuilds everything if it has | After adding or removing columns/tables in SQL Server |
 
 ---
 
@@ -322,8 +400,6 @@ This updates automatically after Generate, Reset, or Insert operations.
 
 ## Capsule Explorer — Column Guide
 
-The explorer grid shows every capsule with these columns:
-
 | Column | Meaning |
 |---|---|
 | `capsule_id` | Unique identifier |
@@ -331,12 +407,12 @@ The explorer grid shows every capsule with these columns:
 | `what` | Plain-English description of what this capsule measures |
 | `how` | How the measurement is computed |
 | `priority` | P1 (critical) → P4 (low) |
-| `signal_method` | `rule_based` (fast formula) or `llm_summary` (AI-generated) |
+| `signal_method` | `rule_based` (fast formula) or `llm_summary` (AI-generated signal) |
 | `tables` | Database tables involved |
 | `tags` | Search tags |
 | `staleness_trigger` | What event makes this capsule outdated |
 | `ttl_hours` | How long this capsule is valid before needing a refresh |
-| `anomaly` | 0.0–1.0 score; >0.7 = anomaly flag |
+| `anomaly` | 0.0–1.0 score; >0.7 = anomaly detected |
 | `trend` | rising / falling / flat |
 | `related` | Number of linked capsules |
 | `expires_at` | Expiry timestamp |
@@ -351,18 +427,18 @@ Add your own SQL capsule through the UI:
 
 1. Give it an ID, type, and priority
 2. Write the SQL query
-3. Fill in the description fields (or leave blank — the engine uses the LLM to fill gaps)
+3. Fill in the description fields (or leave blank — the LLM fills gaps automatically)
 4. Click **Insert**
 
-The capsule is immediately vectorized, stored in Qdrant, and permanently written to `capsule_definitions.py` so it survives a full rebuild.
+The capsule is immediately embedded, stored in Qdrant, and permanently written to `capsule_definitions.py` so it survives a full rebuild.
 
 ---
 
 ## Technical Notes
 
-- **Embedding model:** `BAAI/bge-base-en-v1.5` via fastembed, 768 dimensions
-- **LLM provider:** Groq (configurable models per task in `.env`)
-- **Vector database:** Qdrant running entirely locally (no cloud account needed)
-- **SQL dialect:** Microsoft SQL Server — all generated queries are `SELECT` only
-- **Schema discovery:** Dynamic — engine reads `INFORMATION_SCHEMA` at runtime, no hardcoded table lists
-- **Data folder:** `data/` is always written to the repo root regardless of launch directory
+- **Embedding model:** `BAAI/bge-base-en-v1.5` via fastembed — 768 dimensions, downloaded on first run (~100 MB)
+- **LLM provider:** Groq — each task (intent, SQL gen, SQL fix, signal, summary, answer) uses a separately configurable model slot in `.env`
+- **Vector database:** Qdrant running entirely locally — no cloud account needed
+- **SQL dialect:** Microsoft SQL Server — all generated and capsule queries are `SELECT` only
+- **Schema discovery:** Fully dynamic — engine reads `INFORMATION_SCHEMA` at runtime, no hardcoded table lists
+- **Data folder:** Always written to the repo root `data/` via `Path(__file__)` anchor — consistent regardless of launch directory
