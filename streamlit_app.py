@@ -167,16 +167,19 @@ with generate_tab:
         with st.spinner("Building all collections..."):
             summary = generate_all_capsule_collections(progress_callback=on_progress)
         progress.progress(1.0, text="Completed")
+        actual_counts = collection_counts()  # single source of truth
         st.success(
-            f"Generated {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.related_count} related capsules."
+            f"Generated {actual_counts.get(COLLECTION_ANALYTICAL, 0)} analytical, "
+            f"{actual_counts.get(COLLECTION_SCHEMA, 0)} schema_context, and "
+            f"{actual_counts.get(COLLECTION_RELATED, 0)} related capsules."
         )
         st.write(f"Relationship graph edges: {summary.graph_edge_count}")
         st.dataframe(progress_rows, use_container_width=True)
-        
-        # Unconditionally update sidebar to reflect the regenerated counts dynamically
+
+        # Sidebar updated from same actual_counts — guaranteed to match success message
         with sidebar_collections.container():
             st.markdown("### Collections")
-            st.json(collection_counts())
+            st.json(actual_counts)
 
     if col2.button("Refresh Data", type="primary", use_container_width=True):
         progress_rows: list[dict] = []
