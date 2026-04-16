@@ -1,4 +1,10 @@
-streamlit==1.55.0
+streamlit==1.45.0
 pyodbc==5.3.0
 qdrant-client==1.17.0
 fastembed==0.7.4
+groq
+pydantic
+pydantic-settings
+python-dotenv
+numpy
+scipy

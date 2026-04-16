@@ -1,529 +1,354 @@
-﻿# File: streamlit_app.py
-"""Streamlit UI for hybrid structured + analytical workflow."""
+"""Streamlit UI entry point for the compliance capsule engine."""
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 
 import streamlit as st
 
 from src.app_constants import (
-    CAPSULE_TYPE_AGGREGATION,
-    CAPSULE_TYPE_ANOMALY,
-    CAPSULE_TYPE_DISTRIBUTION,
-    CAPSULE_TYPE_RANDOM_SAMPLE,
-    CAPSULE_TYPE_SCHEMA_CONTEXT,
-    CAPSULE_TYPE_SUMMARY,
-    CAPSULE_TYPE_TREND,
-    CONFIDENCE_HIGH_THRESHOLD,
-    CONFIDENCE_MEDIUM_THRESHOLD,
-    DEFAULT_MAX_GROUP_COLS_PER_TABLE,
-    DEFAULT_MAX_RANDOM_PER_TABLE,
-    DEFAULT_ROWS_PER_CAPSULE,
-    DEFAULT_TARGET_CAPSULES,
-    GEN_ROWS_MAX_ALLOWED,
-    GEN_ROWS_MAX_EXCLUSIVE,
-    GEN_ROWS_MIN,
-    INGESTION_MODE_APPEND_UNIQUE,
-    MANUAL_ROWS_MAX,
-    MAX_GROUP_COLS_MAX,
-    MAX_GROUP_COLS_MIN,
-    TARGET_CAPSULES_MAX,
-    TARGET_CAPSULES_MIN,
-    UI_VIEW_DEFAULT_ITEMS,
-    UI_VIEW_MAX_ITEMS,
-    UI_VIEW_MIN_ITEMS,
+    COLLECTION_ANALYTICAL,
+    COLLECTION_DERIVED,
+    COLLECTION_SCHEMA,
+    INTENT_ANALYTICAL,
+    INTENT_HYBRID,
+    INTENT_OPERATIONAL,
+    INTENT_STRUCTURED,
+    UI_MAX_HISTORY,
 )
+from src.pipeline1.relationship_builder import load_graph
+from src.pipeline1.store_manager import collection_stats, generate_all_capsule_collections, refresh_data_only, schema_refresh
+from src.pipeline2.orchestrator import handle_query
+from src.vector_store import clear_collection, collection_counts, delete_by_capsule_id, reset_all_collections, scroll_all, upsert_capsule
 from src.database_connection import execute_select
-from src.capsule_generator import preview_capsule_sql_plans
-from src.embedding import (
-    generate_and_ingest_capsules,
-    ingest_capsules,
-    refresh_analytical_capsules,
-    refresh_schema_context_capsules,
-)
-from src.orchestrator import handle_user_query
-from src.vector_store import (
-    DEFAULT_COLLECTION,
-    delete_capsule_by_id,
-    list_capsules,
-    purge_local_qdrant_storage,
-    reset_all_collections,
-)
+from src.embedding import embed_single
+
+st.set_page_config(page_title="Compliance Engine", page_icon="C", layout="wide")
+
+INTENT_BADGE = {
+    INTENT_STRUCTURED: ("green", "Structured"),
+    INTENT_ANALYTICAL: ("blue", "Analytical"),
+    INTENT_HYBRID: ("orange", "Hybrid"),
+    INTENT_OPERATIONAL: ("red", "Operational"),
+}
 
 
-def _compute_analytical_confidence(hits: list[dict]) -> str:
-    if not hits:
-        return "Low"
-    top_score = float(hits[0].get("score", 0.0))
-    if top_score >= CONFIDENCE_HIGH_THRESHOLD:
-        return "High"
-    if top_score >= CONFIDENCE_MEDIUM_THRESHOLD:
-        return "Medium"
-    return "Low"
+def init_state() -> None:
+    defaults = {
+        "question_history": [],
+        "telemetry_log": [],
+        "last_result": None,
+        "explorer_capsules": [],
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 
-def _supporting_capsule_name(hits: list[dict], supporting: dict | None = None) -> str:
-    supporting = supporting or {}
-    mode = str(supporting.get("mode", "")).strip()
-    names = supporting.get("capsule_names", []) or []
-    if mode == "grouped_by_source_hash" and names:
-        count = int(supporting.get("capsule_count", len(names)))
-        if len(names) == 1:
-            return f"{names[0]} (grouped source, capsules={count})"
-        preview = ", ".join(names[:2])
-        more = f", +{len(names) - 2} more" if len(names) > 2 else ""
-        return f"{preview}{more} (grouped source, capsules={count})"
-    if mode == "single" and names:
-        return names[0]
-    if not hits:
-        return "N/A"
-    payload = hits[0].get("payload", {}) or {}
-    return str(payload.get("capsule_name", "N/A"))
+init_state()
 
 
-def _capsule_info_rows(hits: list[dict]) -> list[dict]:
-    rows: list[dict] = []
-    for hit in hits[:5]:
-        payload = hit.get("payload", {}) or {}
-        rows.append(
-            {
-                "capsule_name": payload.get("capsule_name", ""),
-                "type": payload.get("capsule_type", ""),
-                "entity": payload.get("entity", ""),
-                "topic": payload.get("capsule_topic", ""),
-                "priority": payload.get("capsule_priority", ""),
-                "score": round(float(hit.get("score", 0.0)), 3),
-                "row_count": payload.get("row_count", ""),
-                "source_sql_hash": str(payload.get("source_sql_hash", ""))[:12],
-            }
-        )
-    return rows
+def render_intent_badge(intent: str, confidence: float) -> None:
+    color, label = INTENT_BADGE.get(intent, ("gray", intent.title()))
+    st.markdown(
+        f"<span style='background:{color};color:white;padding:4px 10px;border-radius:999px;font-size:0.9rem;'>"
+        f"{label} ({confidence:.0%})</span>",
+        unsafe_allow_html=True,
+    )
 
 
-st.set_page_config(page_title="Compliance Hybrid Query UI", layout="wide")
-st.title("Structrual Data Assistant")
-st.caption("Structured queries -> Text-to-SQL | Analytical queries -> Vector Retrieval")
-st.markdown(
-    """
-    <style>
-    div[data-testid="stHorizontalBlock"] {
-        gap: 0.05rem !important;
+def record_telemetry(result) -> None:
+    row = {
+        "question": st.session_state.get("last_question", ""),
+        "intent": result.intent,
+        "route": result.route_taken,
+        "capsules_used": ", ".join(result.capsules_used),
+        "confidence": round(result.confidence, 3),
+        "answer_ms": result.answer_ms,
+        "sql_executed": bool(result.sql_generated),
+        "autofix": result.autofix_used,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    .st-key-delete_selected_capsule_btn button {
-        border: 2px solid #b00020 !important;
-        border-radius: 8px !important;
-        box-shadow: none !important;
-    }
-    .st-key-reset_collection_btn button {
-        border: 2px solid #b00020 !important;
-        border-radius: 8px !important;
-        box-shadow: none !important;
-    }
-    .st-key-load_capsules_btn button {
-        border: 2px solid #1f7a1f !important;
-        border-radius: 8px !important;
-        box-shadow: none !important;
-    }
-    .st-key-load_capsules_btn button:hover {
-        border-color: #155d15 !important;
-        box-shadow: none !important;
-    }
-    .st-key-load_capsules_btn button:focus,
-    .st-key-load_capsules_btn button:focus-visible {
-        border-color: #155d15 !important;
-        box-shadow: 0 0 0 1px rgba(31, 122, 31, 0.25) !important;
-        outline: none !important;
-    }
-    .st-key-delete_selected_capsule_btn button:hover {
-        border-color: #8c0018 !important;
-        box-shadow: none !important;
-    }
-    .st-key-reset_collection_btn button:hover {
-        border-color: #8c0018 !important;
-        box-shadow: none !important;
-    }
-    .st-key-delete_selected_capsule_btn button:focus,
-    .st-key-delete_selected_capsule_btn button:focus-visible {
-        border-color: #8c0018 !important;
-        box-shadow: 0 0 0 1px rgba(176, 0, 32, 0.25) !important;
-        outline: none !important;
-    }
-    .st-key-reset_collection_btn button:focus,
-    .st-key-reset_collection_btn button:focus-visible {
-        border-color: #8c0018 !important;
-        box-shadow: 0 0 0 1px rgba(176, 0, 32, 0.25) !important;
-        outline: none !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+    st.session_state.telemetry_log.append(row)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
+
+with st.sidebar:
+    st.markdown("### Collections")
+    st.json(collection_counts())
+
+st.title("Compliance Engine")
+st.caption("Groq + fastembed + Qdrant + SQL Server")
+
+ask_tab, generate_tab, explorer_tab, graph_tab, telemetry_tab, insert_tab, reset_tab = st.tabs(
     [
         "Ask Question",
-        "Generate Capsules ",
+        "Generate Capsules",
+        "Capsule Explorer",
+        "Capsule Graph",
+        "Telemetry",
         "Insert Capsule",
-        "Manage Capsules",
-        "Reset Vector DB",
+        "Reset",
     ]
 )
 
-with tab1:
-    st.subheader("Ask in English")
-    user_question = st.text_area(
-        "Question",
-        placeholder="Example: Show top broker dealers by trade count",
-        height=120,
-    )
-    run_question = st.button("Run Question", type="primary")
+with ask_tab:
+    st.subheader("Ask Question")
+    question = st.text_area("Question", height=120, placeholder="Which broker-dealer's trading activity is increasing over time?")
+    history = [item["question"] for item in st.session_state.question_history[-UI_MAX_HISTORY:]]
+    if history:
+        selected = st.selectbox("Recent Questions", [""] + history)
+        if selected and not question:
+            question = selected
 
-    if run_question:
-        if not user_question.strip():
-            st.warning("Enter a question first.")
-        else:
-            with st.spinner("Running workflow..."):
-                result = handle_user_query(user_question.strip())
-
-            st.success(f"Route: {result.get('route')}")
-            st.write("Intent:", result.get("intent", {}))
-            st.write("Answer:")
-            st.code(result.get("answer", ""), language="text")
-
-            execution = result.get("execution", {}) or {}
-            retrieval = result.get("retrieval", {}) or {}
-            hits = retrieval.get("hits", [])
-            supporting = retrieval.get("supporting", {})
-
-            if execution:
-                execution = result.get("execution", {})
-                if execution.get("autofix_applied"):
-                    st.info(f"SQL autofix applied: {execution.get('autofix_reason', 'Corrected after execution error.')}")
-                sql_reason = str(result.get("sql_reason", "")).strip()
-                st.write("Generated SQL:")
-                st.code(execution.get("sql", ""), language="sql")
-                if sql_reason:
-                    st.write("SQL Reason:")
-                    st.code(sql_reason, language="text")
-                st.write(f"Rows: {execution.get('row_count', 0)}")
-                rows = execution.get("rows", [])
-                if rows:
-                    st.dataframe(rows)
-            if retrieval:
-                confidence = _compute_analytical_confidence(hits)
-                st.write(f"Confidence: {confidence}")
-                st.write("Supporting capsule name:", _supporting_capsule_name(hits, supporting))
-                capsule_rows = _capsule_info_rows(hits)
-                if capsule_rows:
-                    st.write("Supporting capsules:")
-                    st.dataframe(capsule_rows)
-
-with tab2:
-    st.subheader("Generate and Ingest Context Capsules")
-    st.caption(
-        "Generates analytical capsules plus schema-context planning capsules for fallback SQL guidance."
-    )
-    st.session_state["latest_planned_sqls"] = []
-    gen_col1, gen_col2 = st.columns(2)
-    with gen_col1:
-        target_capsules = st.number_input(
-            "Target capsules (count)",
-            min_value=TARGET_CAPSULES_MIN,
-            max_value=TARGET_CAPSULES_MAX,
-            value=DEFAULT_TARGET_CAPSULES,
-        )
-        rows_per_capsule = st.number_input(
-            "Rows per capsule (must be < 100)",
-            min_value=GEN_ROWS_MIN,
-            max_value=GEN_ROWS_MAX_EXCLUSIVE,
-            value=DEFAULT_ROWS_PER_CAPSULE,
-            step=1,
-            key="rows_per_capsule_input",
-        )
-
-    with gen_col2:
-        use_llm_summaries = st.checkbox(
-            "Use LLM summaries (higher cost)",
-            value=False,
-        )
-        max_random_per_table = st.number_input(
-            "Max random capsules per table",
-            min_value=GEN_ROWS_MIN,
-            max_value=1000,
-            value=DEFAULT_MAX_RANDOM_PER_TABLE,
-            help=f"Retention policy: keep only latest N {CAPSULE_TYPE_RANDOM_SAMPLE} capsules per table.",
-        )
-        max_group_cols = st.number_input(
-            "Max group columns per table",
-            min_value=MAX_GROUP_COLS_MIN,
-            max_value=MAX_GROUP_COLS_MAX,
-            value=DEFAULT_MAX_GROUP_COLS_PER_TABLE,
-        )
-
-    rows_value = int(rows_per_capsule)
-    action_col1, action_col2, action_col3, _action_spacer = st.columns([1, 1, 1, 6], gap="small")
-    with action_col1:
-        run_generate = st.button(
-            "Generate Capsules",
-            type="primary",
-            key="run_generate_capsules_",
-        )
-    with action_col2:
-        run_refresh = st.button(
-            "Refresh Capsules",
-            type="primary",
-            key="refresh_capsules_btn",
-            help="Rebuild analytical capsules from the exact saved plan set using the latest source data.",
-        )
-    with action_col3:
-        run_schema_refresh = st.button(
-            "Schema Refresh",
-            type="primary",
-            key="schema_refresh_capsules_btn",
-            help="When schema changes, rebuild schema-context capsules, analytical capsules, and the analytical refresh plan together.",
-        )
-
-    if run_generate:
-        if rows_value >= GEN_ROWS_MAX_EXCLUSIVE or rows_value < GEN_ROWS_MIN:
-            st.error(
-                f"Rows per capsule must be between {GEN_ROWS_MIN} and {GEN_ROWS_MAX_ALLOWED}. "
-                "Generation was not started."
-            )
-            st.session_state["latest_planned_sqls"] = []
-        else:
+    if st.button("Run Question", type="primary") and question.strip():
+        st.session_state.last_question = question.strip()
+        with st.spinner("Running compliance pipeline..."):
             try:
-                st.session_state["latest_planned_sqls"] = preview_capsule_sql_plans(
-                    target_rows=rows_value,
-                    max_rows_per_capsule=rows_value,
-                    include_temporal_aggregations=True,
-                    max_group_cols_per_table=int(max_group_cols),
-                )
-                with st.spinner("Generating  capsules and indexing vectors..."):
-                    result = generate_and_ingest_capsules(
-                        collection_name=DEFAULT_COLLECTION,
-                        target_capsules=int(target_capsules),
-                        target_rows=rows_value,
-                        max_rows_per_capsule=rows_value,
-                        include_temporal_aggregations=True,
-                        max_group_cols_per_table=int(max_group_cols),
-                        use_llm_summaries=use_llm_summaries,
-                        ingestion_mode=INGESTION_MODE_APPEND_UNIQUE,
-                        max_random_per_table=int(max_random_per_table),
-                        replace_similar_capsules=True,
-                    )
-                result["effective_rows_per_capsule"] = rows_value
-                result["effective_target_capsules"] = int(target_capsules)
-                st.success("Capsule generation and ingestion complete.")
-                st.json(result)
-                if use_llm_summaries:
-                    st.info("LLM summarization was enabled for capsule summaries.")
+                result = handle_query(question.strip())
+                st.session_state.last_result = result
+                st.session_state.question_history.append({"question": question.strip()})
+                st.session_state.question_history = st.session_state.question_history[-UI_MAX_HISTORY:]
+                record_telemetry(result)
             except Exception as exc:
-                st.error(f" generation failed: {exc}")
-                st.session_state["latest_planned_sqls"] = []
+                st.error(str(exc))
 
-    if run_refresh:
-        try:
-            with st.spinner("Refreshing analytical capsules from the saved plan set..."):
-                result = refresh_analytical_capsules(
-                    collection_name=DEFAULT_COLLECTION,
-                    ingestion_mode=INGESTION_MODE_APPEND_UNIQUE,
-                )
-            st.success("Analytical capsules refreshed from saved plans.")
-            st.json(result)
-            st.session_state["latest_planned_sqls"] = result.get("saved_plan_sqls", []) or []
-        except Exception as exc:
-            st.error(f"Refresh failed: {exc}")
+    result = st.session_state.last_result
+    if result:
+        col1, col2 = st.columns([2, 2])
+        with col1:
+            st.markdown("**Intent detected**")
+            render_intent_badge(result.intent, result.confidence)
+        with col2:
+            st.markdown(f"**Route taken**  ` {result.route_taken} `")
 
-    if run_schema_refresh:
-        try:
-            with st.spinner("Refreshing schema-context capsules and analytical plan metadata..."):
-                result = refresh_schema_context_capsules(
-                    collection_name=DEFAULT_COLLECTION,
-                    ingestion_mode=INGESTION_MODE_APPEND_UNIQUE,
-                )
-            if result.get("schema_changed"):
-                st.success("Schema refresh complete. Capsules and plans were rebuilt for the new schema.")
+        st.markdown("### Answer")
+        st.write(result.answer)
+
+        if result.sql_reason:
+            st.markdown("**SQL Reason**")
+            st.write(result.sql_reason)
+
+        if result.autofix_used:
+            st.info("SQL autofix was used after the initial execution failed.")
+        if result.error:
+            st.error(result.error)
+
+        with st.expander("Capsules Used", expanded=False):
+            if result.capsules_used:
+                st.write(result.capsules_used)
             else:
-                st.info(str(result.get("message", "No schema changes detected.")))
-            st.json(result)
-            st.session_state["latest_planned_sqls"] = result.get("saved_plan_sqls", []) or st.session_state.get(
-                "latest_planned_sqls",
-                [],
-            )
-        except Exception as exc:
-            st.error(f"Schema refresh failed: {exc}")
+                st.write("No capsules were used directly.")
 
-    latest_plans = st.session_state.get("latest_planned_sqls", [])
-    with st.expander(f"Planned SQL queries ({len(latest_plans)})", expanded=False):
-        st.code(
-            "\n".join(f"{i + 1}. {sql}" for i, sql in enumerate(latest_plans)),
-            language="sql",
+        with st.expander("Context Package", expanded=False):
+            st.json(result.context_package or {})
+
+        with st.expander("Generated SQL", expanded=False):
+            st.code(result.sql_generated or "", language="sql")
+
+        with st.expander("SQL Rows Returned", expanded=False):
+            if result.sql_rows:
+                st.dataframe(result.sql_rows, use_container_width=True)
+            else:
+                st.write("No SQL rows returned.")
+
+with generate_tab:
+    st.subheader("Generate Capsules")
+    col1, col2, col3 = st.columns([1, 1, 1], gap="small")
+
+    if col1.button("Generate All Capsules", type="primary", use_container_width=True):
+        progress = st.progress(0, text="Starting full build")
+        progress_rows: list[dict] = []
+
+        def on_progress(capsule_id: str, status: str, preview: str) -> None:
+            progress_rows.append({"capsule_id": capsule_id, "status": status, "signal_preview": preview})
+            total = max(len(progress_rows), 1)
+            progress.progress(min(total / 32, 1.0), text=f"Built {capsule_id}")
+
+        with st.spinner("Building all collections..."):
+            summary = generate_all_capsule_collections(progress_callback=on_progress)
+        progress.progress(1.0, text="Completed")
+        st.success(
+            f"Generated {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.derived_count} derived capsules."
         )
+        st.write(f"Relationship graph edges: {summary.graph_edge_count}")
+        st.dataframe(progress_rows, use_container_width=True)
 
-with tab3:
-    st.subheader("Manual Context Capsule Insert")
-    st.caption("Run your own SQL and insert a single capsule with custom metadata.")
+    if col2.button("Refresh Data", type="primary", use_container_width=True):
+        progress_rows: list[dict] = []
 
-    manual_sql = st.text_area(
-        "SQL query (SELECT/WITH only, must return <= 100 rows)",
-        height=140,
-        key="manual_capsule_sql",
-    )
-    manual_capsule_type = st.selectbox(
-        "Capsule type",
-        options=[
-            CAPSULE_TYPE_RANDOM_SAMPLE,
-            CAPSULE_TYPE_AGGREGATION,
-            CAPSULE_TYPE_DISTRIBUTION,
-            CAPSULE_TYPE_TREND,
-            CAPSULE_TYPE_ANOMALY,
-            CAPSULE_TYPE_SCHEMA_CONTEXT,
-            CAPSULE_TYPE_SUMMARY,
-        ],
-        index=6,
-        key="manual_capsule_type",
-    )
-    manual_summary = st.text_area(
-        "Summary text (optional)",
-        height=90,
-        key="manual_summary_text",
-    )
+        def on_progress(capsule_id: str, status: str, preview: str) -> None:
+            progress_rows.append({"capsule_id": capsule_id, "status": status, "signal_preview": preview})
 
-    run_manual_insert = st.button("Insert Manual Capsule", type="primary", key="insert_manual_capsule_btn")
-    if run_manual_insert:
-        try:
-            sql_text = manual_sql.strip()
-            if not sql_text:
-                raise ValueError("Please enter SQL query text.")
+        with st.spinner("Refreshing analytical capsules from saved plan..."):
+            summary = refresh_data_only(progress_callback=on_progress)
+        st.success(f"Refreshed {summary.analytical_count} analytical capsules. Schema-context and derived capsules were kept.")
+        if progress_rows:
+            st.dataframe(progress_rows, use_container_width=True)
 
-            query_result = execute_select(sql_text, max_rows=101)
-            row_count = int(query_result.get("row_count", 0))
-            if row_count > MANUAL_ROWS_MAX:
-                raise ValueError(
-                    f"Manual query returned {row_count} rows. Capsule row limit is {MANUAL_ROWS_MAX} (no truncation)."
-                )
-            rows = query_result.get("rows", [])
-            if not rows:
-                raise ValueError("Manual query returned no rows; nothing to ingest.")
+    if col3.button("Schema Refresh", type="primary", use_container_width=True):
+        progress_rows: list[dict] = []
 
-            columns = list((query_result.get("columns") or []))
+        def on_progress(capsule_id: str, status: str, preview: str) -> None:
+            progress_rows.append({"capsule_id": capsule_id, "status": status, "signal_preview": preview})
 
-            summary = manual_summary.strip() or (
-                f"Manual {manual_capsule_type} capsule from custom SQL with {row_count} rows. "
-                f"Fields: {', '.join(columns[:6])}."
-            )
-            created_at = datetime.now(timezone.utc).isoformat()
-            capsule = {
-                "capsule_id": "",
-                "capsule_name": "",
-                "capsule_type": manual_capsule_type,
-                "capsule_version": "",
-                "tables_used": [],
-                "key_columns": [],
-                "tags": [],
-                "summary_text": summary,
-                "rows_json": json.dumps(rows, default=str),
-                "row_count": row_count,
-                "created_at": created_at,
-                "metrics": {"row_count": row_count},
-                "source_sql": sql_text,
-            }
-            ingest_result = ingest_capsules(
-                capsules=[capsule],
-                collection_name=DEFAULT_COLLECTION,
-                ingestion_mode=INGESTION_MODE_APPEND_UNIQUE,
-            )
-            st.success("Manual capsule inserted.")
-            st.json(ingest_result)
-        except Exception as exc:
-            st.error(f"Manual capsule insert failed: {exc}")
-
-with tab4:
-    st.subheader("All Context Capsules")
-    max_items = st.number_input(
-        "Max capsules to load",
-        min_value=UI_VIEW_MIN_ITEMS,
-        max_value=UI_VIEW_MAX_ITEMS,
-        value=UI_VIEW_DEFAULT_ITEMS,
-    )
-    load_capsules = st.button("Load Capsules", key="load_capsules_btn")
-
-    if "view_capsules" not in st.session_state:
-        st.session_state["view_capsules"] = []
-
-    if load_capsules:
-        st.session_state["view_capsules"] = list_capsules(
-            collection_name=DEFAULT_COLLECTION,
-            limit=int(max_items),
+        with st.spinner("Refreshing schema and rebuilding all collections..."):
+            summary = schema_refresh(progress_callback=on_progress)
+        st.success(
+            f"Schema refresh complete. Schema changed: {summary.schema_changed}. Rebuilt {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.derived_count} derived capsules."
         )
+        if progress_rows:
+            st.dataframe(progress_rows, use_container_width=True)
 
-    capsules = st.session_state.get("view_capsules", [])
-    st.write(f"Capsules loaded: {len(capsules)}")
-    if not capsules:
-        st.info("No capsules found for this collection.")
-    else:
-        rows = []
-        for item in capsules:
-            payload = item.get("payload", {})
-            rows.append(
+with explorer_tab:
+    st.subheader("Capsule Explorer")
+    if st.button("Load All Capsules"):
+        analytical = scroll_all(COLLECTION_ANALYTICAL)
+        schema = scroll_all(COLLECTION_SCHEMA)
+        derived = scroll_all(COLLECTION_DERIVED)
+        st.session_state.explorer_capsules = analytical + schema + derived
+
+    capsules = st.session_state.explorer_capsules
+    if capsules:
+        type_options = sorted({capsule.get("capsule_type", "schema_context") for capsule in capsules})
+        priority_options = sorted({capsule.get("priority", "") for capsule in capsules if capsule.get("priority")})
+        tag_options = sorted({tag for capsule in capsules for tag in capsule.get("tags", [])})
+
+        col1, col2, col3, col4, col5 = st.columns(5)
+        filter_type = col1.multiselect("Type", type_options)
+        filter_priority = col2.multiselect("Priority", priority_options)
+        filter_tags = col3.multiselect("Tags", tag_options)
+        filter_stale = col4.checkbox("Stale only")
+        filter_anomaly = col5.checkbox("Anomaly only")
+
+        filtered = capsules
+        if filter_type:
+            filtered = [capsule for capsule in filtered if capsule.get("capsule_type", "schema_context") in filter_type]
+        if filter_priority:
+            filtered = [capsule for capsule in filtered if capsule.get("priority") in filter_priority]
+        if filter_tags:
+            filtered = [capsule for capsule in filtered if any(tag in capsule.get("tags", []) for tag in filter_tags)]
+        if filter_stale:
+            filtered = [capsule for capsule in filtered if capsule.get("is_stale")]
+        if filter_anomaly:
+            filtered = [capsule for capsule in filtered if float(capsule.get("anomaly_score", 0)) > 0.7]
+
+        st.dataframe(
+            [
                 {
-                    "id": item.get("id"),
-                    "capsule_name": payload.get("capsule_name", ""),
-                    "type": payload.get("capsule_type", ""),
-                    "entity": payload.get("entity", ""),
-                    "topic": payload.get("capsule_topic", ""),
-                    "priority": payload.get("capsule_priority", ""),
-                    "row_count": payload.get("row_count", ""),
-                    "refreshed_at_utc": payload.get("refreshed_at_utc", ""),
-                    "source_sql_hash": str(payload.get("source_sql_hash", ""))[:12],
+                    "capsule_id": capsule.get("capsule_id"),
+                    "type": capsule.get("capsule_type", "schema_context"),
+                    "priority": capsule.get("priority", "-"),
+                    "ttl_hours": capsule.get("ttl_hours", "-"),
+                    "anomaly_score": capsule.get("anomaly_score", "-"),
+                    "trend_direction": capsule.get("trend_direction", "-"),
+                    "related_count": len(capsule.get("related_capsule_ids", [])),
+                    "expires_at": capsule.get("expires_at", "-"),
                 }
-            )
-        st.dataframe(rows)
+                for capsule in filtered
+            ],
+            use_container_width=True,
+        )
 
-        options = [
-            f"{item.get('id')} | {item.get('payload', {}).get('capsule_name', '')}"
-            for item in capsules
-        ]
-        selected = st.selectbox("Select capsule to delete", options=options)
-        if st.button("Delete Selected Capsule", key="delete_selected_capsule_btn"):
-            selected_id = selected.split(" | ", 1)[0]
-            capsule_id: object = int(selected_id) if selected_id.isdigit() else selected_id
-            ok = delete_capsule_by_id(
-                capsule_id=capsule_id,
-                collection_name=DEFAULT_COLLECTION,
-            )
-            if ok:
-                st.success(f"Deleted capsule id {selected_id}")
-                st.session_state["view_capsules"] = [
-                    c for c in capsules if str(c.get("id")) != selected_id
-                ]
-            else:
-                st.error("Delete failed.")
+        selected_capsule = st.selectbox("Inspect Capsule", [""] + [capsule.get("capsule_id") for capsule in filtered])
+        if selected_capsule:
+            capsule = next(capsule for capsule in filtered if capsule.get("capsule_id") == selected_capsule)
+            st.write("**Signal / Summary**")
+            st.write(capsule.get("signal") or capsule.get("summary"))
+            st.write("**Embed Text**")
+            st.write(capsule.get("embed_text", "-"))
+            st.write("**Related Capsules**")
+            st.write(list(zip(capsule.get("related_capsule_ids", []), capsule.get("relationship_types", []))))
+            st.write("**Source SQL**")
+            st.code(capsule.get("sql", capsule.get("sql_template", "")), language="sql")
 
-        with st.expander("Full capsule payloads"):
-            st.json(capsules)
+            delete_collection = COLLECTION_ANALYTICAL
+            if "summary" in capsule and "tables" in capsule:
+                delete_collection = COLLECTION_SCHEMA
+            elif "derived_from" in capsule:
+                delete_collection = COLLECTION_DERIVED
+            if st.button(f"Delete {selected_capsule}"):
+                delete_by_capsule_id(delete_collection, selected_capsule)
+                st.success(f"Deleted {selected_capsule}")
+                st.session_state.explorer_capsules = []
+                st.rerun()
+    else:
+        st.info("Load capsules to explore them.")
 
-st.divider()
-with tab5:
-    st.subheader("Reset Embedded Context Store")
-    st.warning("This will delete All embedded capsules in local Qdrant storage.")
-    confirm_reset = st.checkbox("I understand this action will remove stored vectors.")
-    run_reset = st.button("Reset All Collections", key="reset_collection_btn")
+with graph_tab:
+    st.subheader("Capsule Graph")
+    graph = load_graph()
+    if graph:
+        st.write(f"Built at: {graph.built_at}")
+        st.dataframe(
+            [
+                {
+                    "capsule_id": edge.from_id,
+                    "related_to": edge.to_id,
+                    "relationship": edge.relationship,
+                    "join_key": edge.join_key or "",
+                }
+                for edge in graph.edges
+            ],
+            use_container_width=True,
+        )
+        st.write("### Derived Capsules")
+        st.dataframe(scroll_all(COLLECTION_DERIVED), use_container_width=True)
+    else:
+        st.info("No capsule graph found yet. Generate capsules first.")
 
-    if run_reset:
-        if not confirm_reset:
-            st.error("Please confirm reset by checking the confirmation box.")
+with telemetry_tab:
+    st.subheader("Telemetry")
+    if st.session_state.telemetry_log:
+        st.dataframe(st.session_state.telemetry_log, use_container_width=True)
+        if st.button("Clear Log"):
+            st.session_state.telemetry_log = []
+            st.rerun()
+    else:
+        st.info("No telemetry has been recorded in this session.")
+
+with insert_tab:
+    st.subheader("Insert Capsule")
+    capsule_id = st.text_input("Capsule ID")
+    capsule_type = st.text_input("Capsule Type", value="aggregation")
+    sql_text = st.text_area("SQL", height=180)
+    summary_text = st.text_area("Summary Text", height=120)
+    if st.button("Insert Capsule", type="primary"):
+        if not capsule_id or not sql_text or not summary_text:
+            st.error("All fields are required.")
         else:
-            purge_result = purge_local_qdrant_storage()
-            result = reset_all_collections()
-            st.session_state["view_capsules"] = []
-            st.success("Vector DB fully cleared.")
-            st.json({"purge": purge_result, "reset_all": result})
+            with st.spinner("Executing SQL and inserting capsule..."):
+                rows = execute_select(sql_text, max_rows=50)
+                payload = {
+                    "capsule_id": capsule_id,
+                    "capsule_type": capsule_type,
+                    "priority": "P3",
+                    "what": capsule_id.replace("_", " "),
+                    "how": "Manual insert",
+                    "signal": f"Returned {len(rows)} rows.",
+                    "embed_text": summary_text,
+                    "tables_used": [],
+                    "key_columns": [],
+                    "tags": ["manual", capsule_type],
+                    "ttl_hours": 24,
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "expires_at": datetime.now(timezone.utc).isoformat(),
+                    "is_stale": False,
+                    "staleness_trigger": "manual",
+                    "result_rows": rows,
+                    "sql": sql_text,
+                    "anomaly_score": 0.0,
+                    "trend_direction": "flat",
+                    "related_capsule_ids": [],
+                    "relationship_types": [],
+                }
+                upsert_capsule(COLLECTION_ANALYTICAL, capsule_id, embed_single(summary_text), payload)
+            st.success(f"Inserted {capsule_id}")
 
-st.divider()
-st.caption(
-    "Tip: First ingest representative SQL outputs in Tab 2. "
-    "Then ask analytical questions in Tab 1 to retrieve relevant capsules."
-)
+with reset_tab:
+    st.subheader("Reset")
+    st.warning("This clears all Qdrant collections.")
+    confirm = st.checkbox("I understand this action cannot be undone")
+    if confirm and st.button("Reset Vector DB"):
+        with st.spinner("Resetting vector store..."):
+            reset_all_collections()
+        st.success("Vector store reset complete.")

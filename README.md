@@ -1,270 +1,259 @@
-﻿# Structured Data Search Engine
+# Compliance Engine
 
-This project is a hybrid question-answering system for structured enterprise data.
+A compliance-focused question answering and SQL planning system built for the `Compliance` SQL Server database.
 
 It combines:
+- Groq for intent detection, SQL generation, autofix, analytical synthesis, and summarization
+- fastembed for embeddings
+- Qdrant local mode for vector search
+- SQL Server for live data retrieval
+- Streamlit for the operator UI
 
-- Text-to-SQL for direct, executable data questions
-- Vector retrieval over capsules for analytical context
-- Schema-context guidance to improve SQL generation when analytical retrieval is weak
+## Architecture
 
-The goal is to answer business questions without sending full tables to the LLM, while still falling back to live SQL when exact or up-to-date answers are needed.
+```text
+                +----------------------+
+                |   Streamlit UI / CLI |
+                +----------+-----------+
+                           |
+                           v
+                +----------------------+
+                | pipeline2.orchestrator |
+                +----------+-----------+
+                           |
+        +------------------+------------------+
+        |                                     |
+        v                                     v
++---------------+                    +-------------------+
+| query_router  |                    | context_searcher  |
+| intent detect |                    | Qdrant retrieval  |
++-------+-------+                    +---------+---------+
+        |                                      |
+        +------------------+-------------------+
+                           |
+                           v
+                +----------------------+
+                |  context_packager    |
+                | primary + linked +   |
+                | derived + schema     |
+                +----------+-----------+
+                           |
+              +------------+-------------+
+              |                          |
+              v                          v
+   +---------------------+    +-----------------------+
+   | analytical_retriever|    | sql_generator         |
+   | answer from capsules|    | schema-guided SQL     |
+   +----------+----------+    +-----------+-----------+
+              |                           |
+              v                           v
+        +-----------+           +----------------------+
+        | answer    |           | sql_executor         |
+        | synthesis |           | execute + autofix    |
+        +-----------+           +-----------+----------+
+                                            |
+                                            v
+                                  +----------------------+
+                                  | result_summarizer    |
+                                  +----------------------+
 
-## Requirements
-
-- Python 3.13+ (tested with `py -3`)
-- SQL Server (default: `localhost\SQLEXPRESS`)
-- ODBC Driver 17 for SQL Server
-- Groq API key: https://console.groq.com/keys
-- Dependencies from `requirements.txt`
-
-## Installation
-
-```powershell
-py -3 -m pip install -r requirements.txt
+pipeline1 builds the vector layer:
+- capsule_generator
+- schema_capsule_generator
+- relationship_builder
+- store_manager
 ```
 
-## Run UI
+## Capsule Families
 
-```powershell
-py -3 -m streamlit run streamlit_app.py
-```
+### Analytical capsules
+- Aggregation capsules for broker, department, employee, and security activity
+- Violation capsules for active restriction overlap and repeat violators
+- Trend capsules for alerts, escalations, rejections, and request volume
+- Risk and pattern capsules for multi-alert entities and cross-entity risk
+- Operational capsules for pending review and turnaround bottlenecks
+- Distribution capsules for security concentration and restriction exposure
+- Derived capsules for systemic broker risk and employee risk
 
-## Environment Variables
+### Schema-context capsules
+Metadata-focused planning capsules built from:
+- tables
+- columns
+- foreign keys
+- join paths
+- situation patterns
 
-Required for LLM features:
+These are not final evidence. They are guidance capsules used when the system needs to generate executable SQL.
 
-- `GROQ_API_KEY`
+## Query Flow
 
-Optional model overrides:
+When you click **Run Question**, the app:
 
-- `GROQ_INTENT_MODEL`
-- `GROQ_SQL_MODEL`
-- `GROQ_SUMMARY_MODEL`
-- `GROQ_SQL_FIX_MODEL`
-- `GROQ_ANALYTICAL_MODEL`
-
-Optional DB and vector settings:
-
-- `SQLSERVER_CONN_STR`
-- `EMBED_MODEL`
-- `QDRANT_PATH`
-
-Optional debug:
-
-- `SQL_DEBUG=1`
-
-## How It Works
-
-### Run Question
-
-When the user clicks `Run Question`, the app:
-
-1. Detects whether the question is structured or analytical.
-2. For structured questions:
-   - generates SQL from live schema and relationships
-   - executes the SQL
-   - summarizes the result
-3. For analytical questions:
-   - first retrieves the most relevant analytical capsules from Qdrant
-   - this is the primary analytical path and is designed for trends, aggregations, anomalies, and broader analytical reasoning
-   - if the analytical capsules are strong enough, the system answers directly from capsule context instead of going straight to SQL
-   - if retrieval is weak, empty, or the top guidance is `schema_context`, it switches to SQL planning mode
-4. In SQL planning mode, the LLM receives:
+1. Detects whether the question is `structured`, `analytical`, `hybrid`, or `operational`.
+2. Searches Qdrant across:
+   - `analytical_capsules`
+   - `schema_context_capsules`
+   - `derived_capsules`
+3. Packages the top context into:
+   - primary capsule
+   - linked capsules
+   - derived capsules
+   - schema capsules
+4. Routes the question:
+   - `structured` or `operational` -> live SQL
+   - `analytical` with strong capsule confidence -> answer from analytical capsules
+   - `analytical` with weak capsule confidence or schema-led support -> SQL planning mode
+   - `hybrid` -> both capsule answer and SQL answer
+5. In SQL planning mode, the LLM receives:
    - the user question
    - live schema
    - foreign-key relationships
-   - top retrieved `schema_context` capsules
-5. The system generates SQL, executes it, and summarizes the result.
-6. If SQL fails with an error like `Invalid column name ...`, it retries once using an autofix prompt that includes the SQL error plus schema guidance.
-
-### Capsule Types
-
-The system uses two capsule families.
-
-Analytical capsules:
-
-- `random_sample`
-- `aggregation`
-- `distribution`
-- `trend`
-- `anomaly`
-- `summary`
-
-Schema-context capsules:
-
-- metadata-focused planning capsules built from:
-- `tables`
-- `columns`
-- `foreign keys`
-- `join paths`
-- `situation patterns`
-
-Schema-context capsules help the LLM choose:
-
-- `which tables to join`
-- `which columns matter`
-- `which filters are typical`
-- `which SQL pattern fits the question`
-
-## UI Tabs
-
-### 1. Ask Question
-
-Use this tab to ask questions in plain English.
-
-The UI shows:
-
-- route
-- detected intent
-- answer
-- generated SQL when SQL was executed
-- SQL reason
-- returned rows
-- supporting capsules
-- SQL autofix notice when a retry was needed
-
-### 2. Generate Capsules
-
-This tab now has three actions:
-
-- `Generate Capsules`
-  - full build
-  - generates analytical capsules and schema-context capsules
-  - saves the analytical refresh plan
-  - saves the schema fingerprint
-
-- `Refresh Capsules`
-  - data refresh only
-  - deletes old analytical capsules
-  - reloads the saved analytical SQL plan set
-  - reruns that exact plan set against current data
-  - rebuilds and re-indexes analytical capsules
-  - keeps `schema_context` untouched
-
-- `Schema Refresh`
-  - schema-aware full rebuild
-  - detects schema changes using a saved schema fingerprint
-  - deletes old analytical capsules and old `schema_context` capsules
-  - regenerates fresh `schema_context` capsules from the current schema
-  - regenerates the analytical refresh plan for the current schema
-  - reruns that new analytical plan
-  - rebuilds and re-indexes everything together
-
-### 3. Insert Capsule
-
-Manual SQL-backed capsule insertion.
-
-Used for:
-
-- custom SQL
-- custom capsule type
-- manual summary text
-
-### 4. Manage Capsules
-
-Use this tab to:
-
-- load capsules
-- inspect stored capsule metadata
-- delete a selected capsule
-
-### 5. Reset Vector DB
-
-Use this tab to clear local vector storage and reset collections.
+   - top schema-context capsules
+   - derived risk signals when available
+6. Generates SQL, executes it, retries once with autofix if needed, then summarizes actual SQL rows.
 
 ## Refresh Model
 
-The app separates data refresh from schema refresh.
+### Generate All Capsules
+Full rebuild:
+- analytical capsules
+- schema-context capsules
+- derived capsules
+- relationship graph
+- saved analytical refresh plan
+- saved schema fingerprint
 
-### Data Refresh
-
-Use `Refresh Capsules` when:
-
-- row values changed
-- counts changed
-- trends changed
-- schema did not change
-
-This keeps analytical capsules current while preserving schema-context capsules.
+### Refresh Data
+Data-only refresh:
+- loads the saved analytical plan
+- reruns those analytical SQL definitions
+- rebuilds analytical capsules only
+- keeps schema-context and derived collections unchanged
 
 ### Schema Refresh
+Schema-aware rebuild:
+- computes current schema fingerprint
+- compares it with the saved fingerprint
+- rebuilds analytical, schema-context, and derived capsules
+- regenerates the saved analytical refresh plan
+- rewrites the schema fingerprint
 
-Use `Schema Refresh` when:
+## Project Structure
 
-- a new table was added
-- a column was added or removed
-- a foreign key changed
-- table relationships changed
-
-This rebuilds both capsule families so `Run Question` uses one consistent semantic layer.
-
-## What Gets Sent To the LLM in SQL Planning Mode
-
-When the system switches from analytical retrieval to SQL planning, it sends:
-
-- live database schema
-- foreign-key relationships
-- top retrieved `schema_context` capsules
-
-For each retrieved schema-context capsule, the prompt includes:
-
-- capsule name
-- summary
-- tables
-- relevant columns
-- recommended joins
-- exact join columns
-- recommended filters
-- example questions
-- SQL template
-
-## Storage
-
-Vector store:
-
-- Qdrant via `qdrant-client`
-- local path: `qdrant_data`
-
-Embeddings:
-
-- `fastembed`
-- default model: `BAAI/bge-base-en-v1.5`
-
-Refresh metadata files:
-
-- analytical refresh plan: `.analytical_capsule_refresh_plan.json`
-- schema fingerprint: `.schema_capsule_fingerprint.json`
-
-## Key Files
-
-- `streamlit_app.py`: Streamlit UI
-- `src/orchestrator.py`: main routing and execution flow
-- `src/query_router.py`: intent classification
-- `src/text_to_sql.py`: SQL generation with schema-context guidance
-- `src/sql_executor.py`: SQL execution and autofix retry
-- `src/sql_autofix.py`: SQL correction on execution failure
-- `src/database_connection.py`: SQL Server access and schema metadata
-- `src/capsule_query_planner.py`: analytical SQL plan generation
-- `src/capsule_generator.py`: build analytical capsules from SQL plans
-- `src/schema_capsule_generator.py`: build schema-context capsules
-- `src/embedding.py`: generation, refresh, ingestion, plan persistence
-- `src/vector_store.py`: Qdrant operations
-- `src/analytical_retriever.py`: analytical retrieval and answer building
-- `src/result_summarizer.py`: SQL result summarization
-- `src/llm_service.py`: shared Groq helper
-- `src/app_constants.py`: shared constants
-
-## CLI
-
-Run orchestrator:
-
-```powershell
-py -3 -m src.orchestrator "Which broker-dealer has the most trade requests?"
+```text
+streamlit_app.py
+requirements.txt
+.env
+README.md
+src/
+  app_constants.py
+  config.py
+  models.py
+  prompts.py
+  database_connection.py
+  llm_service.py
+  embedding.py
+  vector_store.py
+  pipeline1/
+    capsule_definitions.py
+    capsule_generator.py
+    schema_capsule_generator.py
+    ml_enricher.py
+    relationship_builder.py
+    store_manager.py
+  pipeline2/
+    query_router.py
+    context_searcher.py
+    context_packager.py
+    sql_generator.py
+    sql_executor.py
+    sql_autofix.py
+    analytical_retriever.py
+    result_summarizer.py
+    orchestrator.py
+data/
+  .analytical_refresh_plan.json
+  .schema_fingerprint.json
+  .capsule_graph.json
 ```
 
-Run capsule generation:
+## Setup
 
-```powershell
-py -3 -m src.embedding --generate- --limit 1000
+1. Create and activate a Python environment.
+2. Install dependencies:
+
+```bash
+py -3 -m pip install -r requirements.txt
 ```
+
+3. Fill in `.env`:
+   - `GROQ_API_KEY`
+   - `SQLSERVER_CONN_STR`
+4. Make sure SQL Server has the `Compliance` database and the expected tables.
+5. Run the UI:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+## CLI Usage
+
+Run one question directly through the orchestrator:
+
+```bash
+py -3 -m src.pipeline2.orchestrator "Which broker has the most escalations?"
+```
+
+## Example Questions
+
+1. Which broker dealer has the most trade requests?
+2. Which department appears most active in trade requests?
+3. Is buy more or sell more?
+4. Which employees appear repeatedly in trade request activity?
+5. Which broker dealer's trading activity is increasing over time?
+6. Which requests violated an active restriction?
+7. Which reviewer has the highest average turnaround time?
+8. Which securities have both restriction history and alerts?
+9. Which employees have zero alerts?
+10. Which broker dealers are registered in the USA?
+
+## Running Pipeline 1
+
+Use the UI tab **Generate Capsules**.
+
+Actions:
+- **Generate All Capsules** for a full build
+- **Refresh Data** for analytical-only refresh
+- **Schema Refresh** for a full schema-aware rebuild
+
+## Running Pipeline 2
+
+Use the UI tab **Ask Question** or run the CLI module.
+
+Pipeline 2 includes:
+- query routing
+- context retrieval
+- context packaging
+- analytical answering
+- schema-guided SQL generation
+- SQL autofix retry
+- result summarization
+
+## Capsule Categories
+
+The analytical capsule set covers eight business categories:
+- Volume and activity
+- Violations
+- Trends
+- Risk patterns
+- Approval workflow
+- Security analysis
+- Department and employee health
+- Cross-entity risk
+
+## Notes
+
+- Qdrant runs in local mode at `QDRANT_PATH`.
+- Embedding dimension is `768` using `BAAI/bge-base-en-v1.5`.
+- SQL generation and SQL autofix are restricted to SQL Server `SELECT` queries.
+- Schema-context capsules are planning aids, not final evidence.
