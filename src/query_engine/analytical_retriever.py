@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..llm_service import call_llm
 from ..models import ContextPackage
-from ..prompts import ANALYTICAL_ANSWER_SYSTEM, ANALYTICAL_ANSWER_USER
+from ..llm_instructions import ANALYTICAL_ANSWER_SYSTEM, ANALYTICAL_ANSWER_USER
 
 
 def answer_from_capsules(question: str, context_package: ContextPackage) -> str:

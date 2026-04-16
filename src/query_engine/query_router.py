@@ -6,7 +6,7 @@ import logging
 
 from ..llm_service import call_llm_json
 from ..models import IntentResult
-from ..prompts import INTENT_DETECTION_SYSTEM, INTENT_DETECTION_USER
+from ..llm_instructions import INTENT_DETECTION_SYSTEM, INTENT_DETECTION_USER
 
 logger = logging.getLogger(__name__)
 

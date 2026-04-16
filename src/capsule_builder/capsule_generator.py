@@ -15,7 +15,7 @@ from ..database_connection import execute_select
 from ..embedding import embed_single
 from ..llm_service import call_llm
 from ..models import CapsuleDefinition, GeneratedCapsule
-from ..prompts import SIGNAL_GENERATION_SYSTEM, SIGNAL_GENERATION_USER
+from ..llm_instructions import SIGNAL_GENERATION_SYSTEM, SIGNAL_GENERATION_USER
 from .ml_enricher import enrich_capsule
 
 logger = logging.getLogger(__name__)

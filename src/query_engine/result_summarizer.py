@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from ..llm_service import call_llm
-from ..prompts import RESULT_SUMMARIZER_SYSTEM, RESULT_SUMMARIZER_USER
+from ..llm_instructions import RESULT_SUMMARIZER_SYSTEM, RESULT_SUMMARIZER_USER
 
 
 def summarize_sql_result(question: str, rows: list[dict[str, Any]], columns: list[str]) -> str:

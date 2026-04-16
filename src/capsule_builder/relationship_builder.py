@@ -17,7 +17,7 @@ from ..app_constants import (
 from ..embedding import embed_single, ensure_data_dir
 from ..llm_service import call_llm
 from ..models import CapsuleGraph, RelatedCapsule, GeneratedCapsule, RelationshipEdge
-from ..prompts import RELATED_SIGNAL_SYSTEM, RELATED_SIGNAL_USER
+from ..llm_instructions import RELATED_SIGNAL_SYSTEM, RELATED_SIGNAL_USER
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ import re
 
 from ..database_connection import fk_to_text, get_fk_relationships, get_schema_metadata, schema_to_text
 from ..llm_service import call_llm
-from ..prompts import SQL_AUTOFIX_SYSTEM, SQL_AUTOFIX_USER
+from ..llm_instructions import SQL_AUTOFIX_SYSTEM, SQL_AUTOFIX_USER
 
 logger = logging.getLogger(__name__)
 

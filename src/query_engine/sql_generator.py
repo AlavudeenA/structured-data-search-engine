@@ -8,7 +8,7 @@ import re
 from ..database_connection import fk_to_text, get_fk_relationships, get_schema_metadata, schema_to_text
 from ..llm_service import call_llm
 from ..models import ContextPackage
-from ..prompts import SQL_GENERATION_SYSTEM, SQL_GENERATION_USER, SQL_REASON_SYSTEM, SQL_REASON_USER
+from ..llm_instructions import SQL_GENERATION_SYSTEM, SQL_GENERATION_USER, SQL_REASON_SYSTEM, SQL_REASON_USER
 
 logger = logging.getLogger(__name__)
 

@@ -206,7 +206,7 @@ src/
   config.py                 ← Reads .env into a typed Settings object (pydantic-settings)
   app_constants.py          ← Shared constants: collection names, score thresholds, path config
   models.py                 ← Data models (GeneratedCapsule, SchemaContextCapsule, BuildSummary...)
-  prompts.py                ← All LLM system + user prompts (business-agnostic instruction strings)
+  llm_instructions.py       ← All LLM system + user prompt templates; each section is labelled with which pipeline stage calls it and why
   database_connection.py    ← SQL Server connection pool, schema metadata discovery via INFORMATION_SCHEMA
   llm_service.py            ← Thin wrapper around Groq API (call_llm / call_llm_json)
   embedding.py              ← Text → vector via fastembed; also manages fingerprint + refresh plan files
@@ -263,7 +263,7 @@ store_manager.py  ← master coordinator
        │         │  reads each capsule definition
        │         │  runs SQL against SQL Server (database_connection.py)
        │         │  if signal_method = "llm_summary":
-       │         │      calls Groq with SIGNAL_GENERATION_SYSTEM prompt (prompts.py)
+       │         │      calls Groq with SIGNAL_GENERATION_SYSTEM prompt (llm_instructions.py)
        │         │      LLM writes 2–3 sentence signal from the raw rows
        │         │  if signal_method = "rule_based":
        │         │      picks top rows / computes summary without LLM
@@ -281,7 +281,7 @@ store_manager.py  ← master coordinator
        │         │  compares entity values across all analytical capsules
        │         │  finds capsules that share entity names (broker, employee, security)
        │         │  for each high-anomaly capsule:
-       │         │      calls Groq with RELATED_SIGNAL_SYSTEM prompt (prompts.py)
+       │         │      calls Groq with RELATED_SIGNAL_SYSTEM prompt (llm_instructions.py)
        │         │      LLM writes a 2-sentence risk alert for that entity
        │         └─► returns RelatedCapsule list + saves .capsule_graph.json
        │
@@ -298,7 +298,7 @@ Final saves:
   .schema_fingerprint.json       ← DB schema hash (for Schema Refresh)
 ```
 
-**Key distinction:** `capsule_definitions.py` defines *what to query and what context to carry*. `prompts.py` defines *how the LLM should interpret and summarize those query results*. They work at different stages but both feed the same output: the capsule's `signal` text.
+**Key distinction:** `capsule_definitions.py` defines *what to query and what context to carry*. `llm_instructions.py` defines *how the LLM should interpret and summarize those query results*. They work at different stages but both feed the same output: the capsule's `signal` text.
 
 ---
 
@@ -314,7 +314,7 @@ User types: "Which broker dealer has the highest rejection rate?"
 orchestrator.py  ← entry point
        │
        ├─ Step 1: query_router.py
-       │       sends question to Groq with INTENT_DETECTION_SYSTEM prompt (prompts.py)
+       │       sends question to Groq with INTENT_DETECTION_SYSTEM prompt (llm_instructions.py)
        │       LLM classifies intent → "structured" / "analytical" / "hybrid" / "operational"
        │       also extracts structured_parts and analytical_parts
        │
@@ -333,14 +333,14 @@ orchestrator.py  ← entry point
        ├─ Step 4A: if intent = "analytical" AND confidence ≥ threshold
        │       analytical_retriever.py
        │           packages the combined capsule signals as context
-       │           calls Groq with ANALYTICAL_ANSWER_SYSTEM prompt (prompts.py)
+       │           calls Groq with ANALYTICAL_ANSWER_SYSTEM prompt (llm_instructions.py)
        │           LLM writes answer using pre-computed signal text only (no new SQL)
        │           → Answer returned immediately (milliseconds)
        │
        └─ Step 4B: if intent = "structured" / "operational" / low confidence
                sql_generator.py
                    assembles: question + schema capsule context + FK relationships
-                   calls Groq with SQL_GENERATION_SYSTEM prompt (prompts.py)
+                   calls Groq with SQL_GENERATION_SYSTEM prompt (llm_instructions.py)
                    LLM returns a raw SQL SELECT query
                    → sql_executor.py runs it against SQL Server
                    → if SQL error: sql_autofix.py sends broken SQL + error to Groq
