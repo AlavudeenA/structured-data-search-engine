@@ -190,3 +190,50 @@ Generated SQL:
 {sql}
 
 Explain the planning choice."""
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Stage: Capsule Definition Regeneration (UI — "AI Rebuild Definitions" button)
+# When: user clicks the button in Generate Capsules tab
+# Job: given the live DB schema + FK relationships + a format example,
+#      produce a full CAPSULE_DEFINITIONS list covering all useful analytical angles
+#      for that schema — aggregation, trend, violation, risk, pattern, operational.
+CAPSULE_REGEN_SYSTEM = """You are an expert data engineer and business analyst.
+Given a SQL Server database schema, generate a comprehensive Python list called CAPSULE_DEFINITIONS.
+Each capsule must be a dict with these exact keys:
+
+  capsule_id         – unique snake_case string
+  capsule_type       – one of: aggregation, trend, violation, risk, pattern, operational, distribution
+  priority           – one of: P1, P2, P3, P4
+  what               – one plain English sentence: what this capsule measures
+  how                – one plain English sentence: how it is computed
+  sql                – a valid SQL Server SELECT query (no SELECT *, always ORDER BY, always AS aliases)
+  signal_method      – "rule_based" for aggregations/counts, "llm_summary" for complex patterns
+  embed_text_template – rich paragraph describing what questions this answers + "Finding: {signal}"
+  ttl_hours          – integer: how many hours until this becomes stale
+  tags               – list of lowercase strings
+  tables_used        – list of table names the SQL touches
+  key_columns        – list of the most important output column aliases
+  staleness_trigger  – short string: what event makes this capsule outdated
+  related_capsule_ids – list of capsule_ids this naturally relates to (can be empty)
+  relationship_types  – list matching related_capsule_ids (corroborates, drills_down, same_entity, aggregates_up)
+
+Rules:
+- Cover all major tables — do not skip any table in the schema.
+- Include at least 2 capsules per major table.
+- Cover a mix of all capsule_types.
+- P1 = immediate action / violation / risk. P2 = trend / monitoring. P3-P4 = operational / informational.
+- SQL must be valid SQL Server syntax. Use JOIN not comma joins. No STRING_AGG(DISTINCT ...).
+- Output ONLY the Python list literal. No markdown. No explanation. No variable assignment."""
+
+CAPSULE_REGEN_USER = """Database schema (tables and columns):
+{schema}
+
+Foreign key relationships:
+{fk_relationships}
+
+Format example (follow this structure exactly):
+{format_example}
+
+Generate a comprehensive CAPSULE_DEFINITIONS list for this schema."""
+

@@ -153,7 +153,7 @@ with ask_tab:
 
 with generate_tab:
     st.subheader("Generate Capsules")
-    col1, col2, col3 = st.columns([1, 1, 1], gap="small")
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1], gap="small")
 
     if col1.button("Generate All Capsules", type="primary", use_container_width=True):
         progress = st.progress(0, text="Starting full build")
@@ -206,6 +206,38 @@ with generate_tab:
         )
         if progress_rows:
             st.dataframe(progress_rows, use_container_width=True)
+
+    if col4.button("AI Rebuild Definitions", type="secondary", use_container_width=True):
+        from src.capsule_builder.definitions_generator import (
+            generate_capsule_definitions_via_llm,
+            save_generated_definitions,
+        )
+        import os
+
+        with st.spinner("Analysing live schema and generating capsule definitions via LLM... (may take 30–60 seconds)"):
+            raw_output = generate_capsule_definitions_via_llm()
+
+        st.success("LLM generated a new CAPSULE_DEFINITIONS list. Review below before saving.")
+        st.info(
+            "This output is a Python list you can save directly to `capsule_definitions.py`. "
+            "After saving, click **Generate All Capsules** to rebuild the vector store."
+        )
+        st.code(raw_output, language="python")
+
+        definitions_path = os.path.join(
+            os.path.dirname(__file__),
+            "src", "business_schema", "capsule_definitions.py",
+        )
+        if st.button("💾 Save to capsule_definitions.py", type="primary", key="save_regen"):
+            try:
+                save_generated_definitions(
+                    raw_output,
+                    os.path.join(os.path.dirname(os.path.abspath("streamlit_app.py")),
+                                 "src", "business_schema", "capsule_definitions.py")
+                )
+                st.success("Saved! Click **Generate All Capsules** to rebuild the vector store with the new definitions.")
+            except Exception as exc:
+                st.error(f"Save failed: {exc}")
 
 with explorer_tab:
     st.subheader("Capsule Explorer")

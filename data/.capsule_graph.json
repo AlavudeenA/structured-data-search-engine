@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-04-16T20:23:16.921249+00:00",
+  "built_at": "2026-04-16T21:01:10.605793+00:00",
   "edges": [
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -293,7 +293,7 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "trade_requests_by_department",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "2"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -305,7 +305,7 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "trade_requests_by_trade_type",
       "relationship": "aggregates_up",
-      "join_key": "4"
+      "join_key": "1"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -323,7 +323,7 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "weekly_trade_request_volume",
       "relationship": "aggregates_up",
-      "join_key": "2"
+      "join_key": "1"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -335,7 +335,7 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "high_severity_open_alerts",
       "relationship": "drills_down",
-      "join_key": "Charles Schwab"
+      "join_key": "ETrade"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -419,7 +419,7 @@
       "from_id": "trade_requests_by_department",
       "to_id": "monthly_request_volume",
       "relationship": "aggregates_up",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -431,49 +431,49 @@
       "from_id": "trade_requests_by_department",
       "to_id": "repeat_violators",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "weekly_trade_request_volume",
       "relationship": "aggregates_up",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "monthly_rejection_rate_by_broker_dealer",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "employees_multiple_alert_types",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "high_severity_open_alerts",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "escalation_patterns",
       "relationship": "drills_down",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "reviewer_decision_distribution",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "2"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "avg_turnaround_by_department",
       "relationship": "drills_down",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -497,7 +497,7 @@
       "from_id": "trade_requests_by_department",
       "to_id": "employees_zero_alerts",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "Compliance"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -521,13 +521,13 @@
       "from_id": "trade_requests_by_department",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "Compliance"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -545,7 +545,7 @@
       "from_id": "trade_requests_by_department",
       "to_id": "average_approval_time_by_department",
       "relationship": "drills_down",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -557,7 +557,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "violations_on_restricted_securities",
       "relationship": "drills_down",
-      "join_key": "AAPL"
+      "join_key": "NFLX"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -605,7 +605,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "escalation_patterns",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -623,7 +623,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "securities_with_restriction_history",
       "relationship": "aggregates_up",
-      "join_key": "AMZN"
+      "join_key": "NFLX"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -635,7 +635,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "AAPL"
+      "join_key": "NFLX"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -653,13 +653,13 @@
       "from_id": "trade_requests_by_trade_type",
       "to_id": "monthly_request_volume",
       "relationship": "corroborates",
-      "join_key": "4"
+      "join_key": "1"
     },
     {
       "from_id": "trade_requests_by_trade_type",
       "to_id": "violations_on_restricted_securities",
       "relationship": "drills_down",
-      "join_key": "BUY"
+      "join_key": "SELL"
     },
     {
       "from_id": "trade_requests_by_trade_type",
@@ -797,7 +797,7 @@
       "from_id": "trade_requests_by_trade_type",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "BUY"
+      "join_key": "SELL"
     },
     {
       "from_id": "trade_requests_by_trade_type",
@@ -857,7 +857,7 @@
       "from_id": "monthly_request_volume",
       "to_id": "monthly_rejection_rate_by_broker_dealer",
       "relationship": "drills_down",
-      "join_key": "2026-01"
+      "join_key": "1"
     },
     {
       "from_id": "monthly_request_volume",
@@ -929,7 +929,7 @@
       "from_id": "monthly_request_volume",
       "to_id": "department_compliance_scorecard",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "monthly_request_volume",
@@ -959,7 +959,7 @@
       "from_id": "monthly_request_volume",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "monthly_request_volume",
@@ -1013,13 +1013,13 @@
       "from_id": "violations_on_restricted_securities",
       "to_id": "employees_multiple_alert_types",
       "relationship": "corroborates",
-      "join_key": "John Smith"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "high_severity_open_alerts",
       "relationship": "corroborates",
-      "join_key": "Emily Davis"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_on_restricted_securities",
@@ -1031,7 +1031,7 @@
       "from_id": "violations_on_restricted_securities",
       "to_id": "escalation_patterns",
       "relationship": "corroborates",
-      "join_key": "Rejected"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_on_restricted_securities",
@@ -1043,25 +1043,25 @@
       "from_id": "violations_on_restricted_securities",
       "to_id": "requests_pending_over_3_days",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Charles Schwab"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "most_traded_securities_by_volume",
       "relationship": "aggregates_up",
-      "join_key": "AAPL"
+      "join_key": "NFLX"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "securities_with_restriction_history",
       "relationship": "aggregates_up",
-      "join_key": "AAPL"
+      "join_key": "NFLX"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "currently_active_restrictions",
       "relationship": "aggregates_up",
-      "join_key": "AAPL"
+      "join_key": "Watch List"
     },
     {
       "from_id": "violations_on_restricted_securities",
@@ -1073,13 +1073,13 @@
       "from_id": "violations_on_restricted_securities",
       "to_id": "employees_zero_alerts",
       "relationship": "corroborates",
-      "join_key": "Linda Thomas"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "department_restriction_type_concentration",
       "relationship": "aggregates_up",
-      "join_key": "Insider List"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_on_restricted_securities",
@@ -1091,19 +1091,19 @@
       "from_id": "violations_on_restricted_securities",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "John Smith"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
-      "join_key": "2026-02-05"
+      "join_key": "GOOG"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "corroborates",
-      "join_key": "John Smith"
+      "join_key": "Fidelity"
     },
     {
       "from_id": "violations_on_restricted_securities",
@@ -1151,7 +1151,7 @@
       "from_id": "violations_by_restriction_type",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Insider List"
+      "join_key": "Watch List"
     },
     {
       "from_id": "violations_by_restriction_type",
@@ -1187,7 +1187,7 @@
       "from_id": "violations_by_broker_dealer",
       "to_id": "high_severity_open_alerts",
       "relationship": "corroborates",
-      "join_key": "Charles Schwab"
+      "join_key": "ETrade"
     },
     {
       "from_id": "violations_by_broker_dealer",
@@ -1241,7 +1241,7 @@
       "from_id": "violations_by_department",
       "to_id": "repeat_violators",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_by_department",
@@ -1265,13 +1265,13 @@
       "from_id": "violations_by_department",
       "to_id": "employees_multiple_alert_types",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_by_department",
       "to_id": "high_severity_open_alerts",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_by_department",
@@ -1325,7 +1325,7 @@
       "from_id": "violations_by_department",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "violations_by_department",
@@ -1361,7 +1361,7 @@
       "from_id": "repeat_violators",
       "to_id": "escalation_trend_by_department",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "repeat_violators",
@@ -1373,13 +1373,13 @@
       "from_id": "repeat_violators",
       "to_id": "escalation_patterns",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "avg_turnaround_by_department",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "repeat_violators",
@@ -1397,13 +1397,13 @@
       "from_id": "repeat_violators",
       "to_id": "department_compliance_scorecard",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "employees_zero_alerts",
       "relationship": "drills_down",
-      "join_key": "Trader"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "repeat_violators",
@@ -1421,25 +1421,25 @@
       "from_id": "repeat_violators",
       "to_id": "department_restriction_type_concentration",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Senior Trader"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "trade_requests_by_employee",
       "relationship": "corroborates",
-      "join_key": "Senior Trader"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "repeat_violators",
@@ -1451,7 +1451,7 @@
       "from_id": "repeat_violators",
       "to_id": "average_approval_time_by_department",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "active_restrictions_recent_trade_attempts",
@@ -1523,7 +1523,7 @@
       "from_id": "monthly_alert_volume_trend",
       "to_id": "employees_multiple_alert_types",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "monthly_alert_volume_trend",
@@ -1535,7 +1535,7 @@
       "from_id": "monthly_alert_volume_trend",
       "to_id": "broker_dealers_high_rejection_and_alerts",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "monthly_alert_volume_trend",
@@ -1565,7 +1565,7 @@
       "from_id": "monthly_alert_volume_trend",
       "to_id": "alert_rate_by_job_title",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "monthly_alert_volume_trend",
@@ -1589,7 +1589,7 @@
       "from_id": "monthly_alert_volume_trend",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1625,7 +1625,7 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "reviewer_decision_distribution",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "1"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1661,7 +1661,7 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "department_compliance_scorecard",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1691,7 +1691,7 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1703,7 +1703,7 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "trade_requests_by_employee",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "1"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1727,7 +1727,7 @@
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "escalation_trend_by_department",
       "relationship": "corroborates",
-      "join_key": "2026-01"
+      "join_key": "3"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
@@ -1739,7 +1739,7 @@
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "high_severity_open_alerts",
       "relationship": "drills_down",
-      "join_key": "Charles Schwab"
+      "join_key": "ETrade"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
@@ -1781,7 +1781,7 @@
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "department_compliance_scorecard",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
@@ -1799,7 +1799,7 @@
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
@@ -1835,13 +1835,13 @@
       "from_id": "escalation_trend_by_department",
       "to_id": "employees_multiple_alert_types",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "high_severity_open_alerts",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "escalation_trend_by_department",
@@ -1883,13 +1883,13 @@
       "from_id": "escalation_trend_by_department",
       "to_id": "department_compliance_scorecard",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "employees_zero_alerts",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "escalation_trend_by_department",
@@ -1913,19 +1913,19 @@
       "from_id": "escalation_trend_by_department",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "trade_requests_by_employee",
       "relationship": "same_entity",
-      "join_key": "1"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "escalation_trend_by_department",
@@ -2015,19 +2015,19 @@
       "from_id": "employees_multiple_alert_types",
       "to_id": "broker_dealers_high_rejection_and_alerts",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "escalation_patterns",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "avg_turnaround_by_department",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "employees_multiple_alert_types",
@@ -2039,19 +2039,19 @@
       "from_id": "employees_multiple_alert_types",
       "to_id": "department_compliance_scorecard",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "employees_zero_alerts",
       "relationship": "drills_down",
-      "join_key": "Trader"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "alert_rate_by_job_title",
       "relationship": "same_entity",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "employees_multiple_alert_types",
@@ -2069,55 +2069,55 @@
       "from_id": "employees_multiple_alert_types",
       "to_id": "department_restriction_type_concentration",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Senior Analyst"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "trade_requests_by_employee",
       "relationship": "corroborates",
-      "join_key": "Senior Analyst"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "average_approval_time_by_department",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "broker_dealers_high_rejection_and_alerts",
       "relationship": "aggregates_up",
-      "join_key": "Charles Schwab"
+      "join_key": "ETrade"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "escalation_patterns",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "avg_turnaround_by_department",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "high_severity_open_alerts",
@@ -2129,7 +2129,7 @@
       "from_id": "high_severity_open_alerts",
       "to_id": "requests_pending_over_3_days",
       "relationship": "corroborates",
-      "join_key": "Charles Schwab"
+      "join_key": "Trading"
     },
     {
       "from_id": "high_severity_open_alerts",
@@ -2159,13 +2159,13 @@
       "from_id": "high_severity_open_alerts",
       "to_id": "department_compliance_scorecard",
       "relationship": "aggregates_up",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "employees_zero_alerts",
       "relationship": "aggregates_up",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "high_severity_open_alerts",
@@ -2189,19 +2189,19 @@
       "from_id": "high_severity_open_alerts",
       "to_id": "department_restriction_type_concentration",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Emily Davis"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "high_severity_open_alerts",
@@ -2213,13 +2213,13 @@
       "from_id": "high_severity_open_alerts",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": "Emily Davis"
+      "join_key": "ETrade"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "average_approval_time_by_department",
       "relationship": "corroborates",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
@@ -2243,7 +2243,7 @@
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "alert_rate_by_job_title",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "2"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
@@ -2267,13 +2267,13 @@
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "broker_dealers_high_rejection_and_alerts",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "5"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "escalation_patterns",
@@ -2297,25 +2297,25 @@
       "from_id": "escalation_patterns",
       "to_id": "requests_pending_over_3_days",
       "relationship": "aggregates_up",
-      "join_key": "SELL"
+      "join_key": "Trading"
     },
     {
       "from_id": "escalation_patterns",
       "to_id": "most_traded_securities_by_volume",
       "relationship": "aggregates_up",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "escalation_patterns",
       "to_id": "department_compliance_scorecard",
       "relationship": "aggregates_up",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "escalation_patterns",
       "to_id": "employees_zero_alerts",
       "relationship": "aggregates_up",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "escalation_patterns",
@@ -2345,19 +2345,19 @@
       "from_id": "escalation_patterns",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "aggregates_up",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "escalation_patterns",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Rejected"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "escalation_patterns",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "escalation_patterns",
@@ -2423,7 +2423,7 @@
       "from_id": "reviewer_decision_distribution",
       "to_id": "average_review_time_by_reviewer",
       "relationship": "same_entity",
-      "join_key": "Lisa Allen"
+      "join_key": "3.0"
     },
     {
       "from_id": "avg_turnaround_by_department",
@@ -2441,13 +2441,13 @@
       "from_id": "avg_turnaround_by_department",
       "to_id": "department_compliance_scorecard",
       "relationship": "corroborates",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "avg_turnaround_by_department",
       "to_id": "employees_zero_alerts",
       "relationship": "corroborates",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "avg_turnaround_by_department",
@@ -2459,19 +2459,19 @@
       "from_id": "avg_turnaround_by_department",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "same_entity",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "avg_turnaround_by_department",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "avg_turnaround_by_department",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "avg_turnaround_by_department",
@@ -2483,7 +2483,7 @@
       "from_id": "avg_turnaround_by_department",
       "to_id": "average_approval_time_by_department",
       "relationship": "same_entity",
-      "join_key": "1.0909090909090908"
+      "join_key": "1.25"
     },
     {
       "from_id": "avg_turnaround_by_department",
@@ -2525,7 +2525,7 @@
       "from_id": "avg_turnaround_by_reviewer",
       "to_id": "average_review_time_by_reviewer",
       "relationship": "same_entity",
-      "join_key": "Lisa Allen"
+      "join_key": "3.0"
     },
     {
       "from_id": "pending_requests_no_review",
@@ -2585,7 +2585,7 @@
       "from_id": "requests_pending_over_3_days",
       "to_id": "employees_zero_alerts",
       "relationship": "corroborates",
-      "join_key": "Paul Walker"
+      "join_key": "Trading"
     },
     {
       "from_id": "requests_pending_over_3_days",
@@ -2603,13 +2603,13 @@
       "from_id": "requests_pending_over_3_days",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Charles Schwab"
     },
     {
       "from_id": "requests_pending_over_3_days",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Paul Walker"
+      "join_key": "Trading"
     },
     {
       "from_id": "requests_pending_over_3_days",
@@ -2639,13 +2639,13 @@
       "from_id": "most_traded_securities_by_volume",
       "to_id": "currently_active_restrictions",
       "relationship": "corroborates",
-      "join_key": "AAPL"
+      "join_key": "GOOG"
     },
     {
       "from_id": "most_traded_securities_by_volume",
       "to_id": "securities_in_restrictions_and_alerts",
       "relationship": "drills_down",
-      "join_key": "AAPL"
+      "join_key": "NFLX"
     },
     {
       "from_id": "most_traded_securities_by_volume",
@@ -2687,7 +2687,7 @@
       "from_id": "most_traded_securities_by_volume",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "AAPL"
+      "join_key": "NFLX"
     },
     {
       "from_id": "most_traded_securities_by_volume",
@@ -2717,7 +2717,7 @@
       "from_id": "securities_with_restriction_history",
       "to_id": "securities_in_restrictions_and_alerts",
       "relationship": "drills_down",
-      "join_key": "AAPL"
+      "join_key": "NFLX"
     },
     {
       "from_id": "securities_with_restriction_history",
@@ -2729,7 +2729,7 @@
       "from_id": "securities_with_restriction_history",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "AAPL"
+      "join_key": "NFLX"
     },
     {
       "from_id": "securities_with_restriction_history",
@@ -2741,13 +2741,13 @@
       "from_id": "currently_active_restrictions",
       "to_id": "department_restriction_type_concentration",
       "relationship": "drills_down",
-      "join_key": "Insider List"
+      "join_key": "Watch List"
     },
     {
       "from_id": "currently_active_restrictions",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "AAPL"
+      "join_key": "Watch List"
     },
     {
       "from_id": "currently_active_restrictions",
@@ -2759,7 +2759,7 @@
       "from_id": "securities_in_restrictions_and_alerts",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "AAPL"
+      "join_key": "NFLX"
     },
     {
       "from_id": "securities_in_restrictions_and_alerts",
@@ -2771,7 +2771,7 @@
       "from_id": "securities_in_restrictions_and_alerts",
       "to_id": "securities_in_restrictions_and_alerts",
       "relationship": "same_entity",
-      "join_key": "1"
+      "join_key": "NFLX"
     },
     {
       "from_id": "department_compliance_scorecard",
@@ -2789,19 +2789,19 @@
       "from_id": "department_compliance_scorecard",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "Compliance"
     },
     {
       "from_id": "department_compliance_scorecard",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "department_compliance_scorecard",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "department_compliance_scorecard",
@@ -2819,7 +2819,7 @@
       "from_id": "department_compliance_scorecard",
       "to_id": "average_approval_time_by_department",
       "relationship": "corroborates",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "employees_zero_alerts",
@@ -2843,19 +2843,19 @@
       "from_id": "employees_zero_alerts",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "Compliance"
     },
     {
       "from_id": "employees_zero_alerts",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "VP"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "employees_zero_alerts",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Trader"
+      "join_key": "Compliance"
     },
     {
       "from_id": "employees_zero_alerts",
@@ -2873,7 +2873,7 @@
       "from_id": "employees_zero_alerts",
       "to_id": "average_approval_time_by_department",
       "relationship": "corroborates",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "alert_rate_by_job_title",
@@ -2897,19 +2897,19 @@
       "from_id": "alert_rate_by_job_title",
       "to_id": "trade_requests_by_employee",
       "relationship": "corroborates",
-      "join_key": "Senior Trader"
+      "join_key": "Engineer"
     },
     {
       "from_id": "alert_rate_by_job_title",
       "to_id": "alert_rate_by_job_title",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "alert_rate_by_job_title",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "new_employee_compliance",
@@ -2981,7 +2981,7 @@
       "from_id": "department_restriction_type_concentration",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Insider List"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "department_restriction_type_concentration",
@@ -3005,13 +3005,13 @@
       "from_id": "reviewer_coverage_gaps",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "reviewer_coverage_gaps",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "1"
+      "join_key": "Compliance"
     },
     {
       "from_id": "reviewer_coverage_gaps",
@@ -3029,7 +3029,7 @@
       "from_id": "reviewer_coverage_gaps",
       "to_id": "average_approval_time_by_department",
       "relationship": "same_entity",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "reviewer_coverage_gaps",
@@ -3041,7 +3041,7 @@
       "from_id": "full_risk_profile_join",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Senior Trader"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "full_risk_profile_join",
@@ -3053,13 +3053,13 @@
       "from_id": "full_risk_profile_join",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "corroborates",
-      "join_key": "John Smith"
+      "join_key": "Fidelity"
     },
     {
       "from_id": "full_risk_profile_join",
       "to_id": "average_approval_time_by_department",
       "relationship": "aggregates_up",
-      "join_key": "Trading"
+      "join_key": "Investment Banking"
     },
     {
       "from_id": "full_risk_profile_join",
@@ -3077,13 +3077,13 @@
       "from_id": "trade_requests_by_employee",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": "John Smith"
+      "join_key": "1"
     },
     {
       "from_id": "trade_requests_by_employee",
       "to_id": "average_approval_time_by_department",
       "relationship": "drills_down",
-      "join_key": "Risk Management"
+      "join_key": "Compliance"
     },
     {
       "from_id": "daily_trading_concentration_by_security",
