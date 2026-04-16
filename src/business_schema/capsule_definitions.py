@@ -825,7 +825,7 @@ SELECT
     e.JobTitle                               AS job_title,
     COUNT(ca.AlertID)                        AS total_alerts,
     COUNT(DISTINCT ca.AlertType)             AS distinct_alert_types,
-    STRING_AGG(DISTINCT ca.AlertType, ', ')  AS alert_types_list,
+    STUFF((SELECT DISTINCT ', ' + ca2.AlertType FROM ComplianceAlert ca2 WHERE ca2.EmployeeID = e.EmployeeID FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, '') AS alert_types_list,
     MAX(ca.Severity)                         AS max_severity,
     SUM(CASE WHEN ca.Status IN ('Open','Investigating') THEN 1 ELSE 0 END) AS unresolved_alerts
 FROM Employee e
@@ -1619,7 +1619,7 @@ SELECT
     COUNT(DISTINCT tr.BrokerDealerID)        AS broker_dealers_involved,
     COUNT(DISTINCT ca.AlertID)               AS total_alerts,
     COUNT(DISTINCT ca.AlertType)             AS distinct_alert_types,
-    STRING_AGG(DISTINCT bd.BrokerDealerName, ' | ') AS broker_dealer_names,
+    STUFF((SELECT DISTINCT ' | ' + bd2.BrokerDealerName FROM Account a2 JOIN BrokerDealer bd2 ON a2.BrokerDealerID = bd2.BrokerDealerID WHERE a2.EmployeeID = e.EmployeeID FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 3, '') AS broker_dealer_names,
     MAX(ca.Severity)                         AS max_severity
 FROM Employee e
 JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
@@ -1994,7 +1994,7 @@ SELECT
     rs.SecuritySymbol                    AS security_symbol,
     COUNT(DISTINCT rs.RestrictionID)     AS restriction_count,
     COUNT(DISTINCT ca.AlertID)           AS alert_count,
-    STRING_AGG(DISTINCT rs.RestrictionType, ', ') AS restriction_types
+    STUFF((SELECT DISTINCT ', ' + rs2.RestrictionType FROM RestrictedSecurity rs2 WHERE rs2.SecuritySymbol = rs.SecuritySymbol FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, '') AS restriction_types
 FROM RestrictedSecurity rs
 JOIN TradeRequest tr ON tr.SecuritySymbol = rs.SecuritySymbol
 JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID

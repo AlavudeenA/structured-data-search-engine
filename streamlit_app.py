@@ -242,7 +242,13 @@ with explorer_tab:
                 {
                     "capsule_id": capsule.get("capsule_id"),
                     "type": capsule.get("capsule_type", "schema_context"),
+                    "what": capsule.get("what") or capsule.get("summary", "-"),
+                    "how": capsule.get("how", "-"),
                     "priority": capsule.get("priority", "-"),
+                    "signal_method": capsule.get("signal_method", "-"),
+                    "tables_used": ", ".join(capsule.get("tables_used") or capsule.get("tables") or []),
+                    "tags": ", ".join(capsule.get("tags", [])),
+                    "staleness_trigger": capsule.get("staleness_trigger", "-"),
                     "ttl_hours": capsule.get("ttl_hours", "-"),
                     "anomaly_score": capsule.get("anomaly_score", "-"),
                     "trend_direction": capsule.get("trend_direction", "-"),
@@ -251,6 +257,22 @@ with explorer_tab:
                 }
                 for capsule in filtered
             ],
+            column_config={
+                "capsule_id":        st.column_config.TextColumn("Capsule ID",         width="medium"),
+                "type":              st.column_config.TextColumn("Type",               width="small"),
+                "what":              st.column_config.TextColumn("What",               width="medium",  help="What this capsule measures — hover a cell to read in full"),
+                "how":               st.column_config.TextColumn("How",                width="medium",  help="How the metric is calculated — hover a cell to read in full"),
+                "priority":          st.column_config.TextColumn("Priority",           width="small"),
+                "signal_method":     st.column_config.TextColumn("Signal Method",      width="small"),
+                "tables_used":       st.column_config.TextColumn("Tables",             width="small",   help="Database tables used by this capsule"),
+                "tags":              st.column_config.TextColumn("Tags",               width="small",   help="All tags — hover a cell to read in full"),
+                "staleness_trigger": st.column_config.TextColumn("Staleness Trigger",  width="small",   help="Event that invalidates this capsule — hover to read in full"),
+                "ttl_hours":         st.column_config.NumberColumn("TTL (hrs)",         width="small"),
+                "anomaly_score":     st.column_config.NumberColumn("Anomaly",           width="small",   format="%.2f"),
+                "trend_direction":   st.column_config.TextColumn("Trend",              width="small"),
+                "related_count":     st.column_config.NumberColumn("Related",           width="small"),
+                "expires_at":        st.column_config.TextColumn("Expires At",         width="medium"),
+            },
             use_container_width=True,
         )
 
