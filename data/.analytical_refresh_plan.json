@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T17:54:05.365022+00:00",
+  "generated_at": "2026-04-16T19:03:42.753260+00:00",
   "capsule_ids": [
     "trade_requests_by_broker_dealer",
     "trade_requests_by_department",
@@ -37,7 +37,15 @@
     "employee_broker_dealer_combination_risk",
     "department_restriction_type_concentration",
     "reviewer_coverage_gaps",
-    "full_risk_profile_join"
+    "full_risk_profile_join",
+    "trade_requests_by_employee",
+    "daily_trading_concentration_by_security",
+    "broker_dealers_high_rejection_and_alerts",
+    "alert_rate_by_job_title",
+    "high_risk_employee_broker_combinations",
+    "securities_in_restrictions_and_alerts",
+    "average_approval_time_by_department",
+    "average_review_time_by_reviewer"
   ],
   "plans": [
     {
@@ -1400,6 +1408,247 @@
         "aggregates_up",
         "corroborates"
       ]
+    },
+    {
+      "capsule_id": "trade_requests_by_employee",
+      "capsule_type": "aggregation",
+      "priority": "P2",
+      "what": "Trade request volume per employee",
+      "how": "Count total trade requests grouped by employee",
+      "sql": "SELECT\n    e.EmployeeName                       AS employee_name,\n    e.Department                         AS department,\n    e.JobTitle                           AS job_title,\n    COUNT(tr.TradeRequestID)             AS total_requests,\n    SUM(CASE WHEN tr.Status = 'Approved' THEN 1 ELSE 0 END) AS approved_count,\n    SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_count,\n    SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,\n    CAST(\n        100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END)\n        / NULLIF(COUNT(tr.TradeRequestID), 0)\n    AS DECIMAL(5,2)) AS rejection_rate_pct\nFROM Employee e\nJOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID\nGROUP BY e.EmployeeID, e.EmployeeName, e.Department, e.JobTitle\nORDER BY total_requests DESC",
+      "signal_method": "rule_based",
+      "embed_text_template": "Trade request activity by individual employee, showing staff with the highest trading volume. This capsule answers: which individuals appear repeatedly in trade request activity across the dataset, which staff members seem unusually active in personal trading, and what their approval/rejection rates are. Finding: {signal} Tables: Employee, TradeRequest.",
+      "ttl_hours": 24,
+      "tags": [
+        "employee",
+        "volume",
+        "aggregation"
+      ],
+      "tables_used": [
+        "Employee",
+        "TradeRequest"
+      ],
+      "key_columns": [
+        "employee_name",
+        "total_requests",
+        "rejected_count"
+      ],
+      "staleness_trigger": "new TradeRequest",
+      "related_capsule_ids": [
+        "trade_requests_by_department"
+      ],
+      "relationship_types": [
+        "aggregates_up"
+      ]
+    },
+    {
+      "capsule_id": "daily_trading_concentration_by_security",
+      "capsule_type": "pattern",
+      "priority": "P2",
+      "what": "Security showing unusually high trading concentration on a given day",
+      "how": "Group trades by RequestDate and SecuritySymbol and find peaks",
+      "sql": "SELECT top 20\n    tr.RequestDate                       AS request_date,\n    tr.SecuritySymbol                    AS security_symbol,\n    COUNT(tr.TradeRequestID)             AS distinct_requests,\n    COUNT(DISTINCT tr.EmployeeID)        AS unique_employees,\n    SUM(tr.Quantity)                     AS total_quantity\nFROM TradeRequest tr\nGROUP BY tr.RequestDate, tr.SecuritySymbol\nHAVING COUNT(DISTINCT tr.EmployeeID) >= 3 OR COUNT(tr.TradeRequestID) >= 5\nORDER BY distinct_requests DESC, total_quantity DESC",
+      "signal_method": "rule_based",
+      "embed_text_template": "Detects when one security dominates trading on a given day revealing unusual herd behavior. Answers: Which security shows unusually high trading concentration on a given day? Finding: {signal} Tables: TradeRequest.",
+      "ttl_hours": 24,
+      "tags": [
+        "security",
+        "concentration",
+        "pattern",
+        "daily"
+      ],
+      "tables_used": [
+        "TradeRequest"
+      ],
+      "key_columns": [
+        "request_date",
+        "security_symbol",
+        "distinct_requests"
+      ],
+      "staleness_trigger": "daily",
+      "related_capsule_ids": [],
+      "relationship_types": []
+    },
+    {
+      "capsule_id": "broker_dealers_high_rejection_and_alerts",
+      "capsule_type": "risk",
+      "priority": "P2",
+      "what": "Broker dealers combining high rejection rates and multiple compliance alerts",
+      "how": "Join TradeRequest rejections and ComplianceAlert counts by broker dealer",
+      "sql": "SELECT\n    bd.BrokerDealerName                  AS broker_dealer,\n    COUNT(DISTINCT tr.TradeRequestID)    AS total_requests,\n    SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_requests,\n    COUNT(DISTINCT ca.AlertID)           AS total_alerts,\n    CAST(100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT tr.TradeRequestID), 0) AS DECIMAL(5,2)) as rejection_rate_pct\nFROM BrokerDealer bd\nJOIN Account a ON a.BrokerDealerID = bd.BrokerDealerID\nLEFT JOIN TradeRequest tr ON tr.EmployeeID = a.EmployeeID\nLEFT JOIN ComplianceAlert ca ON ca.EmployeeID = a.EmployeeID\nGROUP BY bd.BrokerDealerID, bd.BrokerDealerName\nHAVING COUNT(DISTINCT ca.AlertID) > 0 AND SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) > 0\nORDER BY rejection_rate_pct DESC, total_alerts DESC",
+      "signal_method": "rule_based",
+      "embed_text_template": "Identifies broker dealers that look riskiest because they combine high rejection rates and high alert counts. Finding: {signal} Tables: BrokerDealer, Account, TradeRequest, ComplianceAlert.",
+      "ttl_hours": 24,
+      "tags": [
+        "broker_dealer",
+        "risk",
+        "rejection",
+        "alert"
+      ],
+      "tables_used": [
+        "BrokerDealer",
+        "TradeRequest",
+        "ComplianceAlert",
+        "Account"
+      ],
+      "key_columns": [
+        "broker_dealer",
+        "rejection_rate_pct",
+        "total_alerts"
+      ],
+      "staleness_trigger": "weekly",
+      "related_capsule_ids": [],
+      "relationship_types": []
+    },
+    {
+      "capsule_id": "alert_rate_by_job_title",
+      "capsule_type": "aggregation",
+      "priority": "P3",
+      "what": "Compliance alert distribution by job title",
+      "how": "Count alerts grouped by the employee's JobTitle",
+      "sql": "SELECT\n    e.JobTitle                           AS job_title,\n    COUNT(DISTINCT e.EmployeeID)         AS total_employees,\n    COUNT(ca.AlertID)                    AS total_alerts,\n    CAST(COUNT(ca.AlertID) * 1.0 / NULLIF(COUNT(DISTINCT e.EmployeeID), 0) AS DECIMAL(5,2)) AS alerts_per_employee\nFROM Employee e\nLEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID\nGROUP BY e.JobTitle\nORDER BY alerts_per_employee DESC",
+      "signal_method": "rule_based",
+      "embed_text_template": "Compliance issues distributed across different job titles. Answers: Which job titles appear to have the highest alert rate? Finding: {signal} Tables: Employee, ComplianceAlert.",
+      "ttl_hours": 48,
+      "tags": [
+        "job_title",
+        "alert",
+        "aggregation"
+      ],
+      "tables_used": [
+        "Employee",
+        "ComplianceAlert"
+      ],
+      "key_columns": [
+        "job_title",
+        "total_alerts",
+        "alerts_per_employee"
+      ],
+      "staleness_trigger": "weekly",
+      "related_capsule_ids": [],
+      "relationship_types": []
+    },
+    {
+      "capsule_id": "high_risk_employee_broker_combinations",
+      "capsule_type": "risk",
+      "priority": "P2",
+      "what": "Employee and Broker Dealer combinations with highest risk signals",
+      "how": "Group rejections and alerts by Employee and Broker Dealer",
+      "sql": "SELECT top 50\n    e.EmployeeName                       AS employee_name,\n    bd.BrokerDealerName                  AS broker_dealer,\n    COUNT(DISTINCT tr.TradeRequestID)    AS total_requests,\n    SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_requests,\n    COUNT(DISTINCT ca.AlertID)           AS total_alerts\nFROM Account a\nJOIN Employee e ON e.EmployeeID = a.EmployeeID\nJOIN BrokerDealer bd ON bd.BrokerDealerID = a.BrokerDealerID\nLEFT JOIN TradeRequest tr ON tr.EmployeeID = a.EmployeeID AND tr.Status = 'Rejected'\nLEFT JOIN ComplianceAlert ca ON ca.EmployeeID = a.EmployeeID\nGROUP BY e.EmployeeID, e.EmployeeName, bd.BrokerDealerID, bd.BrokerDealerName\nHAVING SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) > 0 OR COUNT(DISTINCT ca.AlertID) > 0\nORDER BY rejected_requests DESC, total_alerts DESC",
+      "signal_method": "rule_based",
+      "embed_text_template": "Highlights which employee and broker dealer combinations look riskiest based on rejected trades and alerts. Finding: {signal} Tables: Employee, BrokerDealer, Account, TradeRequest, ComplianceAlert.",
+      "ttl_hours": 24,
+      "tags": [
+        "employee",
+        "broker_dealer",
+        "risk"
+      ],
+      "tables_used": [
+        "Employee",
+        "BrokerDealer",
+        "Account",
+        "TradeRequest",
+        "ComplianceAlert"
+      ],
+      "key_columns": [
+        "employee_name",
+        "broker_dealer",
+        "rejected_requests",
+        "total_alerts"
+      ],
+      "staleness_trigger": "weekly",
+      "related_capsule_ids": [],
+      "relationship_types": []
+    },
+    {
+      "capsule_id": "securities_in_restrictions_and_alerts",
+      "capsule_type": "pattern",
+      "priority": "P2",
+      "what": "Securities appearing in both active restrictions and compliance alerts",
+      "how": "Inner join between RestrictedSecurity and TradeRequest linked to ComplianceAlert",
+      "sql": "SELECT\n    rs.SecuritySymbol                    AS security_symbol,\n    COUNT(DISTINCT rs.RestrictionID)     AS restriction_count,\n    COUNT(DISTINCT ca.AlertID)           AS alert_count,\n    STRING_AGG(DISTINCT rs.RestrictionType, ', ') AS restriction_types\nFROM RestrictedSecurity rs\nJOIN TradeRequest tr ON tr.SecuritySymbol = rs.SecuritySymbol\nJOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID\nGROUP BY rs.SecuritySymbol\nHAVING COUNT(DISTINCT ca.AlertID) > 0\nORDER BY alert_count DESC",
+      "signal_method": "rule_based",
+      "embed_text_template": "Identifies which securities appear in both restrictions and alerts, signaling high targeted risk. Finding: {signal} Tables: RestrictedSecurity, TradeRequest, ComplianceAlert.",
+      "ttl_hours": 24,
+      "tags": [
+        "security",
+        "restriction",
+        "alert",
+        "risk"
+      ],
+      "tables_used": [
+        "RestrictedSecurity",
+        "TradeRequest",
+        "ComplianceAlert"
+      ],
+      "key_columns": [
+        "security_symbol",
+        "restriction_count",
+        "alert_count",
+        "restriction_types"
+      ],
+      "staleness_trigger": "daily",
+      "related_capsule_ids": [],
+      "relationship_types": []
+    },
+    {
+      "capsule_id": "average_approval_time_by_department",
+      "capsule_type": "aggregation",
+      "priority": "P2",
+      "what": "Average approval turnaround time per department",
+      "how": "Average the TurnaroundDays in ApprovalWorkflow grouped by employee's department",
+      "sql": "SELECT\n    e.Department                           AS department,\n    AVG(CAST(aw.TurnaroundDays AS FLOAT))  AS avg_turnaround_days,\n    COUNT(aw.WorkflowID)                   AS total_reviews,\n    SUM(CASE WHEN aw.Decision = 'Rejected'  THEN 1 ELSE 0 END) AS rejections,\n    SUM(CASE WHEN aw.Decision = 'Escalated' THEN 1 ELSE 0 END) AS escalations\nFROM ApprovalWorkflow aw\nJOIN TradeRequest tr ON aw.TradeRequestID = tr.TradeRequestID\nJOIN Employee e ON tr.EmployeeID = e.EmployeeID\nWHERE aw.TurnaroundDays IS NOT NULL\nGROUP BY e.Department\nORDER BY avg_turnaround_days DESC",
+      "signal_method": "rule_based",
+      "embed_text_template": "Measures how long compliance reviews take on average for different departments. Answers: Which departments have the slowest approval turnaround? Finding: {signal} Tables: ApprovalWorkflow, TradeRequest, Employee.",
+      "ttl_hours": 24,
+      "tags": [
+        "department",
+        "approval",
+        "turnaround",
+        "aggregation"
+      ],
+      "tables_used": [
+        "ApprovalWorkflow",
+        "TradeRequest",
+        "Employee"
+      ],
+      "key_columns": [
+        "department",
+        "avg_turnaround_days",
+        "total_reviews"
+      ],
+      "staleness_trigger": "daily",
+      "related_capsule_ids": [],
+      "relationship_types": []
+    },
+    {
+      "capsule_id": "average_review_time_by_reviewer",
+      "capsule_type": "aggregation",
+      "priority": "P3",
+      "what": "Average review time taken by each compliance reviewer",
+      "how": "Average the TurnaroundDays in ApprovalWorkflow grouped by ReviewerID",
+      "sql": "SELECT\n    r.EmployeeName                         AS reviewer_name,\n    COUNT(aw.WorkflowID)                   AS total_reviews,\n    AVG(CAST(aw.TurnaroundDays AS FLOAT))  AS avg_turnaround_days,\n    SUM(CASE WHEN aw.Decision = 'Rejected' THEN 1 ELSE 0 END) AS total_rejections\nFROM ApprovalWorkflow aw\nJOIN Employee r ON aw.ReviewerID = r.EmployeeID\nWHERE aw.TurnaroundDays IS NOT NULL\nGROUP BY r.EmployeeID, r.EmployeeName\nORDER BY avg_turnaround_days DESC",
+      "signal_method": "rule_based",
+      "embed_text_template": "Identifies which reviewer takes the longest on average to complete reviews. Answers: Which reviewer takes the longest on average to complete reviews? Finding: {signal} Tables: ApprovalWorkflow, Employee.",
+      "ttl_hours": 24,
+      "tags": [
+        "reviewer",
+        "approval",
+        "turnaround",
+        "aggregation"
+      ],
+      "tables_used": [
+        "ApprovalWorkflow",
+        "Employee"
+      ],
+      "key_columns": [
+        "reviewer_name",
+        "avg_turnaround_days",
+        "total_reviews"
+      ],
+      "staleness_trigger": "daily",
+      "related_capsule_ids": [],
+      "relationship_types": []
     }
   ]
 }

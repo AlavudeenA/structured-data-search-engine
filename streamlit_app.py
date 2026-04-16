@@ -1,4 +1,4 @@
-"""Streamlit UI entry point for the compliance capsule engine."""
+"""Streamlit UI entry point for the analytic search engine."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from src.vector_store import clear_collection, collection_counts, delete_by_caps
 from src.database_connection import execute_select
 from src.embedding import embed_single
 
-st.set_page_config(page_title="Compliance Engine", page_icon="C", layout="wide")
+st.set_page_config(page_title="Analytical Search Engine", page_icon="🔍", layout="wide")
 
 INTENT_BADGE = {
     INTENT_STRUCTURED: ("green", "Structured"),
@@ -72,12 +72,12 @@ def record_telemetry(result) -> None:
     st.session_state.telemetry_log.append(row)
 
 
-with st.sidebar:
+sidebar_collections = st.sidebar.empty()
+with sidebar_collections.container():
     st.markdown("### Collections")
     st.json(collection_counts())
 
-st.title("Compliance Engine")
-st.caption("Groq + fastembed + Qdrant + SQL Server")
+st.title("Analytical Search Engine")
 
 ask_tab, generate_tab, explorer_tab, graph_tab, telemetry_tab, insert_tab, reset_tab = st.tabs(
     [
@@ -93,7 +93,7 @@ ask_tab, generate_tab, explorer_tab, graph_tab, telemetry_tab, insert_tab, reset
 
 with ask_tab:
     st.subheader("Ask Question")
-    question = st.text_area("Question", height=120, placeholder="Which broker-dealer's trading activity is increasing over time?")
+    question = st.text_area("Question", height=120, placeholder="Ask a question about your database...")
     history = [item["question"] for item in st.session_state.question_history[-UI_MAX_HISTORY:]]
     if history:
         selected = st.selectbox("Recent Questions", [""] + history)
@@ -102,7 +102,7 @@ with ask_tab:
 
     if st.button("Run Question", type="primary") and question.strip():
         st.session_state.last_question = question.strip()
-        with st.spinner("Running compliance pipeline..."):
+        with st.spinner("Running analytical pipeline..."):
             try:
                 result = handle_query(question.strip())
                 st.session_state.last_result = result
@@ -172,6 +172,11 @@ with generate_tab:
         )
         st.write(f"Relationship graph edges: {summary.graph_edge_count}")
         st.dataframe(progress_rows, use_container_width=True)
+        
+        # Unconditionally update sidebar to reflect the regenerated counts dynamically
+        with sidebar_collections.container():
+            st.markdown("### Collections")
+            st.json(collection_counts())
 
     if col2.button("Refresh Data", type="primary", use_container_width=True):
         progress_rows: list[dict] = []
@@ -308,41 +313,149 @@ with telemetry_tab:
 
 with insert_tab:
     st.subheader("Insert Capsule")
-    capsule_id = st.text_input("Capsule ID")
-    capsule_type = st.text_input("Capsule Type", value="aggregation")
-    sql_text = st.text_area("SQL", height=180)
-    summary_text = st.text_area("Summary Text", height=120)
+    capsule_id = st.text_input("Capsule ID*", help="Unique identifier in snake_case (e.g. high_risk_trades)")
+    
+    type_options = [
+        "aggregation", "anomaly", "concentration", "correlation", 
+        "distribution", "escalation", "forecast", "outlier", 
+        "pattern", "profiling", "risk_score", "summary", 
+        "threshold_breach", "trend", "Custom..."
+    ]
+    selected_type = st.selectbox("Capsule Type*", type_options, index=0)
+    if selected_type == "Custom...":
+        capsule_type = st.text_input("Enter Custom Capsule Type", value="custom_type")
+    else:
+        capsule_type = selected_type
+        
+    max_return_rows = st.number_input("Max Rows to Return", min_value=1, max_value=1000, value=50, step=10)
+    sql_text = st.text_area("SQL*", height=180)
+    summary_text = st.text_area("Summary Text / Embed Text*", height=120)
+
+    with st.expander("Advanced Capsule Properties (Leave blank for LLM auto-generation)"):
+        c_priority = st.selectbox("Priority", ["", "P1", "P2", "P3", "P4"], help="Risk severity")
+        c_what = st.text_input("What", help="Short description of the capsule")
+        c_how = st.text_input("How", help="1-sentence explanation of calculation")
+        c_signal_method = st.text_input("Signal Method", help="e.g. threshold_breach, latest_value")
+        c_ttl_hours = st.text_input("TTL Hours", help="Enter a number (e.g., 24)")
+        c_staleness = st.selectbox("Staleness Trigger", ["", "hourly", "daily", "weekly", "monthly", "manual"])
+        c_tags = st.text_input("Tags", help="Comma-separated semantic tags")
+        c_tables = st.text_input("Tables Used", help="Comma-separated table names")
+        c_keys = st.text_input("Key Columns", help="Comma-separated key columns")
+
     if st.button("Insert Capsule", type="primary"):
         if not capsule_id or not sql_text or not summary_text:
-            st.error("All fields are required.")
+            st.error("Capsule ID, Type, SQL, and Summary are required.")
         else:
-            with st.spinner("Executing SQL and inserting capsule..."):
-                rows = execute_select(sql_text, max_rows=50)
-                payload = {
-                    "capsule_id": capsule_id,
-                    "capsule_type": capsule_type,
-                    "priority": "P3",
-                    "what": capsule_id.replace("_", " "),
-                    "how": "Manual insert",
-                    "signal": f"Returned {len(rows)} rows.",
-                    "embed_text": summary_text,
-                    "tables_used": [],
-                    "key_columns": [],
-                    "tags": ["manual", capsule_type],
-                    "ttl_hours": 24,
-                    "generated_at": datetime.now(timezone.utc).isoformat(),
-                    "expires_at": datetime.now(timezone.utc).isoformat(),
-                    "is_stale": False,
-                    "staleness_trigger": "manual",
-                    "result_rows": rows,
-                    "sql": sql_text,
-                    "anomaly_score": 0.0,
-                    "trend_direction": "flat",
-                    "related_capsule_ids": [],
-                    "relationship_types": [],
-                }
-                upsert_capsule(COLLECTION_ANALYTICAL, capsule_id, embed_single(summary_text), payload)
-            st.success(f"Inserted {capsule_id}")
+            invalid_sql = False
+            rows = []
+            
+            with st.spinner("Validating SQL query..."):
+                try:
+                    rows = execute_select(sql_text, max_rows=max_return_rows)
+                except Exception as e:
+                    invalid_sql = True
+                    st.error(f"❌ Invalid SQL Query: {str(e)}")
+            
+            if not invalid_sql:
+                with st.spinner("Determining metadata via LLM and saving..."):
+                    from src.llm_service import call_llm_json
+                    from src.pipeline1.append_capsules import append_to_capsule_definitions_file
+                    
+                    sys_prompt = (
+                        "You are a smart data analytics engine. Given a capsule summary and SQL, return a JSON object containing "
+                        "ONLY the fields that are strictly missing from the user's manual inputs to complete the definition:\n"
+                        "- priority (string): P1, P2, P3, or P4.\n"
+                        "- what (string): Short descriptive title.\n"
+                        "- how (string): 1 sentence explaining the calculation.\n"
+                        "- signal_method (string): e.g., 'max_value', 'threshold_breach', 'count_distinct'.\n"
+                        "- ttl_hours (int): Number of hours.\n"
+                        "- staleness_trigger (string): 'hourly', 'daily', 'weekly', etc.\n"
+                        "- tables_used (list of strings).\n"
+                        "- key_columns (list of strings).\n"
+                        "- tags (list of strings).\n"
+                        "Output ONLY valid JSON."
+                    )
+                    
+                    req_fields = {}
+                    if not c_priority: req_fields['priority'] = "?"
+                    if not c_what: req_fields['what'] = "?"
+                    if not c_how: req_fields['how'] = "?"
+                    if not c_signal_method: req_fields['signal_method'] = "?"
+                    if not c_ttl_hours: req_fields['ttl_hours'] = "?"
+                    if not c_staleness: req_fields['staleness_trigger'] = "?"
+                    if not c_tags: req_fields['tags'] = "?"
+                    if not c_tables: req_fields['tables_used'] = "?"
+                    if not c_keys: req_fields['key_columns'] = "?"
+                    
+                    llm_meta = {}
+                    if req_fields:
+                        usr_prompt = f"Capsule ID: {capsule_id}\nType: {capsule_type}\nSummary: {summary_text}\nSQL: {sql_text}\n\nPlease generate these missing fields: {list(req_fields.keys())}"
+                        llm_meta = call_llm_json(sys_prompt, usr_prompt, model_slot="groq_intent_model") or {}
+                    
+                    def merge_str(user_val, llm_val, default):
+                        return user_val.strip() if user_val else str(llm_meta.get(llm_val, default))
+                        
+                    def merge_list(user_val, llm_val):
+                        if user_val:
+                            return [x.strip() for x in user_val.split(",") if x.strip()]
+                        return llm_meta.get(llm_val, [])
+                        
+                    def merge_int(user_val, llm_val, default):
+                        if user_val and user_val.isdigit():
+                            return int(user_val)
+                        return int(llm_meta.get(llm_val, default))
+
+                    final_priority = merge_str(c_priority, "priority", "P3")
+                    final_what = merge_str(c_what, "what", capsule_id.replace("_", " "))
+                    final_how = merge_str(c_how, "how", "Manual insert")
+                    final_sig_method = merge_str(c_signal_method, "signal_method", "manual")
+                    final_ttl = merge_int(c_ttl_hours, "ttl_hours", 24)
+                    final_stale = merge_str(c_staleness, "staleness_trigger", "manual")
+                    final_tags = ["manual", capsule_type] + merge_list(c_tags, "tags")
+                    final_tables = merge_list(c_tables, "tables_used")
+                    final_keys = merge_list(c_keys, "key_columns")
+
+                    # Construct exact definition equivalent
+                    capsule_def = {
+                        "capsule_id": capsule_id,
+                        "capsule_type": capsule_type,
+                        "priority": final_priority,
+                        "what": final_what,
+                        "how": final_how,
+                        "sql": sql_text.strip(),
+                        "signal_method": final_sig_method,
+                        "embed_text_template": summary_text,
+                        "ttl_hours": final_ttl,
+                        "tags": final_tags,
+                        "tables_used": final_tables,
+                        "key_columns": final_keys,
+                        "staleness_trigger": final_stale,
+                        "related_capsule_ids": [],
+                        "relationship_types": []
+                    }
+                    
+                    # Augment with runtime execution payload
+                    payload = dict(capsule_def)
+                    payload["signal"] = f"Returned {len(rows)} rows."
+                    payload["embed_text"] = summary_text
+                    payload["generated_at"] = datetime.now(timezone.utc).isoformat()
+                    payload["expires_at"] = datetime.now(timezone.utc).isoformat()
+                    payload["is_stale"] = False
+                    payload["result_rows"] = rows
+                    payload["anomaly_score"] = 0.0
+                    payload["trend_direction"] = "flat"
+                    
+                    # Store vector internally
+                    upsert_capsule(COLLECTION_ANALYTICAL, capsule_id, embed_single(summary_text), payload)
+                    
+                    # Append strictly to source code definitions file
+                    file_saved = append_to_capsule_definitions_file(capsule_def)
+                    
+                st.success(f"✅ Query successful: Retrieved {len(rows)} rows.")
+                if file_saved:
+                    st.success(f"✅ Permanent Save: Successfully appended '{capsule_id}' directly to capsule_definitions.py!")
+                else:
+                    st.warning(f"⚠️ Inserted locally, but failed to write to capsule_definitions.py. Check app console.")
 
 with reset_tab:
     st.subheader("Reset")

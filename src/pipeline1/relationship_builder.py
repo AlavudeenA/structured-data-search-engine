@@ -13,9 +13,6 @@ from ..app_constants import (
     REL_CORROBORATES,
     REL_DRILLS_DOWN,
     REL_SAME_ENTITY,
-    RELATIONSHIP_KEY_FIELDS,
-    SYSTEMIC_RISK_ALERT_COUNT,
-    SYSTEMIC_RISK_REJECTION_PCT,
 )
 from ..embedding import embed_single, ensure_data_dir
 from ..llm_service import call_llm
@@ -26,9 +23,13 @@ logger = logging.getLogger(__name__)
 
 
 def _shared_entity_value(capsule_a: GeneratedCapsule, capsule_b: GeneratedCapsule) -> str | None:
-    for field_name in RELATIONSHIP_KEY_FIELDS:
-        values_a = {str(row.get(field_name)) for row in capsule_a.result_rows if row.get(field_name) not in (None, "")}
-        values_b = {str(row.get(field_name)) for row in capsule_b.result_rows if row.get(field_name) not in (None, "")}
+    if not capsule_a.result_rows or not capsule_b.result_rows:
+        return None
+    cols_a = set(capsule_a.result_rows[0].keys())
+    cols_b = set(capsule_b.result_rows[0].keys())
+    for field_name in (cols_a & cols_b):
+        values_a = {str(row.get(field_name)) for row in capsule_a.result_rows if row.get(field_name)}
+        values_b = {str(row.get(field_name)) for row in capsule_b.result_rows if row.get(field_name)}
         shared = values_a & values_b
         if shared:
             return next(iter(shared))
@@ -93,91 +94,36 @@ def _build_related_signal(entity_type: str, entity_name: str, signals: list[str]
 
 
 def generate_related_capsules(capsules: list[GeneratedCapsule]) -> list[RelatedCapsule]:
-    """Generate related broker and employee risk capsules from analytical outputs."""
-    capsule_map = {capsule.capsule_id: capsule for capsule in capsules}
+    """Generate dynamic related risk capsules based on anomaly thresholds."""
     related_capsules: list[RelatedCapsule] = []
 
-    broker_activity = capsule_map.get("trade_requests_by_broker_dealer")
-    broker_alerts = capsule_map.get("broker_dealers_high_rejection_and_alerts")
-    if broker_activity and broker_alerts:
-        rejection_rates = {
-            str(row.get("broker_dealer")): float(row.get("rejection_rate_pct", 0.0))
-            for row in broker_activity.result_rows
-            if row.get("broker_dealer")
-        }
-        alert_counts = {
-            str(row.get("broker_dealer")): int(row.get("total_alerts", 0))
-            for row in broker_alerts.result_rows
-            if row.get("broker_dealer")
-        }
-        for broker_name, rejection_rate in rejection_rates.items():
-            alert_count = alert_counts.get(broker_name, 0)
-            if rejection_rate >= SYSTEMIC_RISK_REJECTION_PCT and alert_count >= SYSTEMIC_RISK_ALERT_COUNT:
-                signal = _build_related_signal(
-                    "broker",
-                    broker_name,
-                    [
-                        f"Rejection rate is {rejection_rate:.1f}%.",
-                        f"Compliance alert count is {alert_count}.",
-                    ],
+    for capsule in capsules:
+        if capsule.anomaly_score is not None and capsule.anomaly_score > 0.0:
+            risk_level = "critical" if capsule.anomaly_score >= 0.8 else "high"
+            first_entity = str(next(iter(capsule.result_rows[0].values()))) if capsule.result_rows else "unknown"
+            signal = _build_related_signal(
+                "data entity",
+                first_entity,
+                [
+                    f"Anomaly score indicates unusual variance ({capsule.anomaly_score:.2f}).",
+                    f"Derived from capsule: {capsule.capsule_id}."
+                ]
+            )
+            embed_text = f"Analytical risk profile for {first_entity}. {signal}"
+            related_capsules.append(
+                RelatedCapsule(
+                    capsule_id=f"alert_{capsule.capsule_id}_{first_entity[:15]}",
+                    related_from=[capsule.capsule_id],
+                    signal=signal,
+                    embed_text=embed_text,
+                    entity_type="data entity",
+                    entity_name=first_entity,
+                    risk_level=risk_level,
+                    generated_at=datetime.now(timezone.utc).isoformat(),
+                    tags=["related", "auto_generated", risk_level],
+                    vector=embed_single(embed_text),
                 )
-                capsule_id = f"systemic_risk_{broker_name.lower().replace(' ', '_')[:40]}"
-                embed_text = f"Broker systemic risk for {broker_name}. {signal}"
-                related_capsules.append(
-                    RelatedCapsule(
-                        capsule_id=capsule_id,
-                        related_from=[broker_activity.capsule_id, broker_alerts.capsule_id],
-                        signal=signal,
-                        embed_text=embed_text,
-                        entity_type="broker",
-                        entity_name=broker_name,
-                        risk_level="high",
-                        generated_at=datetime.now(timezone.utc).isoformat(),
-                        tags=["related", "broker", "systemic_risk"],
-                        vector=embed_single(embed_text),
-                    )
-                )
-
-    repeat_violators = capsule_map.get("repeat_violators")
-    high_severity_alerts = capsule_map.get("high_severity_open_alerts")
-    if repeat_violators and high_severity_alerts:
-        repeat_map = {
-            str(row.get("employee_name")): int(row.get("alert_count", 0))
-            for row in repeat_violators.result_rows
-            if row.get("employee_name")
-        }
-        severity_map = {
-            str(row.get("employee_name")): str(row.get("severity"))
-            for row in high_severity_alerts.result_rows
-            if row.get("employee_name")
-        }
-        for employee_name, alert_count in repeat_map.items():
-            severity = severity_map.get(employee_name)
-            if severity:
-                signal = _build_related_signal(
-                    "employee",
-                    employee_name,
-                    [
-                        f"Repeat violator with {alert_count} alerts.",
-                        f"Currently has an open {severity} severity alert.",
-                    ],
-                )
-                capsule_id = f"employee_risk_{employee_name.lower().replace(' ', '_')[:40]}"
-                embed_text = f"Employee risk profile for {employee_name}. {signal}"
-                related_capsules.append(
-                    RelatedCapsule(
-                        capsule_id=capsule_id,
-                        related_from=[repeat_violators.capsule_id, high_severity_alerts.capsule_id],
-                        signal=signal,
-                        embed_text=embed_text,
-                        entity_type="employee",
-                        entity_name=employee_name,
-                        risk_level="critical",
-                        generated_at=datetime.now(timezone.utc).isoformat(),
-                        tags=["related", "employee", "repeat_violator", "open_alert"],
-                        vector=embed_single(embed_text),
-                    )
-                )
+            )
 
     return related_capsules
 

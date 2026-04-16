@@ -15,8 +15,8 @@ from ..embedding import (
     save_schema_fingerprint,
 )
 from ..models import BuildStatus, BuildSummary, CapsuleDefinition, RelatedCapsule, GeneratedCapsule, SchemaContextCapsule
-from ..vector_store import clear_collection, collection_counts, reset_all_collections, upsert_capsules_batch
-from .capsule_definitions import CAPSULE_DEFINITIONS
+from ..vector_store import clear_collection, collection_counts, purge_local_qdrant_storage, upsert_capsules_batch
+from ..business_schema.capsule_definitions import CAPSULE_DEFINITIONS
 from .capsule_generator import generate_all_capsules
 from .relationship_builder import build_graph, generate_related_capsules, save_graph
 from .schema_capsule_generator import generate_schema_capsules
@@ -108,7 +108,7 @@ def _load_definitions(plan_capsule_ids: list[str] | None = None) -> list[Capsule
 
 def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
     """Full build: analytical, schema-context, graph, related, persisted plan and fingerprint."""
-    reset_all_collections()
+    purge_local_qdrant_storage()
     definitions = _load_definitions()
     statuses: list[BuildStatus] = []
 

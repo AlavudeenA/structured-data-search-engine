@@ -9,7 +9,7 @@ from typing import Any, Iterator
 
 import pyodbc
 
-from .app_constants import CORE_TABLES, DB_EXECUTE_MAX_ROWS, DB_MAX_POOL, DB_MAX_RETRIES
+from .app_constants import DB_EXECUTE_MAX_ROWS, DB_MAX_POOL, DB_MAX_RETRIES
 from .config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -83,19 +83,19 @@ def execute_select_with_meta(sql: str, max_rows: int = DB_EXECUTE_MAX_ROWS) -> d
 
 
 def get_schema_metadata() -> dict[str, list[dict[str, str]]]:
-    """Return schema metadata for the compliance tables."""
-    placeholders = ",".join("?" for _ in CORE_TABLES)
-    sql = f"""
-        SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME IN ({placeholders})
-        ORDER BY TABLE_NAME, ORDINAL_POSITION
+    """Return schema metadata for all base tables in the database."""
+    sql = """
+        SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS c
+        INNER JOIN INFORMATION_SCHEMA.TABLES t ON c.TABLE_NAME = t.TABLE_NAME
+        WHERE t.TABLE_TYPE = 'BASE TABLE' AND t.TABLE_SCHEMA = 'dbo'
+        ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION
     """
     schema: dict[str, list[dict[str, str]]] = {}
     try:
         with get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(sql, tuple(CORE_TABLES))
+            cursor.execute(sql)
             for table_name, column_name, data_type in cursor.fetchall():
                 schema.setdefault(str(table_name), []).append(
                     {"name": str(column_name), "type": str(data_type)}
@@ -130,7 +130,7 @@ def get_fk_relationships() -> list[dict[str, str]]:
                     "ref_table": str(ref_table),
                     "ref_column": str(ref_column),
                 }
-                if relationship["parent_table"] in CORE_TABLES and relationship["ref_table"] in CORE_TABLES:
+                if relationship["parent_table"] and relationship["ref_table"]:
                     relationships.append(relationship)
     except Exception as exc:
         logger.error("Failed to read foreign keys: %s", exc)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -15,41 +16,8 @@ from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
-_client: QdrantClient | None = None
-
-
-def _safe_get_client() -> QdrantClient | None:
-    """Return a Qdrant client or None if local storage is currently locked."""
-    try:
-        return _get_client()
-    except RuntimeError as exc:
-        logger.error("Qdrant client unavailable: %s", exc)
-        return None
-
-
-def close_client() -> None:
-    """Close the current local Qdrant client and release the file lock."""
-    global _client
-    if _client is None:
-        return
-    try:
-        local_client = getattr(_client, "_client", None)
-        if hasattr(local_client, "close"):
-            local_client.close()
-    except Exception as exc:
-        logger.warning("Failed to close Qdrant client cleanly: %s", exc)
-    finally:
-        _client = None
-
-
-def _get_client() -> QdrantClient:
-    global _client
-    if _client is None:
-        settings = get_settings()
-        _client = QdrantClient(path=settings.qdrant_path)
-        _ensure_collections(_client)
-    return _client
-
+def _get_qdrant_path() -> str:
+    return str(Path(get_settings().qdrant_path).resolve())
 
 def _ensure_collections(client: QdrantClient) -> None:
     existing = {collection.name for collection in client.get_collections().collections}
@@ -63,44 +31,45 @@ def _ensure_collections(client: QdrantClient) -> None:
                 ),
             )
 
-
 def upsert_capsule(collection: str, capsule_id: str, vector: list[float], payload: dict[str, Any]) -> None:
     """Upsert one capsule into a collection."""
-    client = _safe_get_client()
-    if client is None:
-        return
-    point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{collection}:{capsule_id}"))
-    client.upsert(
-        collection_name=collection,
-        points=[
-            qmodels.PointStruct(
-                id=point_id,
-                vector=vector,
-                payload={**payload, "capsule_id": capsule_id},
-            )
-        ],
-    )
-
+    client = QdrantClient(path=_get_qdrant_path())
+    try:
+        _ensure_collections(client)
+        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{collection}:{capsule_id}"))
+        client.upsert(
+            collection_name=collection,
+            points=[
+                qmodels.PointStruct(
+                    id=point_id,
+                    vector=vector,
+                    payload={**payload, "capsule_id": capsule_id},
+                )
+            ],
+        )
+    finally:
+        client.close()
 
 def upsert_capsules_batch(collection: str, items: list[tuple[str, list[float], dict[str, Any]]]) -> None:
     """Upsert many capsules at once."""
     if not items:
         return
-    client = _safe_get_client()
-    if client is None:
-        return
-    client.upsert(
-        collection_name=collection,
-        points=[
-            qmodels.PointStruct(
-                id=str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{collection}:{capsule_id}")),
-                vector=vector,
-                payload={**payload, "capsule_id": capsule_id},
-            )
-            for capsule_id, vector, payload in items
-        ],
-    )
-
+    client = QdrantClient(path=_get_qdrant_path())
+    try:
+        _ensure_collections(client)
+        client.upsert(
+            collection_name=collection,
+            points=[
+                qmodels.PointStruct(
+                    id=str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{collection}:{capsule_id}")),
+                    vector=vector,
+                    payload={**payload, "capsule_id": capsule_id},
+                )
+                for capsule_id, vector, payload in items
+            ],
+        )
+    finally:
+        client.close()
 
 def search(
     collection: str,
@@ -109,13 +78,13 @@ def search(
     score_threshold: float = 0.0,
 ) -> list[dict[str, Any]]:
     """Search a collection and return normalized hit payloads."""
-    client = _safe_get_client()
-    if client is None:
-        return []
+    client = QdrantClient(path=_get_qdrant_path())
     try:
-        hits = client.search(
+        if not client.collection_exists(collection):
+            return []
+        res = client.query_points(
             collection_name=collection,
-            query_vector=vector,
+            query=vector,
             limit=top_k,
             score_threshold=score_threshold,
             with_payload=True,
@@ -127,21 +96,22 @@ def search(
                 "collection": collection,
                 "payload": hit.payload or {},
             }
-            for hit in hits
+            for hit in res.points
         ]
     except Exception as exc:
         logger.error("Qdrant search failed in %s: %s", collection, exc)
         return []
-
+    finally:
+        client.close()
 
 def scroll_all(collection: str, limit: int = 10_000) -> list[dict[str, Any]]:
     """Return all payloads from a collection."""
-    client = _safe_get_client()
-    if client is None:
-        return []
-    payloads: list[dict[str, Any]] = []
-    offset = None
+    client = QdrantClient(path=_get_qdrant_path())
     try:
+        if not client.collection_exists(collection):
+            return []
+        payloads: list[dict[str, Any]] = []
+        offset = None
         while True:
             points, next_offset = client.scroll(
                 collection_name=collection,
@@ -154,72 +124,78 @@ def scroll_all(collection: str, limit: int = 10_000) -> list[dict[str, Any]]:
             if next_offset is None or len(payloads) >= limit:
                 break
             offset = next_offset
+        return payloads[:limit]
     except Exception as exc:
         logger.error("Qdrant scroll failed in %s: %s", collection, exc)
-    return payloads[:limit]
-
+        return []
+    finally:
+        client.close()
 
 def delete_by_capsule_id(collection: str, capsule_id: str) -> None:
     """Delete one capsule using deterministic point id."""
-    client = _safe_get_client()
-    if client is None:
-        return
-    point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{collection}:{capsule_id}"))
+    client = QdrantClient(path=_get_qdrant_path())
     try:
+        if not client.collection_exists(collection):
+            return
+        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{collection}:{capsule_id}"))
         client.delete(
             collection_name=collection,
             points_selector=qmodels.PointIdsList(points=[point_id]),
         )
     except Exception as exc:
         logger.error("Qdrant delete failed in %s for %s: %s", collection, capsule_id, exc)
-
+    finally:
+        client.close()
 
 def clear_collection(collection: str) -> None:
-    """Delete and recreate a single collection."""
-    client = _safe_get_client()
-    if client is None:
-        return
+    """Delete and recreate a single collection via API."""
+    client = QdrantClient(path=_get_qdrant_path())
     try:
-        client.delete_collection(collection_name=collection)
-    except Exception as exc:
-        logger.warning("Delete collection failed for %s: %s", collection, exc)
-    try:
+        if client.collection_exists(collection):
+            client.delete_collection(collection_name=collection)
         client.create_collection(
             collection_name=collection,
             vectors_config=qmodels.VectorParams(size=EMBED_DIM, distance=qmodels.Distance.COSINE),
         )
     except Exception as exc:
-        logger.warning("Create collection failed for %s, retrying after ensure: %s", collection, exc)
-        _ensure_collections(client)
-
+        logger.warning("Clear collection failed for %s: %s", collection, exc)
+    finally:
+        client.close()
 
 def reset_all_collections() -> None:
-    """Delete and recreate all collections."""
-    close_client()
-    import shutil
-    qdrant_path = Path(get_settings().qdrant_path)
-    if qdrant_path.exists():
-        shutil.rmtree(qdrant_path, ignore_errors=True)
-    qdrant_path.mkdir(parents=True, exist_ok=True)
-    client = _safe_get_client()
-    if client is None:
-        raise RuntimeError(
-            f"Qdrant local storage at '{qdrant_path}' is locked by another running process. "
-            "Close the other app instance and try again."
-        )
-    _ensure_collections(client)
+    """Soft delete all collections from local Qdrant storage."""
+    client = QdrantClient(path=_get_qdrant_path())
+    try:
+        collections = [c.name for c in client.get_collections().collections]
+        for name in collections:
+            client.delete_collection(name)
+    finally:
+        client.close()
 
+def purge_local_qdrant_storage() -> None:
+    """Hard reset local Qdrant storage by deleting the storage directory."""
+    qdrant_path = _get_qdrant_path()
+    path_obj = Path(qdrant_path)
+    if path_obj.exists():
+        shutil.rmtree(path_obj, ignore_errors=True)
+    path_obj.mkdir(parents=True, exist_ok=True)
+    client = QdrantClient(path=qdrant_path)
+    try:
+        _ensure_collections(client)
+    finally:
+        client.close()
 
 def collection_counts() -> dict[str, int]:
     """Return point counts for every collection."""
-    client = _safe_get_client()
-    if client is None:
-        return {collection: 0 for collection in ALL_COLLECTIONS}
-    counts: dict[str, int] = {}
-    for collection in ALL_COLLECTIONS:
-        try:
-            info = client.get_collection(collection)
-            counts[collection] = int(info.points_count or 0)
-        except Exception:
-            counts[collection] = 0
-    return counts
+    client = QdrantClient(path=_get_qdrant_path())
+    try:
+        counts: dict[str, int] = {}
+        for collection in ALL_COLLECTIONS:
+            try:
+                info = client.get_collection(collection)
+                counts[collection] = int(info.points_count or 0)
+            except Exception:
+                counts[collection] = 0
+        return counts
+    finally:
+        client.close()

@@ -46,17 +46,6 @@ TREND_CHANGE_PCT = 10.0
 MAX_HOP_DEPTH = 2
 MAX_LINKED_CAPSULES = 3
 MIN_SHARED_TAGS_FOR_RELATION = 2
-RELATIONSHIP_KEY_FIELDS = [
-    "BrokerDealerName",
-    "broker_dealer",
-    "EmployeeName",
-    "employee_name",
-    "SecuritySymbol",
-    "security_symbol",
-]
-
-SYSTEMIC_RISK_REJECTION_PCT = 30.0
-SYSTEMIC_RISK_ALERT_COUNT = 3
 
 DATA_DIR = Path("data")
 ANALYTICAL_REFRESH_PLAN_FILE = DATA_DIR / ".analytical_refresh_plan.json"
@@ -81,12 +70,3 @@ TAG_ESCALATING = "escalating_risk"
 
 VIOLATION_TYPES = [CAPSULE_TYPE_VIOLATION, CAPSULE_TYPE_RISK]
 
-CORE_TABLES = [
-    "Employee",
-    "BrokerDealer",
-    "Account",
-    "RestrictedSecurity",
-    "TradeRequest",
-    "ComplianceAlert",
-    "ApprovalWorkflow",
-]
