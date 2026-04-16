@@ -1,4 +1,4 @@
-"""Context package builder that combines primary, linked, derived, and schema capsules."""
+"""Context package builder that combines primary, linked, related, and schema capsules."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import logging
 from collections import deque
 from typing import Any
 
-from ..app_constants import COLLECTION_ANALYTICAL, COLLECTION_DERIVED, MAX_HOP_DEPTH, MAX_LINKED_CAPSULES
+from ..app_constants import COLLECTION_ANALYTICAL, COLLECTION_RELATED, MAX_HOP_DEPTH, MAX_LINKED_CAPSULES
 from ..models import CapsuleHit, ContextPackage
 from ..vector_store import scroll_all
 
@@ -18,7 +18,7 @@ _payload_cache: dict[str, dict[str, Any]] = {}
 def _warm_cache() -> None:
     if _payload_cache:
         return
-    for collection_name in (COLLECTION_ANALYTICAL, COLLECTION_DERIVED):
+    for collection_name in (COLLECTION_ANALYTICAL, COLLECTION_RELATED):
         for payload in scroll_all(collection_name):
             capsule_id = payload.get("capsule_id")
             if capsule_id:
@@ -55,12 +55,12 @@ def build_context_package(search_hits: dict[str, list[CapsuleHit]]) -> ContextPa
     """Build the final context package used for capsule answers or SQL planning."""
     analytical_hits = search_hits.get("analytical", [])
     schema_hits = search_hits.get("schema", [])
-    derived_hits = search_hits.get("derived", [])
+    related_hits = search_hits.get("related", [])
 
     primary_hit = analytical_hits[0] if analytical_hits else None
     primary_capsule = primary_hit.payload if primary_hit else None
     linked_capsules = _follow_links(primary_capsule) if primary_capsule else []
-    derived_capsules = [hit.payload for hit in derived_hits]
+    related_capsules = [hit.payload for hit in related_hits]
     schema_capsules = [hit.payload for hit in schema_hits[:3]]
 
     context_parts: list[str] = []
@@ -68,8 +68,8 @@ def build_context_package(search_hits: dict[str, list[CapsuleHit]]) -> ContextPa
         context_parts.append(f"Primary {primary_capsule.get('capsule_id')}: {primary_capsule.get('signal', '')}")
     for linked in linked_capsules:
         context_parts.append(f"Linked {linked.get('capsule_id')}: {linked.get('signal', '')}")
-    for derived in derived_capsules:
-        context_parts.append(f"Derived {derived.get('capsule_id')}: {derived.get('signal', '')}")
+    for related in related_capsules:
+        context_parts.append(f"Related {related.get('capsule_id')}: {related.get('signal', '')}")
     combined_context = " ".join(part for part in context_parts if part.strip())
 
     score_values = []
@@ -81,7 +81,7 @@ def build_context_package(search_hits: dict[str, list[CapsuleHit]]) -> ContextPa
     return ContextPackage(
         primary_capsule=primary_capsule,
         linked_capsules=linked_capsules,
-        derived_capsules=derived_capsules,
+        related_capsules=related_capsules,
         schema_capsules=schema_capsules,
         combined_context=combined_context,
         overall_confidence=overall_confidence,

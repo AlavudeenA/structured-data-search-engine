@@ -1,4 +1,4 @@
-"""SQL generation with live schema, foreign keys, schema-context capsules, and derived signals."""
+"""SQL generation with live schema, foreign keys, schema-context capsules, and related signals."""
 
 from __future__ import annotations
 
@@ -38,12 +38,12 @@ def _render_schema_capsules(context_package: ContextPackage) -> str:
     return "\n".join(lines) if lines else "No schema capsules available."
 
 
-def _render_derived_context(context_package: ContextPackage) -> str:
-    if not context_package.derived_capsules:
-        return "No derived capsules available."
+def _render_related_context(context_package: ContextPackage) -> str:
+    if not context_package.related_capsules:
+        return "No related capsules available."
     return "\n".join(
         f"[{capsule.get('capsule_id')}] {capsule.get('signal')}"
-        for capsule in context_package.derived_capsules[:5]
+        for capsule in context_package.related_capsules[:5]
     )
 
 
@@ -54,7 +54,7 @@ def generate_sql(question: str, context_package: ContextPackage) -> dict[str, st
     system_prompt = SQL_GENERATION_SYSTEM.format(
         schema=schema_to_text(schema),
         fk_relationships=fk_to_text(fk_relationships),
-        derived_context=_render_derived_context(context_package),
+        related_context=_render_related_context(context_package),
         capsule_context=_render_schema_capsules(context_package),
     )
     user_prompt = SQL_GENERATION_USER.format(question=question)

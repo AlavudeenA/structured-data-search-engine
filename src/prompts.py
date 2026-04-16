@@ -40,8 +40,8 @@ Schema:
 Foreign Keys:
 {fk_relationships}
 
-Derived Risk Context:
-{derived_context}
+Related Risk Context:
+{related_context}
 
 Schema Capsule Context:
 {capsule_context}"""
@@ -104,10 +104,10 @@ Capsule Context:
 
 Answer using the context above."""
 
-DERIVED_SIGNAL_SYSTEM = """You are a compliance risk analyst generating a short risk summary for a flagged entity.
+RELATED_SIGNAL_SYSTEM = """You are a compliance risk analyst generating a short risk summary for a flagged entity.
 Write exactly 2 sentences with specific numbers."""
 
-DERIVED_SIGNAL_USER = """Entity: {entity_type} - {entity_name}
+RELATED_SIGNAL_USER = """Entity: {entity_type} - {entity_name}
 Risk signals:
 {signals}
 
@@ -115,7 +115,7 @@ Write the risk summary."""
 
 SQL_REASON_SYSTEM = """You explain SQL planning decisions for a compliance analytics app.
 Write 2 concise sentences explaining why SQL was used and what schema guidance mattered.
-Mention relevant tables, joins, business rules, or derived risk context when useful."""
+Mention relevant tables, joins, business rules, or related risk context when useful."""
 
 SQL_REASON_USER = """Question: {question}
 Intent payload:

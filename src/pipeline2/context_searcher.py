@@ -1,4 +1,4 @@
-"""Vector-search context retrieval across analytical, schema-context, and derived collections."""
+"""Vector-search context retrieval across analytical, schema-context, and related collections."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from ..app_constants import (
     ANALYTICAL_MIN_SCORE,
     ANALYTICAL_TOP_K,
     COLLECTION_ANALYTICAL,
-    COLLECTION_DERIVED,
+    COLLECTION_RELATED,
     COLLECTION_SCHEMA,
-    DERIVED_MIN_SCORE,
-    DERIVED_TOP_K,
+    RELATED_MIN_SCORE,
+    RELATED_TOP_K,
     SCHEMA_MIN_SCORE,
     SCHEMA_TOP_K,
 )
@@ -39,7 +39,7 @@ def search_all_collections(question: str) -> dict[str, list[CapsuleHit]]:
     """Embed the question and search all three collections."""
     vector = embed_single(question)
     if not vector:
-        return {"analytical": [], "schema": [], "derived": []}
+        return {"analytical": [], "schema": [], "related": []}
 
     analytical = _wrap_hits(
         COLLECTION_ANALYTICAL,
@@ -49,15 +49,15 @@ def search_all_collections(question: str) -> dict[str, list[CapsuleHit]]:
         COLLECTION_SCHEMA,
         search(COLLECTION_SCHEMA, vector, top_k=SCHEMA_TOP_K, score_threshold=SCHEMA_MIN_SCORE),
     )
-    derived = _wrap_hits(
-        COLLECTION_DERIVED,
-        search(COLLECTION_DERIVED, vector, top_k=DERIVED_TOP_K, score_threshold=DERIVED_MIN_SCORE),
+    related = _wrap_hits(
+        COLLECTION_RELATED,
+        search(COLLECTION_RELATED, vector, top_k=RELATED_TOP_K, score_threshold=RELATED_MIN_SCORE),
     )
 
     logger.info(
-        "Context search complete | analytical=%s schema=%s derived=%s",
+        "Context search complete | analytical=%s schema=%s related=%s",
         len(analytical),
         len(schema),
-        len(derived),
+        len(related),
     )
-    return {"analytical": analytical, "schema": schema, "derived": derived}
+    return {"analytical": analytical, "schema": schema, "related": related}

@@ -35,7 +35,7 @@ def _capsules_used(context_package: ContextPackage) -> list[str]:
     if context_package.primary_capsule:
         capsule_ids.append(context_package.primary_capsule.get("capsule_id", ""))
     capsule_ids.extend(capsule.get("capsule_id", "") for capsule in context_package.linked_capsules)
-    capsule_ids.extend(capsule.get("capsule_id", "") for capsule in context_package.derived_capsules)
+    capsule_ids.extend(capsule.get("capsule_id", "") for capsule in context_package.related_capsules)
     capsule_ids.extend(capsule.get("capsule_id", "") for capsule in context_package.schema_capsules)
     return [capsule_id for capsule_id in capsule_ids if capsule_id]
 

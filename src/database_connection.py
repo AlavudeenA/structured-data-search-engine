@@ -138,7 +138,7 @@ def get_fk_relationships() -> list[dict[str, str]]:
 
 
 def get_join_paths() -> list[dict[str, str]]:
-    """Return normalized join paths derived from FK relationships."""
+    """Return normalized join paths related from FK relationships."""
     join_paths: list[dict[str, str]] = []
     for rel in get_fk_relationships():
         join_paths.append(

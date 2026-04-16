@@ -1,11 +1,11 @@
-"""Store management and rebuild helpers for analytical, schema, and derived capsules."""
+"""Store management and rebuild helpers for analytical, schema, and related capsules."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
 
-from ..app_constants import COLLECTION_ANALYTICAL, COLLECTION_DERIVED, COLLECTION_SCHEMA
+from ..app_constants import COLLECTION_ANALYTICAL, COLLECTION_RELATED, COLLECTION_SCHEMA
 from ..database_connection import get_fk_relationships, get_schema_metadata
 from ..embedding import (
     compute_schema_fingerprint,
@@ -14,11 +14,11 @@ from ..embedding import (
     save_refresh_plan,
     save_schema_fingerprint,
 )
-from ..models import BuildStatus, BuildSummary, CapsuleDefinition, DerivedCapsule, GeneratedCapsule, SchemaContextCapsule
+from ..models import BuildStatus, BuildSummary, CapsuleDefinition, RelatedCapsule, GeneratedCapsule, SchemaContextCapsule
 from ..vector_store import clear_collection, collection_counts, reset_all_collections, upsert_capsules_batch
 from .capsule_definitions import CAPSULE_DEFINITIONS
 from .capsule_generator import generate_all_capsules
-from .relationship_builder import build_graph, generate_derived_capsules, save_graph
+from .relationship_builder import build_graph, generate_related_capsules, save_graph
 from .schema_capsule_generator import generate_schema_capsules
 
 logger = logging.getLogger(__name__)
@@ -66,10 +66,10 @@ def _schema_payload(capsule: SchemaContextCapsule) -> dict:
     }
 
 
-def _derived_payload(capsule: DerivedCapsule) -> dict:
+def _related_payload(capsule: RelatedCapsule) -> dict:
     return {
         "capsule_id": capsule.capsule_id,
-        "derived_from": capsule.derived_from,
+        "related_from": capsule.related_from,
         "signal": capsule.signal,
         "embed_text": capsule.embed_text,
         "entity_type": capsule.entity_type,
@@ -92,9 +92,9 @@ def _persist_schema(capsules: list[SchemaContextCapsule]) -> int:
     return len(items)
 
 
-def _persist_derived(capsules: list[DerivedCapsule]) -> int:
-    items = [(capsule.capsule_id, capsule.vector or [], _derived_payload(capsule)) for capsule in capsules if capsule.vector]
-    upsert_capsules_batch(COLLECTION_DERIVED, items)
+def _persist_related(capsules: list[RelatedCapsule]) -> int:
+    items = [(capsule.capsule_id, capsule.vector or [], _related_payload(capsule)) for capsule in capsules if capsule.vector]
+    upsert_capsules_batch(COLLECTION_RELATED, items)
     return len(items)
 
 
@@ -107,7 +107,7 @@ def _load_definitions(plan_capsule_ids: list[str] | None = None) -> list[Capsule
 
 
 def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
-    """Full build: analytical, schema-context, graph, derived, persisted plan and fingerprint."""
+    """Full build: analytical, schema-context, graph, related, persisted plan and fingerprint."""
     reset_all_collections()
     definitions = _load_definitions()
     statuses: list[BuildStatus] = []
@@ -120,13 +120,13 @@ def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
     analytical_capsules = generate_all_capsules(definitions, progress_callback=_progress)
     schema_capsules = generate_schema_capsules()
     graph = build_graph(analytical_capsules)
-    derived_capsules = generate_derived_capsules(analytical_capsules)
-    graph.derived_capsule_ids = [capsule.capsule_id for capsule in derived_capsules]
+    related_capsules = generate_related_capsules(analytical_capsules)
+    graph.related_capsule_ids = [capsule.capsule_id for capsule in related_capsules]
     save_graph(graph)
 
     analytical_count = _persist_analytical(analytical_capsules)
     schema_count = _persist_schema(schema_capsules)
-    derived_count = _persist_derived(derived_capsules)
+    related_count = _persist_related(related_capsules)
 
     save_refresh_plan([definition.model_dump() for definition in definitions])
     save_schema_fingerprint(get_schema_metadata(), get_fk_relationships())
@@ -134,7 +134,7 @@ def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
     return BuildSummary(
         analytical_count=analytical_count,
         schema_count=schema_count,
-        derived_count=derived_count,
+        related_count=related_count,
         graph_edge_count=len(graph.edges),
         statuses=statuses,
         schema_changed=None,
@@ -142,7 +142,7 @@ def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
 
 
 def refresh_data_only(progress_callback=None) -> BuildSummary:
-    """Refresh analytical capsules from the canonical saved plan, keeping schema-context and derived untouched."""
+    """Refresh analytical capsules from the canonical saved plan, keeping schema-context and related untouched."""
     plan = load_refresh_plan()
     definitions = _load_definitions(plan.capsule_ids if plan else None)
     clear_collection(COLLECTION_ANALYTICAL)
@@ -159,7 +159,7 @@ def refresh_data_only(progress_callback=None) -> BuildSummary:
 
 
 def schema_refresh(progress_callback=None) -> BuildSummary:
-    """Detect schema change and rebuild analytical, schema, and derived collections to align with current schema."""
+    """Detect schema change and rebuild analytical, schema, and related collections to align with current schema."""
     current_schema = get_schema_metadata()
     current_relationships = get_fk_relationships()
     current_fingerprint = compute_schema_fingerprint(current_schema, current_relationships)

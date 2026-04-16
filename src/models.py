@@ -72,11 +72,11 @@ class SchemaContextCapsule(BaseModel):
     vector: list[float] | None = None
 
 
-class DerivedCapsule(BaseModel):
-    """Derived risk capsule generated from capsule relationships and signals."""
+class RelatedCapsule(BaseModel):
+    """Related risk capsule generated from capsule relationships and signals."""
 
     capsule_id: str
-    derived_from: list[str]
+    related_from: list[str]
     signal: str
     embed_text: str
     entity_type: str
@@ -111,7 +111,7 @@ class ContextPackage(BaseModel):
 
     primary_capsule: dict[str, Any] | None = None
     linked_capsules: list[dict[str, Any]] = Field(default_factory=list)
-    derived_capsules: list[dict[str, Any]] = Field(default_factory=list)
+    related_capsules: list[dict[str, Any]] = Field(default_factory=list)
     schema_capsules: list[dict[str, Any]] = Field(default_factory=list)
     combined_context: str = ""
     overall_confidence: float = 0.0
@@ -149,7 +149,7 @@ class CapsuleGraph(BaseModel):
 
     built_at: str
     edges: list[RelationshipEdge] = Field(default_factory=list)
-    derived_capsule_ids: list[str] = Field(default_factory=list)
+    related_capsule_ids: list[str] = Field(default_factory=list)
 
 
 class BuildStatus(BaseModel):
@@ -166,7 +166,7 @@ class BuildSummary(BaseModel):
 
     analytical_count: int = 0
     schema_count: int = 0
-    derived_count: int = 0
+    related_count: int = 0
     graph_edge_count: int = 0
     statuses: list[BuildStatus] = Field(default_factory=list)
     schema_changed: bool | None = None

@@ -8,7 +8,7 @@ import streamlit as st
 
 from src.app_constants import (
     COLLECTION_ANALYTICAL,
-    COLLECTION_DERIVED,
+    COLLECTION_RELATED,
     COLLECTION_SCHEMA,
     INTENT_ANALYTICAL,
     INTENT_HYBRID,
@@ -168,7 +168,7 @@ with generate_tab:
             summary = generate_all_capsule_collections(progress_callback=on_progress)
         progress.progress(1.0, text="Completed")
         st.success(
-            f"Generated {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.derived_count} derived capsules."
+            f"Generated {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.related_count} related capsules."
         )
         st.write(f"Relationship graph edges: {summary.graph_edge_count}")
         st.dataframe(progress_rows, use_container_width=True)
@@ -181,7 +181,7 @@ with generate_tab:
 
         with st.spinner("Refreshing analytical capsules from saved plan..."):
             summary = refresh_data_only(progress_callback=on_progress)
-        st.success(f"Refreshed {summary.analytical_count} analytical capsules. Schema-context and derived capsules were kept.")
+        st.success(f"Refreshed {summary.analytical_count} analytical capsules. Schema-context and related capsules were kept.")
         if progress_rows:
             st.dataframe(progress_rows, use_container_width=True)
 
@@ -194,7 +194,7 @@ with generate_tab:
         with st.spinner("Refreshing schema and rebuilding all collections..."):
             summary = schema_refresh(progress_callback=on_progress)
         st.success(
-            f"Schema refresh complete. Schema changed: {summary.schema_changed}. Rebuilt {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.derived_count} derived capsules."
+            f"Schema refresh complete. Schema changed: {summary.schema_changed}. Rebuilt {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.related_count} related capsules."
         )
         if progress_rows:
             st.dataframe(progress_rows, use_container_width=True)
@@ -204,8 +204,8 @@ with explorer_tab:
     if st.button("Load All Capsules"):
         analytical = scroll_all(COLLECTION_ANALYTICAL)
         schema = scroll_all(COLLECTION_SCHEMA)
-        derived = scroll_all(COLLECTION_DERIVED)
-        st.session_state.explorer_capsules = analytical + schema + derived
+        related = scroll_all(COLLECTION_RELATED)
+        st.session_state.explorer_capsules = analytical + schema + related
 
     capsules = st.session_state.explorer_capsules
     if capsules:
@@ -264,8 +264,8 @@ with explorer_tab:
             delete_collection = COLLECTION_ANALYTICAL
             if "summary" in capsule and "tables" in capsule:
                 delete_collection = COLLECTION_SCHEMA
-            elif "derived_from" in capsule:
-                delete_collection = COLLECTION_DERIVED
+            elif "related_from" in capsule:
+                delete_collection = COLLECTION_RELATED
             if st.button(f"Delete {selected_capsule}"):
                 delete_by_capsule_id(delete_collection, selected_capsule)
                 st.success(f"Deleted {selected_capsule}")
@@ -291,8 +291,8 @@ with graph_tab:
             ],
             use_container_width=True,
         )
-        st.write("### Derived Capsules")
-        st.dataframe(scroll_all(COLLECTION_DERIVED), use_container_width=True)
+        st.write("### Related Capsules")
+        st.dataframe(scroll_all(COLLECTION_RELATED), use_container_width=True)
     else:
         st.info("No capsule graph found yet. Generate capsules first.")
 
@@ -350,5 +350,6 @@ with reset_tab:
     confirm = st.checkbox("I understand this action cannot be undone")
     if confirm and st.button("Reset Vector DB"):
         with st.spinner("Resetting vector store..."):
+            st.session_state.explorer_capsules = []
             reset_all_collections()
         st.success("Vector store reset complete.")

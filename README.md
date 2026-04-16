@@ -35,7 +35,7 @@ It combines:
                 +----------------------+
                 |  context_packager    |
                 | primary + linked +   |
-                | derived + schema     |
+                | related + schema     |
                 +----------+-----------+
                            |
               +------------+-------------+
@@ -73,7 +73,7 @@ pipeline1 builds the vector layer:
 - Risk and pattern capsules for multi-alert entities and cross-entity risk
 - Operational capsules for pending review and turnaround bottlenecks
 - Distribution capsules for security concentration and restriction exposure
-- Derived capsules for systemic broker risk and employee risk
+- Related capsules for systemic broker risk and employee risk
 
 ### Schema-context capsules
 Metadata-focused planning capsules built from:
@@ -93,11 +93,11 @@ When you click **Run Question**, the app:
 2. Searches Qdrant across:
    - `analytical_capsules`
    - `schema_context_capsules`
-   - `derived_capsules`
+   - `related_capsules`
 3. Packages the top context into:
    - primary capsule
    - linked capsules
-   - derived capsules
+   - related capsules
    - schema capsules
 4. Routes the question:
    - `structured` or `operational` -> live SQL
@@ -109,7 +109,7 @@ When you click **Run Question**, the app:
    - live schema
    - foreign-key relationships
    - top schema-context capsules
-   - derived risk signals when available
+   - related risk signals when available
 6. Generates SQL, executes it, retries once with autofix if needed, then summarizes actual SQL rows.
 
 ## Refresh Model
@@ -118,7 +118,7 @@ When you click **Run Question**, the app:
 Full rebuild:
 - analytical capsules
 - schema-context capsules
-- derived capsules
+- related capsules
 - relationship graph
 - saved analytical refresh plan
 - saved schema fingerprint
@@ -128,13 +128,13 @@ Data-only refresh:
 - loads the saved analytical plan
 - reruns those analytical SQL definitions
 - rebuilds analytical capsules only
-- keeps schema-context and derived collections unchanged
+- keeps schema-context and related collections unchanged
 
 ### Schema Refresh
 Schema-aware rebuild:
 - computes current schema fingerprint
 - compares it with the saved fingerprint
-- rebuilds analytical, schema-context, and derived capsules
+- rebuilds analytical, schema-context, and related capsules
 - regenerates the saved analytical refresh plan
 - rewrites the schema fingerprint
 

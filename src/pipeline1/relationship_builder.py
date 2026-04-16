@@ -1,4 +1,4 @@
-"""Build capsule relationships and derived risk capsules from generated analytical capsules."""
+"""Build capsule relationships and related risk capsules from generated analytical capsules."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from ..app_constants import (
 )
 from ..embedding import embed_single, ensure_data_dir
 from ..llm_service import call_llm
-from ..models import CapsuleGraph, DerivedCapsule, GeneratedCapsule, RelationshipEdge
-from ..prompts import DERIVED_SIGNAL_SYSTEM, DERIVED_SIGNAL_USER
+from ..models import CapsuleGraph, RelatedCapsule, GeneratedCapsule, RelationshipEdge
+from ..prompts import RELATED_SIGNAL_SYSTEM, RELATED_SIGNAL_USER
 
 logger = logging.getLogger(__name__)
 
@@ -81,21 +81,21 @@ def build_graph(capsules: list[GeneratedCapsule]) -> CapsuleGraph:
                 )
                 seen.add(key)
 
-    return CapsuleGraph(built_at=datetime.now(timezone.utc).isoformat(), edges=edges, derived_capsule_ids=[])
+    return CapsuleGraph(built_at=datetime.now(timezone.utc).isoformat(), edges=edges, related_capsule_ids=[])
 
 
-def _build_derived_signal(entity_type: str, entity_name: str, signals: list[str]) -> str:
-    prompt = DERIVED_SIGNAL_USER.format(entity_type=entity_type, entity_name=entity_name, signals="\n".join(signals))
-    text = call_llm(DERIVED_SIGNAL_SYSTEM, prompt, model_slot="groq_signal_model", max_tokens=150)
+def _build_related_signal(entity_type: str, entity_name: str, signals: list[str]) -> str:
+    prompt = RELATED_SIGNAL_USER.format(entity_type=entity_type, entity_name=entity_name, signals="\n".join(signals))
+    text = call_llm(RELATED_SIGNAL_SYSTEM, prompt, model_slot="groq_signal_model", max_tokens=150)
     if not text or text.startswith("[LLM"):
         return f"{entity_name} is high risk because {'; '.join(signals[:2])}."
     return text
 
 
-def generate_derived_capsules(capsules: list[GeneratedCapsule]) -> list[DerivedCapsule]:
-    """Generate derived broker and employee risk capsules from analytical outputs."""
+def generate_related_capsules(capsules: list[GeneratedCapsule]) -> list[RelatedCapsule]:
+    """Generate related broker and employee risk capsules from analytical outputs."""
     capsule_map = {capsule.capsule_id: capsule for capsule in capsules}
-    derived_capsules: list[DerivedCapsule] = []
+    related_capsules: list[RelatedCapsule] = []
 
     broker_activity = capsule_map.get("trade_requests_by_broker_dealer")
     broker_alerts = capsule_map.get("broker_dealers_high_rejection_and_alerts")
@@ -113,7 +113,7 @@ def generate_derived_capsules(capsules: list[GeneratedCapsule]) -> list[DerivedC
         for broker_name, rejection_rate in rejection_rates.items():
             alert_count = alert_counts.get(broker_name, 0)
             if rejection_rate >= SYSTEMIC_RISK_REJECTION_PCT and alert_count >= SYSTEMIC_RISK_ALERT_COUNT:
-                signal = _build_derived_signal(
+                signal = _build_related_signal(
                     "broker",
                     broker_name,
                     [
@@ -123,17 +123,17 @@ def generate_derived_capsules(capsules: list[GeneratedCapsule]) -> list[DerivedC
                 )
                 capsule_id = f"systemic_risk_{broker_name.lower().replace(' ', '_')[:40]}"
                 embed_text = f"Broker systemic risk for {broker_name}. {signal}"
-                derived_capsules.append(
-                    DerivedCapsule(
+                related_capsules.append(
+                    RelatedCapsule(
                         capsule_id=capsule_id,
-                        derived_from=[broker_activity.capsule_id, broker_alerts.capsule_id],
+                        related_from=[broker_activity.capsule_id, broker_alerts.capsule_id],
                         signal=signal,
                         embed_text=embed_text,
                         entity_type="broker",
                         entity_name=broker_name,
                         risk_level="high",
                         generated_at=datetime.now(timezone.utc).isoformat(),
-                        tags=["derived", "broker", "systemic_risk"],
+                        tags=["related", "broker", "systemic_risk"],
                         vector=embed_single(embed_text),
                     )
                 )
@@ -154,7 +154,7 @@ def generate_derived_capsules(capsules: list[GeneratedCapsule]) -> list[DerivedC
         for employee_name, alert_count in repeat_map.items():
             severity = severity_map.get(employee_name)
             if severity:
-                signal = _build_derived_signal(
+                signal = _build_related_signal(
                     "employee",
                     employee_name,
                     [
@@ -164,22 +164,22 @@ def generate_derived_capsules(capsules: list[GeneratedCapsule]) -> list[DerivedC
                 )
                 capsule_id = f"employee_risk_{employee_name.lower().replace(' ', '_')[:40]}"
                 embed_text = f"Employee risk profile for {employee_name}. {signal}"
-                derived_capsules.append(
-                    DerivedCapsule(
+                related_capsules.append(
+                    RelatedCapsule(
                         capsule_id=capsule_id,
-                        derived_from=[repeat_violators.capsule_id, high_severity_alerts.capsule_id],
+                        related_from=[repeat_violators.capsule_id, high_severity_alerts.capsule_id],
                         signal=signal,
                         embed_text=embed_text,
                         entity_type="employee",
                         entity_name=employee_name,
                         risk_level="critical",
                         generated_at=datetime.now(timezone.utc).isoformat(),
-                        tags=["derived", "employee", "repeat_violator", "open_alert"],
+                        tags=["related", "employee", "repeat_violator", "open_alert"],
                         vector=embed_single(embed_text),
                     )
                 )
 
-    return derived_capsules
+    return related_capsules
 
 
 def save_graph(graph: CapsuleGraph) -> None:
