@@ -23,7 +23,7 @@ from src.vector_store import clear_collection, collection_counts, delete_by_caps
 from src.database_connection import execute_select
 from src.embedding import embed_single
 
-st.set_page_config(page_title="Analytical Search Engine", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="Analytical Search Engine", page_icon="", layout="wide")
 
 INTENT_BADGE = {
     INTENT_STRUCTURED: ("green", "Structured"),
@@ -169,7 +169,7 @@ with ask_tab:
 
         with st.expander("SQL Rows Returned", expanded=False):
             if result.sql_rows:
-                st.dataframe(result.sql_rows, use_container_width=True)
+                st.dataframe(result.sql_rows, width='stretch')
             else:
                 st.write("No SQL rows returned.")
 
@@ -177,7 +177,7 @@ with generate_tab:
     st.subheader("Generate Capsules")
     col1, col2, col3, col4 = st.columns([1, 1, 1, 1], gap="small")
 
-    if col1.button("Generate All Capsules", type="primary", use_container_width=True):
+    if col1.button("Generate All Capsules", type="primary", width='stretch'):
         progress = st.progress(0, text="Starting full build")
         progress_rows: list[dict] = []
 
@@ -196,14 +196,14 @@ with generate_tab:
             f"{actual_counts.get(COLLECTION_RELATED, 0)} related capsules."
         )
         st.write(f"Relationship graph edges: {summary.graph_edge_count}")
-        st.dataframe(progress_rows, use_container_width=True)
+        st.dataframe(progress_rows, width='stretch')
 
         # Sidebar updated from same actual_counts — guaranteed to match success message
         with sidebar_collections.container():
             st.markdown("### Collections")
             st.json(actual_counts)
 
-    if col2.button("Refresh Data", type="primary", use_container_width=True):
+    if col2.button("Refresh Data", type="primary", width='stretch'):
         progress_rows: list[dict] = []
 
         def on_progress(capsule_id: str, status: str, preview: str, collection: str = "analytical_capsules") -> None:
@@ -213,9 +213,9 @@ with generate_tab:
             summary = refresh_data_only(progress_callback=on_progress)
         st.success(f"Refreshed {summary.analytical_count} analytical capsules. Schema-context and related capsules were kept.")
         if progress_rows:
-            st.dataframe(progress_rows, use_container_width=True)
+            st.dataframe(progress_rows, width='stretch')
 
-    if col3.button("Schema Refresh", type="primary", use_container_width=True):
+    if col3.button("Schema Refresh", type="primary", width='stretch'):
         progress_rows: list[dict] = []
 
         def on_progress(capsule_id: str, status: str, preview: str, collection: str = "analytical_capsules") -> None:
@@ -227,9 +227,9 @@ with generate_tab:
             f"Schema refresh complete. Schema changed: {summary.schema_changed}. Rebuilt {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.related_count} related capsules."
         )
         if progress_rows:
-            st.dataframe(progress_rows, use_container_width=True)
+            st.dataframe(progress_rows, width='stretch')
 
-    if col4.button("AI Rebuild Definitions", type="primary", use_container_width=True):
+    if col4.button("AI Rebuild Definitions", type="primary", width='stretch'):
         from src.capsule_builder.definitions_generator import (
             generate_capsule_definitions_via_llm,
             save_generated_definitions,
@@ -357,7 +357,7 @@ with explorer_tab:
                 "related_count":     st.column_config.NumberColumn("Related",           width="small"),
                 "expires_at":        st.column_config.TextColumn("Expires At",         width="medium"),
             },
-            use_container_width=True,
+            width='stretch',
         )
 
         selected_capsule = st.selectbox("Inspect Capsule", [""] + [capsule.get("capsule_id") for capsule in filtered])
@@ -400,17 +400,17 @@ with graph_tab:
                 }
                 for edge in graph.edges
             ],
-            use_container_width=True,
+            width='stretch',
         )
         st.write("### Related Capsules")
-        st.dataframe(scroll_all(COLLECTION_RELATED), use_container_width=True)
+        st.dataframe(scroll_all(COLLECTION_RELATED), width='stretch')
     else:
         st.info("No capsule graph found yet. Generate capsules first.")
 
 with telemetry_tab:
     st.subheader("Telemetry")
     if st.session_state.telemetry_log:
-        st.dataframe(st.session_state.telemetry_log, use_container_width=True)
+        st.dataframe(st.session_state.telemetry_log, width='stretch')
         if st.button("Clear Log"):
             st.session_state.telemetry_log = []
             st.rerun()
@@ -419,7 +419,7 @@ with telemetry_tab:
 
 with insert_tab:
     st.subheader("Insert Capsule")
-    capsule_id = st.text_input("Capsule ID*", help="Unique identifier in snake_case (e.g. high_risk_trades)")
+    capsule_id = st.text_input("Capsule ID*", placeholder="e.g. high_risk_broker_trades", help="Unique identifier in snake_case (e.g. high_risk_trades)")
     
     type_options = [
         "aggregation", "anomaly", "concentration", "correlation", 
@@ -434,19 +434,41 @@ with insert_tab:
         capsule_type = selected_type
         
     max_return_rows = st.number_input("Max Rows to Return", min_value=1, max_value=1000, value=50, step=10)
-    sql_text = st.text_area("SQL*", height=180)
-    summary_text = st.text_area("Summary Text / Embed Text*", height=120)
+    sql_text = st.text_area(
+        "SQL*",
+        height=180,
+        placeholder=(
+            "e.g.  SELECT TOP 20\n"
+            "         tr.BrokerDealerID AS broker_id,\n"
+            "         COUNT(*) AS total_requests,\n"
+            "         SUM(CASE WHEN aw.Decision = 'Rejected' THEN 1 ELSE 0 END) AS rejected\n"
+            "       FROM TradeRequest tr\n"
+            "       JOIN ApprovalWorkflow aw ON tr.RequestID = aw.RequestID\n"
+            "       GROUP BY tr.BrokerDealerID\n"
+            "       ORDER BY rejected DESC"
+        ),
+    )
+    summary_text = st.text_area(
+        "Summary Text / Embed Text*",
+        height=120,
+        placeholder=(
+            "e.g.  This capsule tracks rejection rates by broker dealer. "
+            "Use it to identify which brokers have unusually high compliance rejections, "
+            "policy breaches, or escalation patterns. "
+            "Finding: {signal}"
+        ),
+    )
 
     with st.expander("Advanced Capsule Properties (Leave blank for LLM auto-generation)"):
         c_priority = st.selectbox("Priority", ["", "P1", "P2", "P3", "P4"], help="Risk severity")
-        c_what = st.text_input("What", help="Short description of the capsule")
-        c_how = st.text_input("How", help="1-sentence explanation of calculation")
-        c_signal_method = st.text_input("Signal Method", help="e.g. threshold_breach, latest_value")
-        c_ttl_hours = st.text_input("TTL Hours", help="Enter a number (e.g., 24)")
+        c_what = st.text_input("What", placeholder="e.g. Rejection rate per broker dealer over the last 90 days", help="Short description of the capsule")
+        c_how = st.text_input("How", placeholder="e.g. COUNT of rejected approvals divided by total requests, grouped by broker", help="1-sentence explanation of calculation")
+        c_signal_method = st.text_input("Signal Method", placeholder="e.g. rule_based  or  llm_summary", help="e.g. threshold_breach, latest_value")
+        c_ttl_hours = st.text_input("TTL Hours", placeholder="e.g. 24", help="Enter a number (e.g., 24)")
         c_staleness = st.selectbox("Staleness Trigger", ["", "hourly", "daily", "weekly", "monthly", "manual"])
-        c_tags = st.text_input("Tags", help="Comma-separated semantic tags")
-        c_tables = st.text_input("Tables Used", help="Comma-separated table names")
-        c_keys = st.text_input("Key Columns", help="Comma-separated key columns")
+        c_tags = st.text_input("Tags", placeholder="e.g. rejection, broker, compliance, risk", help="Comma-separated semantic tags")
+        c_tables = st.text_input("Tables Used", placeholder="e.g. TradeRequest, ApprovalWorkflow, BrokerDealer", help="Comma-separated table names")
+        c_keys = st.text_input("Key Columns", placeholder="e.g. broker_id, total_requests, rejected", help="Comma-separated key columns")
 
     if st.button("Insert Capsule", type="primary"):
         if not capsule_id or not sql_text or not summary_text:
