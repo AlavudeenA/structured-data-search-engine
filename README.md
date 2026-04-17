@@ -133,9 +133,19 @@ There are three types:
 | Type                      | What it is                                                                                                                                  | Count (example) |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | `analytical_capsules`     | Pre-run SQL results + signals for common business questions (includes `aggregation`, `trend`, `violation`, `risk`, `pattern`, `operational`) | ~39             |
-| `sample_capsules`         | 50 random joined rows per run (`ORDER BY NEWID()`) — Groq narrates 2-3 patterns visible across the raw rows; ML enrichment is skipped       | 3               |
+| `sample_capsules`         | 50 random joined rows per run (`ORDER BY NEWID()`) — Groq narrates 2-3 patterns visible across the raw rows; ML enrichment is skipped      | few             |
 | `schema_context_capsules` | Maps of the database structure — which tables join to what                                                                                  | 5               |
 | `linked_capsules`         | Auto-generated linked capsules — risk/anomaly alerts from capsule cross-analysis                                                            | ~17             |
+
+**Why only a few sample capsules?** Sample capsules ship non-deterministic rows — every Generate run produces a different signal. That makes them useful as "show me examples" context but unreliable as analytical baselines. Keeping them few matters for four reasons: (1) **Qdrant noise** — random rows dilute vector search and compete with aggregation capsules that actually computed the answer; (2) **Groq token cost** — each sample capsule sends 50 full rows for narration, so they add up fast; (3) **zero anomaly signal** — ML enrichment is skipped for all of them, so they never contribute to the linked capsule network; (4) **12h TTL** — they expire quickly and add churn to every refresh cycle. Each sample capsule should cover one distinct investigative scenario:
+
+| Sample capsule              | Answers questions like                                    |
+| --------------------------- | --------------------------------------------------------- |
+| `five_table_random_sample`  | "Show me what a typical record looks like across everything" |
+| `violation_records_sample`  | "Give me examples of actual violations"                   |
+| `high_risk_records_sample`  | "Show me what a high-risk open alert looks like"          |
+
+To add more, follow the same pattern: one capsule per specific scenario where raw examples uniquely help (e.g., `broker_rejection_sample` for rejected trades at a specific broker) — not just more random rows.
 
 ### Two Pipelines
 
@@ -492,7 +502,7 @@ In both routes, linked capsules are the mechanism that lets a single question su
 | **Generate All Capsules**        | Full rebuild — wipes Qdrant and regenerates everything from scratch                                                                                                                                                                                                                                                                                                                                      | First run, after changing `capsule_definitions.py`, or when something is broken                                                |
 | **Refresh Data**                 | Re-runs only the analytical SQL queries; leaves schema and linked capsules untouched                                                                                                                                                                                                                                                                                                                     | Daily/routine refresh when DB data changed but structure hasn't                                                                |
 | **Schema Refresh**               | Detects whether the DB schema changed (via fingerprint) and rebuilds everything if it has                                                                                                                                                                                                                                                                                                                | After adding or removing columns/tables in SQL Server                                                                          |
-| **Generate Capsule Definitions** | Sends your live DB schema and FK relationships to Groq; the LLM regenerates the entire `CAPSULE_DEFINITIONS` list (all 38+ capsules, all 9 categories — including 3 sample capsules with `ORDER BY NEWID()` joins) with correct SQL Server syntax and compliance domain rules; output is validated with `ast.parse()` before being written to `capsule_definitions.py`, and the module is hot-reloaded so the next Generate picks up the new definitions immediately | When you want a fresh AI-generated set of capsule definitions — e.g., after major schema changes, or to bootstrap a new domain |
+| **Generate Capsule Definitions** | Sends your live DB schema and FK relationships to Groq; the LLM regenerates the entire `CAPSULE_DEFINITIONS` list across all categories (aggregation, trend, violation, risk, pattern, operational, and sample capsules with `ORDER BY NEWID()` joins) with correct SQL Server syntax and compliance domain rules; output is validated with `ast.parse()` before being written to `capsule_definitions.py`, and the module is hot-reloaded so the next Generate picks up the new definitions immediately | When you want a fresh AI-generated set of capsule definitions — e.g., after major schema changes, or to bootstrap a new domain |
 
 ---
 
