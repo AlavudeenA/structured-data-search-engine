@@ -2,9 +2,9 @@
 LLM-driven capsule definition regenerator.
 
 generate_capsule_definitions_via_llm()
-  → reads live schema + FKs from SQL Server
+  → reads live schema + FKs from SQLite
   → builds two rich format examples from the existing definitions
-  → calls Groq (strongest model) with the full CAPSULE_REGEN prompt
+  → calls the language model with the full CAPSULE_REGEN prompt
   → returns raw Python list literal string
 
 save_generated_definitions(raw_python, target_path)

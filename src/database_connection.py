@@ -1,66 +1,72 @@
-"""Database access helpers for SQL Server, schema metadata, and FK discovery."""
+"""Database access helpers using SQLite."""
 
 from __future__ import annotations
 
 import logging
-import time
+import re
+import sqlite3
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Iterator
 
-import pyodbc
-
-from .app_constants import DB_EXECUTE_MAX_ROWS, DB_MAX_POOL, DB_MAX_RETRIES
+from .app_constants import DB_EXECUTE_MAX_ROWS
 from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
-pyodbc.pooling = True
-_CONNECTION_POOL: list[pyodbc.Connection] = []
+_SCRIPT_PATH = Path(__file__).parent / "business_schema" / "dbscript.sql"
+_initialized = False
 
 
-def _make_connection() -> pyodbc.Connection:
-    cfg = get_settings()
-    last_error: Exception | None = None
-    for attempt in range(DB_MAX_RETRIES):
-        try:
-            return pyodbc.connect(cfg.sqlserver_conn_str, timeout=10, autocommit=False)
-        except Exception as exc:
-            last_error = exc
-            logger.warning("DB connect attempt %s failed: %s", attempt + 1, exc)
-            if attempt < DB_MAX_RETRIES - 1:
-                time.sleep(1)
-    raise RuntimeError(f"Could not connect to SQL Server after {DB_MAX_RETRIES} attempts: {last_error}")
+def _db_path() -> str:
+    return str(Path(get_settings().db_path).resolve())
+
+
+def _initialize_db(conn: sqlite3.Connection) -> None:
+    script = _SCRIPT_PATH.read_text(encoding="utf-8")
+    script = re.sub(r"--[^\n]*", "", script)
+    for stmt in script.split(";"):
+        stmt = stmt.strip()
+        if stmt:
+            try:
+                conn.execute(stmt)
+            except Exception as exc:
+                logger.debug("Init SQL skipped: %s | %.80s", exc, stmt)
+    conn.commit()
+
+
+def _ensure_initialized() -> None:
+    global _initialized
+    if _initialized:
+        return
+    db = _db_path()
+    conn = sqlite3.connect(db, check_same_thread=False)
+    try:
+        count = conn.execute(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchone()[0]
+        if count == 0:
+            logger.info("Initializing SQLite database at %s", db)
+            _initialize_db(conn)
+    finally:
+        conn.close()
+    _initialized = True
 
 
 @contextmanager
-def get_connection() -> Iterator[pyodbc.Connection]:
-    """Yield a pooled SQL Server connection."""
-    if _CONNECTION_POOL:
-        conn = _CONNECTION_POOL.pop()
-        try:
-            conn.execute("SELECT 1")
-        except Exception:
-            try:
-                conn.close()
-            except Exception:
-                pass
-            conn = _make_connection()
-    else:
-        conn = _make_connection()
-
+def get_connection() -> Iterator[sqlite3.Connection]:
+    """Yield a SQLite connection."""
+    _ensure_initialized()
+    conn = sqlite3.connect(_db_path(), check_same_thread=False)
+    conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
     finally:
-        if len(_CONNECTION_POOL) < DB_MAX_POOL:
-            _CONNECTION_POOL.append(conn)
-        else:
-            conn.close()
+        conn.close()
 
 
 def execute_select(sql: str, max_rows: int = DB_EXECUTE_MAX_ROWS) -> list[dict[str, Any]]:
-    """Execute a SELECT statement and return rows as dictionaries."""
-    result = execute_select_with_meta(sql, max_rows=max_rows)
-    return result["rows"]
+    return execute_select_with_meta(sql, max_rows=max_rows)["rows"]
 
 
 def execute_select_with_meta(sql: str, max_rows: int = DB_EXECUTE_MAX_ROWS) -> dict[str, Any]:
@@ -68,12 +74,10 @@ def execute_select_with_meta(sql: str, max_rows: int = DB_EXECUTE_MAX_ROWS) -> d
     normalized = sql.strip().lower()
     if not (normalized.startswith("select") or normalized.startswith("with")):
         return {"columns": [], "rows": [], "row_count": 0, "error": "Only SELECT or WITH queries are allowed."}
-
     try:
         with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(sql)
-            columns = [column[0] for column in (cursor.description or [])]
+            cursor = conn.execute(sql)
+            columns = [d[0] for d in (cursor.description or [])]
             raw_rows = cursor.fetchmany(max_rows)
             rows = [dict(zip(columns, row)) for row in raw_rows]
             return {"columns": columns, "rows": rows, "row_count": len(rows), "error": None}
@@ -83,90 +87,72 @@ def execute_select_with_meta(sql: str, max_rows: int = DB_EXECUTE_MAX_ROWS) -> d
 
 
 def get_schema_metadata() -> dict[str, list[dict[str, str]]]:
-    """Return schema metadata for all base tables in the database."""
-    sql = """
-        SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE
-        FROM INFORMATION_SCHEMA.COLUMNS c
-        INNER JOIN INFORMATION_SCHEMA.TABLES t ON c.TABLE_NAME = t.TABLE_NAME
-        WHERE t.TABLE_TYPE = 'BASE TABLE' AND t.TABLE_SCHEMA = 'dbo'
-        ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION
-    """
+    """Return schema metadata for all tables in the database."""
     schema: dict[str, list[dict[str, str]]] = {}
     try:
         with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(sql)
-            for table_name, column_name, data_type in cursor.fetchall():
-                schema.setdefault(str(table_name), []).append(
-                    {"name": str(column_name), "type": str(data_type)}
-                )
+            tables = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            ).fetchall()
+            for (table_name,) in tables:
+                cols = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+                schema[table_name] = [
+                    {"name": col[1], "type": col[2] or "TEXT"} for col in cols
+                ]
     except Exception as exc:
         logger.error("Failed to read schema metadata: %s", exc)
     return schema
 
 
 def get_fk_relationships() -> list[dict[str, str]]:
-    """Return foreign-key relationships between compliance tables."""
-    sql = """
-        SELECT
-            OBJECT_NAME(f.parent_object_id) AS parent_table,
-            COL_NAME(fc.parent_object_id, fc.parent_column_id) AS parent_column,
-            OBJECT_NAME(f.referenced_object_id) AS ref_table,
-            COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS ref_column
-        FROM sys.foreign_keys AS f
-        INNER JOIN sys.foreign_key_columns AS fc
-            ON f.object_id = fc.constraint_object_id
-        ORDER BY parent_table, parent_column
-    """
+    """Return foreign-key relationships between tables."""
     relationships: list[dict[str, str]] = []
     try:
         with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(sql)
-            for parent_table, parent_column, ref_table, ref_column in cursor.fetchall():
-                relationship = {
-                    "parent_table": str(parent_table),
-                    "parent_column": str(parent_column),
-                    "ref_table": str(ref_table),
-                    "ref_column": str(ref_column),
-                }
-                if relationship["parent_table"] and relationship["ref_table"]:
-                    relationships.append(relationship)
+            tables = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+            for (table_name,) in tables:
+                fks = conn.execute(f"PRAGMA foreign_key_list('{table_name}')").fetchall()
+                for fk in fks:
+                    # fk: (id, seq, ref_table, from_col, to_col, ...)
+                    relationships.append({
+                        "parent_table": table_name,
+                        "parent_column": fk[3],
+                        "ref_table": fk[2],
+                        "ref_column": fk[4],
+                    })
     except Exception as exc:
         logger.error("Failed to read foreign keys: %s", exc)
     return relationships
 
 
 def get_join_paths() -> list[dict[str, str]]:
-    """Return normalized join paths related from FK relationships."""
-    join_paths: list[dict[str, str]] = []
-    for rel in get_fk_relationships():
-        join_paths.append(
-            {
-                "left_table": rel["parent_table"],
-                "left_column": rel["parent_column"],
-                "right_table": rel["ref_table"],
-                "right_column": rel["ref_column"],
-                "join_sql": (
-                    f"{rel['parent_table']}.{rel['parent_column']} = "
-                    f"{rel['ref_table']}.{rel['ref_column']}"
-                ),
-            }
-        )
-    return join_paths
+    """Return normalized join paths derived from FK relationships."""
+    return [
+        {
+            "left_table": rel["parent_table"],
+            "left_column": rel["parent_column"],
+            "right_table": rel["ref_table"],
+            "right_column": rel["ref_column"],
+            "join_sql": (
+                f"{rel['parent_table']}.{rel['parent_column']} = "
+                f"{rel['ref_table']}.{rel['ref_column']}"
+            ),
+        }
+        for rel in get_fk_relationships()
+    ]
 
 
 def schema_to_text(schema: dict[str, list[dict[str, str]]]) -> str:
-    """Render schema metadata into a readable prompt block."""
     lines: list[str] = []
     for table_name, columns in sorted(schema.items()):
-        rendered_columns = ", ".join(f"{column['name']} ({column['type']})" for column in columns)
-        lines.append(f"{table_name}: {rendered_columns}")
+        rendered = ", ".join(f"{col['name']} ({col['type']})" for col in columns)
+        lines.append(f"{table_name}: {rendered}")
     return "\n".join(lines)
 
 
 def fk_to_text(relationships: list[dict[str, str]]) -> str:
-    """Render FK relationships into text for prompts."""
     return "\n".join(
         f"{rel['parent_table']}.{rel['parent_column']} -> {rel['ref_table']}.{rel['ref_column']}"
         for rel in relationships

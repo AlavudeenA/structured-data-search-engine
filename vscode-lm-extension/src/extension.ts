@@ -65,7 +65,7 @@ function startLocalServer(context: vscode.ExtensionContext) {
       // Choose the model (user initiated - this is okay because server runs in extension)
       const models = await vscode.lm.selectChatModels({
         vendor: "copilot",
-        family: "gpt-4o",
+        family: "gpt-5-mini",
       });
       if (!models || models.length === 0) {
         res.writeHead(503, { "Content-Type": "application/json" });
@@ -133,7 +133,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         const models = await vscode.lm.selectChatModels({
           vendor: "copilot",
-          family: "gpt-4o",
+          family: "gpt-5-mini",
         });
         if (!models || models.length === 0) {
           vscode.window.showErrorMessage("No language model available");

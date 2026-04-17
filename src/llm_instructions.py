@@ -99,11 +99,11 @@ INTENT_DETECTION_USER = "Question: {question}"
 #       to answer from capsules alone
 # Job: write a valid SQL Server SELECT query using schema context capsules
 #      (table join paths, FK relationships, domain rules) as guidance
-SQL_GENERATION_SYSTEM = """You are a senior SQL Server expert generating analytical queries.
+SQL_GENERATION_SYSTEM = """You are a senior SQLite expert generating analytical queries.
 
 Rules:
 1. Output raw SQL only.
-2. Use SQL Server syntax only.
+2. Use SQLite syntax only — use LIMIT instead of TOP, COALESCE instead of ISNULL, no dbo. prefix.
 3. Only use tables and columns present in the schema.
 4. Use explicit aliases with AS for every selected column.
 5. Always include ORDER BY.
@@ -130,12 +130,13 @@ SQL_GENERATION_USER = "Generate SQL for: {question}"
 # When: sql_executor.py receives a database error from SQL Server
 # Job: inspect the broken SQL + the exact error message and return a corrected query
 #      The engine will retry exactly once with the fixed SQL
-SQL_AUTOFIX_SYSTEM = """You are a SQL Server expert fixing a broken query.
+SQL_AUTOFIX_SYSTEM = """You are a SQLite expert fixing a broken query.
 Output only corrected SQL.
 
 Rules:
 - Keep the original business intent.
-- Fix invalid column names, wrong joins, missing aliases, or SQL Server syntax issues.
+- Fix invalid column names, wrong joins, missing aliases, or SQLite syntax issues.
+- Use SQLite syntax: LIMIT not TOP, COALESCE not ISNULL, no dbo. prefix.
 - Use only schema-valid tables and columns.
 - Never use SELECT *.
 - Always include ORDER BY.
@@ -222,20 +223,20 @@ Explain the planning choice."""
 # When: user clicks the button in Generate Capsules tab
 # Job: given the live DB schema + FK relationships + two format examples,
 #      produce a full CAPSULE_DEFINITIONS list (35+ capsules, 8 categories)
-#      for the Compliance database with correct SQL Server syntax and
+#      for the Compliance database with correct SQLite syntax and
 #      compliance domain rules baked into every query.
 CAPSULE_REGEN_SYSTEM = """You are a senior compliance data engineer generating analytical capsule \
-definitions for a SQL Server Compliance database.
+definitions for a SQLite Compliance database.
 
 ═══════════════════════════════════════
 COMPLIANCE DOMAIN RULES — apply in every relevant SQL
 ═══════════════════════════════════════
 1. ACTIVE RESTRICTION: EndDate IS NULL means permanently active (no end set).
-   Check: rs.EndDate IS NULL OR rs.EndDate >= GETDATE()
-   Safe combined form: ISNULL(rs.EndDate, '9999-12-31') >= GETDATE()
+   Check: rs.EndDate IS NULL OR rs.EndDate >= date('now')
+   Safe combined form: COALESCE(rs.EndDate, '9999-12-31') >= date('now')
 
 2. VIOLATION DATE OVERLAP — trade happened while restriction was active:
-   JOIN condition: tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31')
+   JOIN condition: tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
 
 3. ApprovalWorkflow.ReviewerID references Employee.EmployeeID.
    The REVIEWER is an employee (compliance/risk staff), NOT the trade requester.
@@ -255,14 +256,11 @@ SQL RULES — strictly enforced
 ═══════════════════════════════════════
 - No SELECT *. Every column must have an AS alias.
 - Every query must have ORDER BY.
-- SQL Server 2019+ syntax: TOP N, FORMAT(date_col, 'yyyy-MM'), ISNULL(), DATEDIFF(), DATEADD(), CAST().
+- SQLite syntax only: LIMIT N (not TOP N), COALESCE (not ISNULL), date('now') (not GETDATE()), no dbo. prefix.
 - Use explicit JOIN ... ON (no comma joins, no implicit joins).
-- Do NOT use STRING_AGG(DISTINCT ...) — invalid in SQL Server; omit DISTINCT from STRING_AGG.
-- Monthly grouping: FORMAT(date_col, 'yyyy-MM')
-- Weekly grouping: FORMAT(date_col, 'yyyy-') + CAST(DATEPART(ISO_WEEK, date_col) AS VARCHAR)
-- Percentages: CAST(100.0 * numerator / NULLIF(denominator, 0) AS DECIMAL(5,2))
+- Monthly grouping: strftime('%Y-%m', date_col)
+- Percentages: CAST(100.0 * numerator / NULLIF(denominator, 0) AS REAL)
 - Only SELECT or WITH queries. No INSERT, UPDATE, DELETE, DDL.
-- All tables listed in the schema are in dbo schema. No schema prefix needed.
 
 ═══════════════════════════════════════
 CAPSULE STRUCTURE — every capsule must have ALL keys
@@ -272,7 +270,7 @@ CAPSULE STRUCTURE — every capsule must have ALL keys
   priority             P1 (violation/critical) | P2 (monitoring/trend) | P3 (operational) | P4 (info)
   what                 one sentence: what entity/metric this capsule measures
   how                  one sentence: how it is computed or joined
-  sql                  complete valid SQL Server SELECT query — single-line string, no triple-quotes
+  sql                  complete valid SQLite SELECT query — single-line string, no triple-quotes
   signal_method        "rule_based" for counts/aggregations | "llm_summary" for complex patterns | "sample" for random-row joins
   embed_text_template  compliance officer search query style — see requirements below
   ttl_hours            P1 violation=6, pending/operational=2, trend=12, other=24-48 (integer)
@@ -356,7 +354,7 @@ CATEGORY 8 — Cross-Entity Risk (type=risk, P1): generate 4 capsules
 
 CATEGORY 9 — Random Sample Views (type=sample, signal_method="sample"): generate 3 capsules
   Rules for sample capsules:
-  - SQL must use TOP 50 ORDER BY NEWID() to return random rows
+  - SQL must use ORDER BY random() LIMIT 50 to return random rows
   - Use LEFT JOIN so rows still appear even when related tables have no match
   - Select 12-16 columns spanning all joined tables — mix entity names, dates, statuses, and amounts
   - signal_method must be exactly "sample" (not "llm_summary" or "rule_based")

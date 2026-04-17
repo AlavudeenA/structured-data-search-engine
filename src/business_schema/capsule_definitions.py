@@ -33,7 +33,7 @@ SCHEMA_DEFINITIONS: list[dict] = [
             "rs.RestrictionType AS restriction_type, tr.RequestDate AS request_date "
             "FROM TradeRequest tr "
             "JOIN RestrictedSecurity rs ON tr.SecuritySymbol = rs.SecuritySymbol "
-            "AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31') "
+            "AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31') "
             "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
             "ORDER BY tr.RequestDate DESC"
         ),
@@ -70,16 +70,16 @@ SCHEMA_DEFINITIONS: list[dict] = [
     },
     {
         "capsule_id": "schema_context_trend_patterns",
-        "summary": "For trend questions, prefer TradeRequest.RequestDate, ComplianceAlert.AlertDate, and ApprovalWorkflow.ReviewDate. Group using FORMAT(date_col, 'yyyy-MM') for monthly trends or DATEPART(ISO_WEEK, date_col) for weekly views.",
+        "summary": "For trend questions, prefer TradeRequest.RequestDate, ComplianceAlert.AlertDate, and ApprovalWorkflow.ReviewDate. Group using strftime('%Y-%m', date_col) for monthly trends or strftime('%Y-W%W', date_col) for weekly views.",
         "tables": ["TradeRequest", "ComplianceAlert", "ApprovalWorkflow", "BrokerDealer", "Employee"],
         "relevant_columns": ["RequestDate", "AlertDate", "ReviewDate", "Status", "Severity", "Department", "BrokerDealerName"],
         "join_columns": ["BrokerDealerID", "EmployeeID", "TradeRequestID", "ReviewerID"],
         "sql_template": (
-            "SELECT FORMAT(tr.RequestDate, 'yyyy-MM') AS month_key, bd.BrokerDealerName AS broker_dealer, COUNT(tr.TradeRequestID) AS request_count "
+            "SELECT strftime('%Y-%m', tr.RequestDate) AS month_key, bd.BrokerDealerName AS broker_dealer, COUNT(tr.TradeRequestID) AS request_count "
             "FROM TradeRequest tr "
             "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
-            "WHERE tr.RequestDate >= DATEADD(MONTH, -6, GETDATE()) "
-            "GROUP BY FORMAT(tr.RequestDate, 'yyyy-MM'), bd.BrokerDealerName "
+            "WHERE tr.RequestDate >= date('now', '-6 months') "
+            "GROUP BY strftime('%Y-%m', tr.RequestDate), bd.BrokerDealerName "
             "ORDER BY month_key ASC, request_count DESC"
         ),
         "tags": ["schema", "trend", "time_series", "broker", "department"]
@@ -110,7 +110,7 @@ SELECT
     CAST(
         100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END)
         / NULLIF(COUNT(tr.TradeRequestID), 0)
-    AS DECIMAL(5,2)) AS rejection_rate_pct
+    AS REAL) AS rejection_rate_pct
 FROM BrokerDealer bd
 LEFT JOIN TradeRequest tr ON tr.BrokerDealerID = bd.BrokerDealerID
 GROUP BY bd.BrokerDealerID, bd.BrokerDealerName, bd.Country
@@ -155,7 +155,7 @@ SELECT
     CAST(
         100.0 * SUM(CASE WHEN tr.Status IN ('Rejected','Escalated') THEN 1 ELSE 0 END)
         / NULLIF(COUNT(tr.TradeRequestID), 0)
-    AS DECIMAL(5,2)) AS non_approval_rate_pct
+    AS REAL) AS non_approval_rate_pct
 FROM Employee e
 LEFT JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
 GROUP BY e.Department
@@ -190,8 +190,7 @@ ORDER BY total_requests DESC
         "what": "Trade requests per security symbol (top 10 by volume)",
         "how": "Count and sum trade quantity per symbol, show top 10 most traded",
         "sql": """
-SELECT TOP 10
-    tr.SecuritySymbol                AS security_symbol,
+SELECT  tr.SecuritySymbol                AS security_symbol,
     COUNT(tr.TradeRequestID)         AS request_count,
     SUM(tr.Quantity)                 AS total_quantity,
     SUM(CASE WHEN tr.TradeType = 'BUY'  THEN tr.Quantity ELSE 0 END) AS buy_quantity,
@@ -201,7 +200,7 @@ SELECT TOP 10
 FROM TradeRequest tr
 LEFT JOIN RestrictedSecurity rs ON rs.SecuritySymbol = tr.SecuritySymbol
 GROUP BY tr.SecuritySymbol
-ORDER BY request_count DESC
+ORDER BY request_count DESC LIMIT 10
 """.strip(),
         "signal_method": "rule_based",
         "embed_text_template": (
@@ -240,7 +239,7 @@ SELECT
     CAST(
         100.0 * COUNT(tr.TradeRequestID)
         / NULLIF((SELECT COUNT(*) FROM TradeRequest), 0)
-    AS DECIMAL(5,2))                         AS pct_of_total,
+    AS REAL)                         AS pct_of_total,
     SUM(CASE WHEN tr.Status = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
     SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count
 FROM TradeRequest tr
@@ -276,15 +275,15 @@ ORDER BY request_count DESC
         "how": "Count requests grouped by month and status",
         "sql": """
 SELECT
-    FORMAT(tr.RequestDate, 'yyyy-MM')        AS request_month,
+    strftime('%Y-%m', tr.RequestDate)        AS request_month,
     COUNT(tr.TradeRequestID)                 AS total_requests,
     SUM(CASE WHEN tr.Status = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
     SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
     SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,
     SUM(CASE WHEN tr.Status = 'Pending'   THEN 1 ELSE 0 END) AS pending_count
 FROM TradeRequest tr
-WHERE tr.RequestDate >= DATEADD(MONTH, -6, GETDATE())
-GROUP BY FORMAT(tr.RequestDate, 'yyyy-MM')
+WHERE tr.RequestDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', tr.RequestDate)
 ORDER BY request_month ASC
 """.strip(),
         "signal_method": "rule_based",
@@ -338,7 +337,7 @@ FROM TradeRequest tr
 -- date overlap: request falls within restriction window
 JOIN RestrictedSecurity rs
     ON tr.SecuritySymbol = rs.SecuritySymbol
-    AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31')
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
 JOIN Employee e ON e.EmployeeID = tr.EmployeeID
 JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
 ORDER BY tr.RequestDate DESC
@@ -382,7 +381,7 @@ SELECT
 FROM TradeRequest tr
 JOIN RestrictedSecurity rs
     ON tr.SecuritySymbol = rs.SecuritySymbol
-    AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31')
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
 GROUP BY rs.RestrictionType
 ORDER BY violation_count DESC
 """.strip(),
@@ -425,7 +424,7 @@ SELECT
 FROM TradeRequest tr
 JOIN RestrictedSecurity rs
     ON tr.SecuritySymbol = rs.SecuritySymbol
-    AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31')
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
 JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
 GROUP BY bd.BrokerDealerID, bd.BrokerDealerName, bd.Country
 ORDER BY violation_count DESC
@@ -468,7 +467,7 @@ SELECT
 FROM TradeRequest tr
 JOIN RestrictedSecurity rs
     ON tr.SecuritySymbol = rs.SecuritySymbol
-    AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31')
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
 JOIN Employee e ON e.EmployeeID = tr.EmployeeID
 GROUP BY e.Department
 ORDER BY violation_count DESC
@@ -561,8 +560,8 @@ FROM RestrictedSecurity rs
 -- active restriction: EndDate is NULL (no end set) or in the future
 JOIN TradeRequest tr
     ON tr.SecuritySymbol = rs.SecuritySymbol
-    AND tr.RequestDate >= DATEADD(DAY, -30, GETDATE())
-WHERE rs.EndDate IS NULL OR rs.EndDate >= GETDATE()
+    AND tr.RequestDate >= date('now', '-30 days')
+WHERE rs.EndDate IS NULL OR rs.EndDate >= date('now')
 GROUP BY rs.RestrictionID, rs.SecuritySymbol, rs.RestrictionType,
          rs.StartDate, rs.Reason, rs.AddedBy
 ORDER BY recent_trade_attempts DESC
@@ -602,7 +601,7 @@ ORDER BY recent_trade_attempts DESC
         "how": "Count alerts per month, break down by severity and status",
         "sql": """
 SELECT
-    FORMAT(ca.AlertDate, 'yyyy-MM')          AS alert_month,
+    strftime('%Y-%m', ca.AlertDate)          AS alert_month,
     COUNT(ca.AlertID)                        AS total_alerts,
     SUM(CASE WHEN ca.Severity = 'Critical' THEN 1 ELSE 0 END) AS critical_count,
     SUM(CASE WHEN ca.Severity = 'High'     THEN 1 ELSE 0 END) AS high_count,
@@ -610,8 +609,8 @@ SELECT
     SUM(CASE WHEN ca.Severity = 'Low'      THEN 1 ELSE 0 END) AS low_count,
     SUM(CASE WHEN ca.Status IN ('Open','Investigating') THEN 1 ELSE 0 END) AS open_count
 FROM ComplianceAlert ca
-WHERE ca.AlertDate >= DATEADD(MONTH, -6, GETDATE())
-GROUP BY FORMAT(ca.AlertDate, 'yyyy-MM')
+WHERE ca.AlertDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', ca.AlertDate)
 ORDER BY alert_month ASC
 """.strip(),
         "signal_method": "rule_based",
@@ -645,14 +644,14 @@ ORDER BY alert_month ASC
         "how": "Count requests per ISO week with status breakdown",
         "sql": """
 SELECT
-    FORMAT(tr.RequestDate, 'yyyy-') + 'W' + RIGHT('0' + CAST(DATEPART(ISO_WEEK, tr.RequestDate) AS VARCHAR), 2) AS request_week,
+    strftime('%Y-W%W', tr.RequestDate)        AS request_week,
     COUNT(tr.TradeRequestID)                 AS total_requests,
     SUM(CASE WHEN tr.Status = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
     SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
     SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count
 FROM TradeRequest tr
-WHERE tr.RequestDate >= DATEADD(WEEK, -8, GETDATE())
-GROUP BY FORMAT(tr.RequestDate, 'yyyy-') + 'W' + RIGHT('0' + CAST(DATEPART(ISO_WEEK, tr.RequestDate) AS VARCHAR), 2)
+WHERE tr.RequestDate >= date('now', '-8 weeks')
+GROUP BY strftime('%Y-W%W', tr.RequestDate)
 ORDER BY request_week ASC
 """.strip(),
         "signal_method": "rule_based",
@@ -685,18 +684,18 @@ ORDER BY request_week ASC
         "how": "Compute rejection rate per broker per month",
         "sql": """
 SELECT
-    FORMAT(tr.RequestDate, 'yyyy-MM')        AS request_month,
+    strftime('%Y-%m', tr.RequestDate)        AS request_month,
     bd.BrokerDealerName                      AS broker_dealer,
     COUNT(tr.TradeRequestID)                 AS total_requests,
     SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_count,
     CAST(
         100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END)
         / NULLIF(COUNT(tr.TradeRequestID), 0)
-    AS DECIMAL(5,2)) AS rejection_rate_pct
+    AS REAL) AS rejection_rate_pct
 FROM TradeRequest tr
 JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
-WHERE tr.RequestDate >= DATEADD(MONTH, -6, GETDATE())
-GROUP BY FORMAT(tr.RequestDate, 'yyyy-MM'), bd.BrokerDealerID, bd.BrokerDealerName
+WHERE tr.RequestDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', tr.RequestDate), bd.BrokerDealerID, bd.BrokerDealerName
 ORDER BY request_month ASC, rejection_rate_pct DESC
 """.strip(),
         "signal_method": "llm_summary",
@@ -729,18 +728,18 @@ ORDER BY request_month ASC, rejection_rate_pct DESC
         "how": "Count escalated requests per department per month over 6 months",
         "sql": """
 SELECT
-    FORMAT(tr.RequestDate, 'yyyy-MM')        AS request_month,
+    strftime('%Y-%m', tr.RequestDate)        AS request_month,
     e.Department                             AS department,
     COUNT(tr.TradeRequestID)                 AS total_requests,
     SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,
     CAST(
         100.0 * SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END)
         / NULLIF(COUNT(tr.TradeRequestID), 0)
-    AS DECIMAL(5,2)) AS escalation_rate_pct
+    AS REAL) AS escalation_rate_pct
 FROM TradeRequest tr
 JOIN Employee e ON e.EmployeeID = tr.EmployeeID
-WHERE tr.RequestDate >= DATEADD(MONTH, -6, GETDATE())
-GROUP BY FORMAT(tr.RequestDate, 'yyyy-MM'), e.Department
+WHERE tr.RequestDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', tr.RequestDate), e.Department
 ORDER BY request_month ASC, escalated_count DESC
 """.strip(),
         "signal_method": "llm_summary",
@@ -773,15 +772,15 @@ ORDER BY request_month ASC, escalated_count DESC
         "how": "Count alerts per severity per month over last 6 months",
         "sql": """
 SELECT
-    FORMAT(ca.AlertDate, 'yyyy-MM')          AS alert_month,
+    strftime('%Y-%m', ca.AlertDate)          AS alert_month,
     ca.Severity                              AS severity,
     COUNT(ca.AlertID)                        AS alert_count,
     SUM(CASE WHEN ca.Status = 'Open' THEN 1 ELSE 0 END)         AS open_count,
     SUM(CASE WHEN ca.Status = 'Closed' THEN 1 ELSE 0 END)       AS closed_count,
     SUM(CASE WHEN ca.Status = 'Escalated' THEN 1 ELSE 0 END)    AS escalated_count
 FROM ComplianceAlert ca
-WHERE ca.AlertDate >= DATEADD(MONTH, -6, GETDATE())
-GROUP BY FORMAT(ca.AlertDate, 'yyyy-MM'), ca.Severity
+WHERE ca.AlertDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', ca.AlertDate), ca.Severity
 ORDER BY alert_month ASC, ca.Severity ASC
 """.strip(),
         "signal_method": "rule_based",
@@ -873,7 +872,7 @@ SELECT
     ca.AlertDate                             AS alert_date,
     ca.Status                                AS status,
     ca.Description                           AS description,
-    DATEDIFF(DAY, ca.AlertDate, GETDATE())   AS days_open,
+    CAST(julianday(date('now')) - julianday(ca.AlertDate) AS INTEGER)   AS days_open,
     tr.SecuritySymbol                        AS security_symbol,
     bd.BrokerDealerName                      AS broker_dealer
 FROM ComplianceAlert ca
@@ -921,7 +920,7 @@ SELECT
     CAST(
         100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END)
         / NULLIF(COUNT(tr.TradeRequestID), 0)
-    AS DECIMAL(5,2)) AS rejection_rate_pct,
+    AS REAL) AS rejection_rate_pct,
     COUNT(DISTINCT ca.AlertID)               AS total_alerts,
     SUM(CASE WHEN ca.Severity IN ('Critical','High') THEN 1 ELSE 0 END) AS high_severity_alerts
 FROM BrokerDealer bd
@@ -1024,7 +1023,7 @@ SELECT
     CAST(
         100.0 * SUM(CASE WHEN aw.Decision = 'Approved' THEN 1 ELSE 0 END)
         / NULLIF(COUNT(aw.WorkflowID), 0)
-    AS DECIMAL(5,2)) AS approval_rate_pct,
+    AS REAL) AS approval_rate_pct,
     AVG(CAST(aw.TurnaroundDays AS FLOAT))    AS avg_turnaround_days
 FROM ApprovalWorkflow aw
 -- ReviewerID references Employee (reviewer is a compliance/risk employee)
@@ -1156,7 +1155,7 @@ SELECT
     tr.TradeType                             AS trade_type,
     tr.Quantity                              AS quantity,
     tr.RequestDate                           AS request_date,
-    DATEDIFF(DAY, tr.RequestDate, GETDATE()) AS days_waiting
+    CAST(julianday(date('now')) - julianday(tr.RequestDate) AS INTEGER) AS days_waiting
 FROM TradeRequest tr
 JOIN Employee e ON e.EmployeeID = tr.EmployeeID
 JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
@@ -1204,7 +1203,7 @@ SELECT
     tr.SecuritySymbol                        AS security_symbol,
     tr.TradeType                             AS trade_type,
     tr.RequestDate                           AS request_date,
-    DATEDIFF(DAY, tr.RequestDate, GETDATE()) AS days_waiting,
+    CAST(julianday(date('now')) - julianday(tr.RequestDate) AS INTEGER) AS days_waiting,
     aw.Decision                              AS current_decision,
     reviewer.EmployeeName                    AS reviewer_name
 FROM TradeRequest tr
@@ -1213,7 +1212,7 @@ JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
 LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID
 LEFT JOIN Employee reviewer ON reviewer.EmployeeID = aw.ReviewerID
 WHERE tr.Status = 'Pending'
-  AND tr.RequestDate < DATEADD(DAY, -3, GETDATE())
+  AND tr.RequestDate < date('now', '-3 days')
 ORDER BY days_waiting DESC
 """.strip(),
         "signal_method": "rule_based",
@@ -1250,8 +1249,7 @@ ORDER BY days_waiting DESC
         "what": "Securities ranked by total trade quantity",
         "how": "Sum Quantity per SecuritySymbol across all TradeRequests",
         "sql": """
-SELECT TOP 20
-    tr.SecuritySymbol                        AS security_symbol,
+SELECT  tr.SecuritySymbol                        AS security_symbol,
     COUNT(tr.TradeRequestID)                 AS request_count,
     SUM(tr.Quantity)                         AS total_quantity,
     SUM(CASE WHEN tr.TradeType = 'BUY'  THEN tr.Quantity ELSE 0 END) AS buy_quantity,
@@ -1260,7 +1258,7 @@ SELECT TOP 20
     COUNT(DISTINCT tr.BrokerDealerID)        AS unique_brokers
 FROM TradeRequest tr
 GROUP BY tr.SecuritySymbol
-ORDER BY total_quantity DESC
+ORDER BY total_quantity DESC LIMIT 20
 """.strip(),
         "signal_method": "rule_based",
         "embed_text_template": (
@@ -1341,9 +1339,9 @@ SELECT
     rs.EndDate                               AS end_date,
     rs.Reason                                AS reason,
     rs.AddedBy                               AS added_by,
-    DATEDIFF(DAY, rs.StartDate, GETDATE())   AS days_active
+    CAST(julianday(date('now')) - julianday(rs.StartDate) AS INTEGER)   AS days_active
 FROM RestrictedSecurity rs
-WHERE rs.EndDate IS NULL OR rs.EndDate >= GETDATE()
+WHERE rs.EndDate IS NULL OR rs.EndDate >= date('now')
 ORDER BY rs.RestrictionType ASC, rs.StartDate DESC
 """.strip(),
         "signal_method": "rule_based",
@@ -1434,7 +1432,7 @@ SELECT
     CAST(
         100.0 * SUM(CASE WHEN tr.Status IN ('Rejected','Escalated') THEN 1 ELSE 0 END)
         / NULLIF(COUNT(DISTINCT tr.TradeRequestID), 0)
-    AS DECIMAL(5,2)) AS non_approval_rate_pct
+    AS REAL) AS non_approval_rate_pct
 FROM Employee e
 LEFT JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
 LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
@@ -1479,7 +1477,7 @@ SELECT
     e.JobTitle                               AS job_title,
     e.HireDate                               AS hire_date,
     COUNT(tr.TradeRequestID)                 AS total_requests,
-    DATEDIFF(YEAR, e.HireDate, GETDATE())    AS years_of_service
+    (CAST(strftime('%Y', date('now')) AS INTEGER) - CAST(strftime('%Y', e.HireDate) AS INTEGER))    AS years_of_service
 FROM Employee e
 LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
 LEFT JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
@@ -1524,7 +1522,7 @@ SELECT
     CAST(
         1.0 * COUNT(DISTINCT ca.AlertID)
         / NULLIF(COUNT(DISTINCT e.EmployeeID), 0)
-    AS DECIMAL(5,2)) AS alerts_per_employee,
+    AS REAL) AS alerts_per_employee,
     SUM(CASE WHEN ca.Severity IN ('Critical','High') THEN 1 ELSE 0 END) AS high_severity_alerts
 FROM Employee e
 LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
@@ -1566,14 +1564,14 @@ SELECT
     e.Department                             AS department,
     e.JobTitle                               AS job_title,
     e.HireDate                               AS hire_date,
-    DATEDIFF(MONTH, e.HireDate, GETDATE())   AS months_of_service,
+    (CAST(strftime('%Y', date('now')) AS INTEGER) - CAST(strftime('%Y', e.HireDate) AS INTEGER)) * 12 + CAST(strftime('%m', date('now')) AS INTEGER) - CAST(strftime('%m', e.HireDate) AS INTEGER)   AS months_of_service,
     COUNT(DISTINCT tr.TradeRequestID)        AS total_requests,
     COUNT(DISTINCT ca.AlertID)               AS total_alerts,
     MAX(ca.Severity)                         AS max_severity
 FROM Employee e
 LEFT JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
 LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
-WHERE e.HireDate >= DATEADD(YEAR, -2, GETDATE())
+WHERE e.HireDate >= date('now', '-2 years')
   AND e.Status = 'Active'
 GROUP BY e.EmployeeID, e.EmployeeName, e.Department, e.JobTitle, e.HireDate
 ORDER BY total_alerts DESC, months_of_service ASC
@@ -1670,7 +1668,7 @@ SELECT
 FROM TradeRequest tr
 JOIN RestrictedSecurity rs
     ON tr.SecuritySymbol = rs.SecuritySymbol
-    AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31')
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
 JOIN Employee e ON e.EmployeeID = tr.EmployeeID
 GROUP BY e.Department, rs.RestrictionType
 ORDER BY violation_count DESC
@@ -1711,7 +1709,7 @@ SELECT
     CAST(
         100.0 * SUM(CASE WHEN aw.WorkflowID IS NULL THEN 1 ELSE 0 END)
         / NULLIF(COUNT(DISTINCT tr.TradeRequestID), 0)
-    AS DECIMAL(5,2)) AS unreviewed_rate_pct,
+    AS REAL) AS unreviewed_rate_pct,
     COUNT(DISTINCT aw.ReviewerID)            AS distinct_reviewers
 FROM TradeRequest tr
 JOIN Employee e ON e.EmployeeID = tr.EmployeeID
@@ -1749,8 +1747,7 @@ ORDER BY unreviewed_rate_pct DESC
         "what": "Full cross-table risk profile joining Employee, TradeRequest, ComplianceAlert, ApprovalWorkflow, RestrictedSecurity",
         "how": "Five-table join to identify the most high-risk trade instances with all context",
         "sql": """
-SELECT TOP 50
-    e.EmployeeName                           AS employee_name,
+SELECT  e.EmployeeName                           AS employee_name,
     e.Department                             AS department,
     e.JobTitle                               AS job_title,
     tr.TradeRequestID                        AS trade_request_id,
@@ -1774,9 +1771,9 @@ JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID
 -- Only include trades that also hit a restriction
 JOIN RestrictedSecurity rs
     ON tr.SecuritySymbol = rs.SecuritySymbol
-    AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31')
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
 LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID
-ORDER BY ca.Severity DESC, tr.RequestDate DESC
+ORDER BY ca.Severity DESC, tr.RequestDate DESC LIMIT 50
 """.strip(),
         "signal_method": "llm_summary",
         "embed_text_template": (
@@ -1820,7 +1817,7 @@ SELECT
     CAST(
         100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END)
         / NULLIF(COUNT(tr.TradeRequestID), 0)
-    AS DECIMAL(5,2)) AS rejection_rate_pct
+    AS REAL) AS rejection_rate_pct
 FROM Employee e
 JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
 GROUP BY e.EmployeeID, e.EmployeeName, e.Department, e.JobTitle
@@ -1889,7 +1886,7 @@ SELECT
     COUNT(DISTINCT tr.TradeRequestID)    AS total_requests,
     SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_requests,
     COUNT(DISTINCT ca.AlertID)           AS total_alerts,
-    CAST(100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT tr.TradeRequestID), 0) AS DECIMAL(5,2)) as rejection_rate_pct
+    CAST(100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT tr.TradeRequestID), 0) AS REAL) as rejection_rate_pct
 FROM BrokerDealer bd
 JOIN Account a ON a.BrokerDealerID = bd.BrokerDealerID
 LEFT JOIN TradeRequest tr ON tr.EmployeeID = a.EmployeeID
@@ -1924,7 +1921,7 @@ SELECT
     e.JobTitle                           AS job_title,
     COUNT(DISTINCT e.EmployeeID)         AS total_employees,
     COUNT(ca.AlertID)                    AS total_alerts,
-    CAST(COUNT(ca.AlertID) * 1.0 / NULLIF(COUNT(DISTINCT e.EmployeeID), 0) AS DECIMAL(5,2)) AS alerts_per_employee
+    CAST(COUNT(ca.AlertID) * 1.0 / NULLIF(COUNT(DISTINCT e.EmployeeID), 0) AS REAL) AS alerts_per_employee
 FROM Employee e
 LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
 GROUP BY e.JobTitle
@@ -2098,24 +2095,24 @@ ORDER BY avg_turnaround_days DESC
         "what": "50 random compliance records spanning all five core tables",
         "how": "Random TOP 50 via NEWID() joining Employee, TradeRequest, BrokerDealer, ComplianceAlert, ApprovalWorkflow, and RestrictedSecurity",
         "sql": (
-            "SELECT TOP 50 "
+            "SELECT  "
             "e.EmployeeName AS employee_name, e.Department AS department, "
             "bd.BrokerDealerName AS broker_dealer, bd.Country AS broker_country, "
             "tr.SecuritySymbol AS security_symbol, tr.TradeType AS trade_type, "
             "tr.Status AS trade_status, tr.Quantity AS quantity, "
-            "CONVERT(VARCHAR, tr.RequestDate, 23) AS request_date, "
+            "tr.RequestDate AS request_date, "
             "ca.AlertType AS alert_type, ca.Severity AS severity, ca.Status AS alert_status, "
             "aw.Decision AS review_decision, aw.TurnaroundDays AS turnaround_days, "
             "rs.RestrictionType AS restriction_type, "
-            "CONVERT(VARCHAR, rs.StartDate, 23) AS restriction_start "
+            "rs.StartDate AS restriction_start "
             "FROM TradeRequest tr "
             "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
             "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
             "LEFT JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID "
             "LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID "
             "LEFT JOIN RestrictedSecurity rs ON rs.SecuritySymbol = tr.SecuritySymbol "
-            "AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31') "
-            "ORDER BY NEWID()"
+            "AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31') "
+            "ORDER BY random() LIMIT 50"
         ),
         "signal_method": "sample",
         "embed_text_template": (
@@ -2146,20 +2143,20 @@ ORDER BY avg_turnaround_days DESC
         "what": "50 random records where a trade occurred while the security was under active restriction",
         "how": "Random TOP 50 via NEWID() joining TradeRequest to RestrictedSecurity on date-overlap, with Employee and BrokerDealer",
         "sql": (
-            "SELECT TOP 50 "
+            "SELECT  "
             "e.EmployeeName AS employee_name, e.Department AS department, "
             "bd.BrokerDealerName AS broker_dealer, "
             "tr.SecuritySymbol AS security_symbol, rs.RestrictionType AS restriction_type, "
             "tr.TradeType AS trade_type, tr.Status AS trade_status, tr.Quantity AS quantity, "
-            "CONVERT(VARCHAR, tr.RequestDate, 23) AS request_date, "
-            "CONVERT(VARCHAR, rs.StartDate, 23) AS restriction_start, "
-            "CONVERT(VARCHAR, ISNULL(rs.EndDate, '9999-12-31'), 23) AS restriction_end "
+            "tr.RequestDate AS request_date, "
+            "rs.StartDate AS restriction_start, "
+            "CONVERT(VARCHAR, COALESCE(rs.EndDate, '9999-12-31'), 23) AS restriction_end "
             "FROM TradeRequest tr "
             "JOIN RestrictedSecurity rs ON rs.SecuritySymbol = tr.SecuritySymbol "
-            "AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31') "
+            "AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31') "
             "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
             "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
-            "ORDER BY NEWID()"
+            "ORDER BY random() LIMIT 50"
         ),
         "signal_method": "sample",
         "embed_text_template": (
@@ -2190,13 +2187,13 @@ ORDER BY avg_turnaround_days DESC
         "what": "50 random records with Critical or High severity alerts that are still open or under investigation",
         "how": "Random TOP 50 via NEWID() joining TradeRequest to ComplianceAlert on Critical/High severity and open status, with Employee, BrokerDealer, and ApprovalWorkflow",
         "sql": (
-            "SELECT TOP 50 "
+            "SELECT  "
             "e.EmployeeName AS employee_name, e.Department AS department, "
             "bd.BrokerDealerName AS broker_dealer, "
             "tr.SecuritySymbol AS security_symbol, tr.TradeType AS trade_type, tr.Status AS trade_status, "
-            "CONVERT(VARCHAR, tr.RequestDate, 23) AS request_date, "
+            "tr.RequestDate AS request_date, "
             "ca.AlertType AS alert_type, ca.Severity AS severity, ca.Status AS alert_status, "
-            "CONVERT(VARCHAR, ca.AlertDate, 23) AS alert_date, "
+            "ca.AlertDate AS alert_date, "
             "aw.Decision AS review_decision, aw.TurnaroundDays AS turnaround_days "
             "FROM TradeRequest tr "
             "JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID "
@@ -2205,7 +2202,7 @@ ORDER BY avg_turnaround_days DESC
             "LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID "
             "WHERE ca.Severity IN ('Critical', 'High') "
             "AND ca.Status IN ('Open', 'Investigating') "
-            "ORDER BY NEWID()"
+            "ORDER BY random() LIMIT 50"
         ),
         "signal_method": "sample",
         "embed_text_template": (
