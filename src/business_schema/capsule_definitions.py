@@ -824,7 +824,7 @@ SELECT
     e.JobTitle                               AS job_title,
     COUNT(ca.AlertID)                        AS total_alerts,
     COUNT(DISTINCT ca.AlertType)             AS distinct_alert_types,
-    (SELECT GROUP_CONCAT(DISTINCT ca2.AlertType, ', ') FROM ComplianceAlert ca2 WHERE ca2.EmployeeID = e.EmployeeID) AS alert_types_list,
+    (SELECT REPLACE(GROUP_CONCAT(DISTINCT ca2.AlertType), ',', ', ') FROM ComplianceAlert ca2 WHERE ca2.EmployeeID = e.EmployeeID) AS alert_types_list,
     MAX(ca.Severity)                         AS max_severity,
     SUM(CASE WHEN ca.Status IN ('Open','Investigating') THEN 1 ELSE 0 END) AS unresolved_alerts
 FROM Employee e
@@ -1617,7 +1617,7 @@ SELECT
     COUNT(DISTINCT tr.BrokerDealerID)        AS broker_dealers_involved,
     COUNT(DISTINCT ca.AlertID)               AS total_alerts,
     COUNT(DISTINCT ca.AlertType)             AS distinct_alert_types,
-    (SELECT GROUP_CONCAT(DISTINCT bd2.BrokerDealerName, ' | ') FROM Account a2 JOIN BrokerDealer bd2 ON a2.BrokerDealerID = bd2.BrokerDealerID WHERE a2.EmployeeID = e.EmployeeID) AS broker_dealer_names,
+    (SELECT REPLACE(GROUP_CONCAT(DISTINCT bd2.BrokerDealerName), ',', ' | ') FROM Account a2 JOIN BrokerDealer bd2 ON a2.BrokerDealerID = bd2.BrokerDealerID WHERE a2.EmployeeID = e.EmployeeID) AS broker_dealer_names,
     MAX(ca.Severity)                         AS max_severity
 FROM Employee e
 JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
@@ -1989,7 +1989,7 @@ SELECT
     rs.SecuritySymbol                    AS security_symbol,
     COUNT(DISTINCT rs.RestrictionID)     AS restriction_count,
     COUNT(DISTINCT ca.AlertID)           AS alert_count,
-    (SELECT GROUP_CONCAT(DISTINCT rs2.RestrictionType, ', ') FROM RestrictedSecurity rs2 WHERE rs2.SecuritySymbol = rs.SecuritySymbol) AS restriction_types
+    (SELECT REPLACE(GROUP_CONCAT(DISTINCT rs2.RestrictionType), ',', ', ') FROM RestrictedSecurity rs2 WHERE rs2.SecuritySymbol = rs.SecuritySymbol) AS restriction_types
 FROM RestrictedSecurity rs
 JOIN TradeRequest tr ON tr.SecuritySymbol = rs.SecuritySymbol
 JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID
