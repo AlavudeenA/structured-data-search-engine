@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-04-17T19:56:53.735754+00:00",
+  "built_at": "2026-04-17T06:58:05.371187+00:00",
   "edges": [
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -347,7 +347,7 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "trade_requests_by_department",
       "relationship": "corroborates",
-      "join_key": "6"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -377,7 +377,7 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "weekly_trade_request_volume",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "2"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -401,19 +401,19 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "reviewer_decision_distribution",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "1"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "pending_requests_no_review",
       "relationship": "drills_down",
-      "join_key": "Goldman Sachs"
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "requests_pending_over_3_days",
       "relationship": "drills_down",
-      "join_key": "Charles Schwab"
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -425,13 +425,13 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "department_compliance_scorecard",
       "relationship": "corroborates",
-      "join_key": "6"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "employees_zero_alerts",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -443,7 +443,7 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "6"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -455,7 +455,7 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "trade_requests_by_employee",
       "relationship": "corroborates",
-      "join_key": "8"
+      "join_key": "25.00"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -467,13 +467,13 @@
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Charles Schwab"
     },
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -491,19 +491,19 @@
       "from_id": "trade_requests_by_department",
       "to_id": "trade_requests_by_trade_type",
       "relationship": "aggregates_up",
-      "join_key": "2"
+      "join_key": "6"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "monthly_request_volume",
       "relationship": "aggregates_up",
-      "join_key": "4"
+      "join_key": "6"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "violations_on_restricted_securities",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -515,13 +515,19 @@
       "from_id": "trade_requests_by_department",
       "to_id": "weekly_trade_request_volume",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "4"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "monthly_rejection_rate_by_broker_dealer",
       "relationship": "corroborates",
       "join_key": "3"
+    },
+    {
+      "from_id": "trade_requests_by_department",
+      "to_id": "employees_multiple_alert_types",
+      "relationship": "corroborates",
+      "join_key": "Trading"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -533,7 +539,7 @@
       "from_id": "trade_requests_by_department",
       "to_id": "broker_dealers_high_rejection_and_alerts",
       "relationship": "corroborates",
-      "join_key": "6"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -545,7 +551,7 @@
       "from_id": "trade_requests_by_department",
       "to_id": "reviewer_decision_distribution",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -575,7 +581,7 @@
       "from_id": "trade_requests_by_department",
       "to_id": "employees_zero_alerts",
       "relationship": "drills_down",
-      "join_key": "3"
+      "join_key": "Compliance"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -593,13 +599,13 @@
       "from_id": "trade_requests_by_department",
       "to_id": "department_restriction_type_concentration",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "drills_down",
-      "join_key": "33"
+      "join_key": "Compliance"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -629,13 +635,13 @@
       "from_id": "trade_requests_by_department",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "trade_requests_by_department",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Risk Management"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -653,7 +659,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "violations_on_restricted_securities",
       "relationship": "drills_down",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -683,7 +689,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "weekly_trade_request_volume",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "1"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -695,7 +701,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "high_severity_open_alerts",
       "relationship": "corroborates",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -707,7 +713,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "reviewer_decision_distribution",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "1"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -725,7 +731,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "securities_with_restriction_history",
       "relationship": "aggregates_up",
-      "join_key": "AMZN"
+      "join_key": "NVDA"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -737,7 +743,7 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
@@ -749,25 +755,25 @@
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "GOOG"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "IBM"
+      "join_key": "NVDA"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "NVDA"
     },
     {
       "from_id": "trade_requests_by_security_symbol",
       "to_id": "high_risk_records_sample",
       "relationship": "corroborates",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "trade_requests_by_trade_type",
@@ -947,7 +953,7 @@
       "from_id": "trade_requests_by_trade_type",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "BUY"
     },
     {
       "from_id": "trade_requests_by_trade_type",
@@ -1013,7 +1019,7 @@
       "from_id": "monthly_request_volume",
       "to_id": "broker_dealers_high_rejection_and_alerts",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "6"
     },
     {
       "from_id": "monthly_request_volume",
@@ -1061,7 +1067,7 @@
       "from_id": "monthly_request_volume",
       "to_id": "department_compliance_scorecard",
       "relationship": "drills_down",
-      "join_key": "4"
+      "join_key": "6"
     },
     {
       "from_id": "monthly_request_volume",
@@ -1091,7 +1097,7 @@
       "from_id": "monthly_request_volume",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "drills_down",
-      "join_key": "4"
+      "join_key": "6"
     },
     {
       "from_id": "monthly_request_volume",
@@ -1115,7 +1121,7 @@
       "from_id": "monthly_request_volume",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "2"
     },
     {
       "from_id": "monthly_request_volume",
@@ -1157,13 +1163,19 @@
       "from_id": "violations_on_restricted_securities",
       "to_id": "escalation_trend_by_department",
       "relationship": "aggregates_up",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
+    },
+    {
+      "from_id": "violations_on_restricted_securities",
+      "to_id": "employees_multiple_alert_types",
+      "relationship": "corroborates",
+      "join_key": "Trading"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "high_severity_open_alerts",
       "relationship": "corroborates",
-      "join_key": "Nancy Hall"
+      "join_key": "Amanda Martinez"
     },
     {
       "from_id": "violations_on_restricted_securities",
@@ -1181,31 +1193,31 @@
       "from_id": "violations_on_restricted_securities",
       "to_id": "avg_turnaround_by_department",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "pending_requests_no_review",
       "relationship": "corroborates",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "requests_pending_over_3_days",
       "relationship": "corroborates",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "most_traded_securities_by_volume",
       "relationship": "aggregates_up",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "securities_with_restriction_history",
       "relationship": "aggregates_up",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "violations_on_restricted_securities",
@@ -1217,55 +1229,61 @@
       "from_id": "violations_on_restricted_securities",
       "to_id": "department_compliance_scorecard",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "employees_zero_alerts",
       "relationship": "corroborates",
-      "join_key": "Robert Anderson"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "department_restriction_type_concentration",
       "relationship": "aggregates_up",
-      "join_key": "Watch List"
+      "join_key": "Blackout"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Nancy Hall"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "2026-02-05"
+    },
+    {
+      "from_id": "violations_on_restricted_securities",
+      "to_id": "high_risk_employee_broker_combinations",
+      "relationship": "corroborates",
+      "join_key": "Charles Schwab"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "average_approval_time_by_department",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_on_restricted_securities",
       "to_id": "high_risk_records_sample",
       "relationship": "corroborates",
-      "join_key": "Nancy Hall"
+      "join_key": "Trading"
     },
     {
       "from_id": "violations_by_restriction_type",
       "to_id": "violations_by_broker_dealer",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "violations_by_restriction_type",
@@ -1289,7 +1307,7 @@
       "from_id": "violations_by_restriction_type",
       "to_id": "most_traded_securities_by_volume",
       "relationship": "aggregates_up",
-      "join_key": "2"
+      "join_key": "6"
     },
     {
       "from_id": "violations_by_restriction_type",
@@ -1307,7 +1325,7 @@
       "from_id": "violations_by_restriction_type",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Watch List"
+      "join_key": "Blackout"
     },
     {
       "from_id": "violations_by_restriction_type",
@@ -1319,13 +1337,13 @@
       "from_id": "violations_by_restriction_type",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Watch List"
+      "join_key": "Blackout"
     },
     {
       "from_id": "violations_by_restriction_type",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Blackout"
     },
     {
       "from_id": "violations_by_broker_dealer",
@@ -1373,7 +1391,7 @@
       "from_id": "violations_by_broker_dealer",
       "to_id": "most_traded_securities_by_volume",
       "relationship": "aggregates_up",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "violations_by_broker_dealer",
@@ -1391,7 +1409,7 @@
       "from_id": "violations_by_broker_dealer",
       "to_id": "department_restriction_type_concentration",
       "relationship": "corroborates",
-      "join_key": "4"
+      "join_key": "6"
     },
     {
       "from_id": "violations_by_broker_dealer",
@@ -1404,6 +1422,12 @@
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
       "join_key": null
+    },
+    {
+      "from_id": "violations_by_broker_dealer",
+      "to_id": "high_risk_employee_broker_combinations",
+      "relationship": "corroborates",
+      "join_key": "Charles Schwab"
     },
     {
       "from_id": "violations_by_broker_dealer",
@@ -1439,7 +1463,13 @@
       "from_id": "violations_by_department",
       "to_id": "escalation_trend_by_department",
       "relationship": "aggregates_up",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
+    },
+    {
+      "from_id": "violations_by_department",
+      "to_id": "employees_multiple_alert_types",
+      "relationship": "corroborates",
+      "join_key": "Trading"
     },
     {
       "from_id": "violations_by_department",
@@ -1451,13 +1481,13 @@
       "from_id": "violations_by_department",
       "to_id": "escalation_patterns",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_by_department",
       "to_id": "avg_turnaround_by_department",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_by_department",
@@ -1493,13 +1523,13 @@
       "from_id": "violations_by_department",
       "to_id": "employees_zero_alerts",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_by_department",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_by_department",
@@ -1511,7 +1541,7 @@
       "from_id": "violations_by_department",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_by_department",
@@ -1523,19 +1553,19 @@
       "from_id": "violations_by_department",
       "to_id": "average_approval_time_by_department",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_by_department",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_by_department",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Risk Management"
     },
     {
       "from_id": "violations_by_department",
@@ -1565,7 +1595,7 @@
       "from_id": "repeat_violators",
       "to_id": "alert_severity_trend",
       "relationship": "aggregates_up",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "repeat_violators",
@@ -1583,19 +1613,19 @@
       "from_id": "repeat_violators",
       "to_id": "pending_requests_no_review",
       "relationship": "corroborates",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "requests_pending_over_3_days",
       "relationship": "corroborates",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "securities_in_restrictions_and_alerts",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "repeat_violators",
@@ -1607,13 +1637,13 @@
       "from_id": "repeat_violators",
       "to_id": "employees_zero_alerts",
       "relationship": "drills_down",
-      "join_key": "Associate"
+      "join_key": "Analyst"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "alert_rate_by_job_title",
       "relationship": "same_entity",
-      "join_key": "Senior Analyst"
+      "join_key": "Senior Trader"
     },
     {
       "from_id": "repeat_violators",
@@ -1637,19 +1667,19 @@
       "from_id": "repeat_violators",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Nancy Hall"
+      "join_key": "Senior Trader"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "trade_requests_by_employee",
       "relationship": "corroborates",
-      "join_key": "Nancy Hall"
+      "join_key": "Senior Trader"
     },
     {
       "from_id": "repeat_violators",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Amanda Martinez"
     },
     {
       "from_id": "repeat_violators",
@@ -1661,7 +1691,7 @@
       "from_id": "repeat_violators",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Nancy Hall"
+      "join_key": "Trading"
     },
     {
       "from_id": "active_restrictions_recent_trade_attempts",
@@ -1685,7 +1715,7 @@
       "from_id": "active_restrictions_recent_trade_attempts",
       "to_id": "most_traded_securities_by_volume",
       "relationship": "aggregates_up",
-      "join_key": "META"
+      "join_key": "1"
     },
     {
       "from_id": "active_restrictions_recent_trade_attempts",
@@ -1709,7 +1739,7 @@
       "from_id": "active_restrictions_recent_trade_attempts",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Watch List"
+      "join_key": "Regulatory review underway"
     },
     {
       "from_id": "active_restrictions_recent_trade_attempts",
@@ -1727,7 +1757,7 @@
       "from_id": "active_restrictions_recent_trade_attempts",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "2026-02-01"
     },
     {
       "from_id": "active_restrictions_recent_trade_attempts",
@@ -1751,7 +1781,7 @@
       "from_id": "monthly_alert_volume_trend",
       "to_id": "employees_multiple_alert_types",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "5"
     },
     {
       "from_id": "monthly_alert_volume_trend",
@@ -1817,7 +1847,7 @@
       "from_id": "monthly_alert_volume_trend",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "2"
     },
     {
       "from_id": "monthly_alert_volume_trend",
@@ -1835,13 +1865,13 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "monthly_rejection_rate_by_broker_dealer",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "1"
     },
     {
       "from_id": "weekly_trade_request_volume",
       "to_id": "escalation_trend_by_department",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "1"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1853,13 +1883,19 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "broker_dealers_high_rejection_and_alerts",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "2"
     },
     {
       "from_id": "weekly_trade_request_volume",
       "to_id": "escalation_patterns",
       "relationship": "drills_down",
       "join_key": null
+    },
+    {
+      "from_id": "weekly_trade_request_volume",
+      "to_id": "reviewer_decision_distribution",
+      "relationship": "corroborates",
+      "join_key": "1"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1895,13 +1931,13 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "department_compliance_scorecard",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "4"
     },
     {
       "from_id": "weekly_trade_request_volume",
       "to_id": "employees_zero_alerts",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "1"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1925,7 +1961,7 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "4"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1937,7 +1973,7 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "trade_requests_by_employee",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "1"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1949,7 +1985,7 @@
       "from_id": "weekly_trade_request_volume",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "1"
     },
     {
       "from_id": "weekly_trade_request_volume",
@@ -1979,7 +2015,7 @@
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "escalation_trend_by_department",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "2026-04"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
@@ -1997,7 +2033,7 @@
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "broker_dealers_high_rejection_and_alerts",
       "relationship": "drills_down",
-      "join_key": "Charles Schwab"
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
@@ -2009,19 +2045,19 @@
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "reviewer_decision_distribution",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "1"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "pending_requests_no_review",
       "relationship": "drills_down",
-      "join_key": "Goldman Sachs"
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "requests_pending_over_3_days",
       "relationship": "drills_down",
-      "join_key": "Charles Schwab"
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
@@ -2075,19 +2111,19 @@
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Charles Schwab"
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Charles Schwab"
     },
     {
       "from_id": "monthly_rejection_rate_by_broker_dealer",
@@ -2103,6 +2139,12 @@
     },
     {
       "from_id": "escalation_trend_by_department",
+      "to_id": "employees_multiple_alert_types",
+      "relationship": "corroborates",
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "escalation_trend_by_department",
       "to_id": "high_severity_open_alerts",
       "relationship": "drills_down",
       "join_key": "Trading"
@@ -2111,19 +2153,19 @@
       "from_id": "escalation_trend_by_department",
       "to_id": "broker_dealers_high_rejection_and_alerts",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "reviewer_decision_distribution",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "1"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "avg_turnaround_by_department",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "escalation_trend_by_department",
@@ -2147,13 +2189,13 @@
       "from_id": "escalation_trend_by_department",
       "to_id": "department_compliance_scorecard",
       "relationship": "drills_down",
-      "join_key": "3"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "employees_zero_alerts",
       "relationship": "drills_down",
-      "join_key": "1"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "escalation_trend_by_department",
@@ -2171,13 +2213,13 @@
       "from_id": "escalation_trend_by_department",
       "to_id": "department_restriction_type_concentration",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "drills_down",
-      "join_key": "3"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "escalation_trend_by_department",
@@ -2201,25 +2243,25 @@
       "from_id": "escalation_trend_by_department",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "1"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "average_approval_time_by_department",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "escalation_trend_by_department",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Risk Management"
     },
     {
       "from_id": "escalation_trend_by_department",
@@ -2249,7 +2291,7 @@
       "from_id": "alert_severity_trend",
       "to_id": "securities_in_restrictions_and_alerts",
       "relationship": "drills_down",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "alert_severity_trend",
@@ -2304,30 +2346,54 @@
       "to_id": "high_risk_records_sample",
       "relationship": "drills_down",
       "join_key": "Critical"
+    },
+    {
+      "from_id": "employees_multiple_alert_types",
+      "to_id": "broker_dealers_high_rejection_and_alerts",
+      "relationship": "corroborates",
+      "join_key": "3"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "escalation_patterns",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "employees_multiple_alert_types",
+      "to_id": "avg_turnaround_by_department",
+      "relationship": "corroborates",
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "employees_multiple_alert_types",
+      "to_id": "pending_requests_no_review",
+      "relationship": "corroborates",
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "employees_multiple_alert_types",
+      "to_id": "requests_pending_over_3_days",
+      "relationship": "corroborates",
+      "join_key": "Trading"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "department_compliance_scorecard",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Trading"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "employees_zero_alerts",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Analyst"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "alert_rate_by_job_title",
       "relationship": "same_entity",
-      "join_key": null
+      "join_key": "Analyst"
     },
     {
       "from_id": "employees_multiple_alert_types",
@@ -2343,27 +2409,57 @@
     },
     {
       "from_id": "employees_multiple_alert_types",
+      "to_id": "department_restriction_type_concentration",
+      "relationship": "corroborates",
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "employees_multiple_alert_types",
+      "to_id": "reviewer_coverage_gaps",
+      "relationship": "corroborates",
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "employees_multiple_alert_types",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Analyst"
+    },
+    {
+      "from_id": "employees_multiple_alert_types",
+      "to_id": "trade_requests_by_employee",
+      "relationship": "corroborates",
+      "join_key": "Analyst"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "3"
+    },
+    {
+      "from_id": "employees_multiple_alert_types",
+      "to_id": "average_approval_time_by_department",
+      "relationship": "corroborates",
+      "join_key": "Trading"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "employees_multiple_alert_types",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Trading"
     },
     {
       "from_id": "employees_multiple_alert_types",
       "to_id": "high_risk_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Trading"
     },
     {
       "from_id": "high_severity_open_alerts",
@@ -2387,37 +2483,37 @@
       "from_id": "high_severity_open_alerts",
       "to_id": "pending_requests_no_review",
       "relationship": "corroborates",
-      "join_key": "Robinhood"
+      "join_key": "Trading"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "requests_pending_over_3_days",
       "relationship": "corroborates",
-      "join_key": "Charles Schwab"
+      "join_key": "Trading"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "most_traded_securities_by_volume",
       "relationship": "aggregates_up",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "securities_with_restriction_history",
       "relationship": "corroborates",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "currently_active_restrictions",
       "relationship": "corroborates",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "securities_in_restrictions_and_alerts",
       "relationship": "corroborates",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "high_severity_open_alerts",
@@ -2465,25 +2561,31 @@
       "from_id": "high_severity_open_alerts",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Nancy Hall"
+      "join_key": "Trading"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "GOOG"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Charles Schwab"
     },
     {
       "from_id": "high_severity_open_alerts",
       "to_id": "average_approval_time_by_department",
       "relationship": "corroborates",
       "join_key": "Trading"
+    },
+    {
+      "from_id": "high_severity_open_alerts",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Amanda Martinez"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
@@ -2495,13 +2597,13 @@
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "pending_requests_no_review",
       "relationship": "corroborates",
-      "join_key": "Goldman Sachs"
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "requests_pending_over_3_days",
       "relationship": "corroborates",
-      "join_key": "Charles Schwab"
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
@@ -2513,25 +2615,25 @@
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "department_compliance_scorecard",
       "relationship": "corroborates",
-      "join_key": "6"
+      "join_key": "3"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "employees_zero_alerts",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "3"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "alert_rate_by_job_title",
       "relationship": "corroborates",
-      "join_key": "1"
+      "join_key": "3"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "6"
+      "join_key": "3"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
@@ -2543,7 +2645,7 @@
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "trade_requests_by_employee",
       "relationship": "corroborates",
-      "join_key": "8"
+      "join_key": "25.00"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
@@ -2561,25 +2663,31 @@
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "3"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
+      "join_key": "TD Ameritrade"
+    },
+    {
+      "from_id": "broker_dealers_high_rejection_and_alerts",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
       "join_key": "Charles Schwab"
     },
     {
       "from_id": "escalation_patterns",
       "to_id": "avg_turnaround_by_department",
       "relationship": "aggregates_up",
-      "join_key": "3.0"
+      "join_key": "Compliance"
     },
     {
       "from_id": "escalation_patterns",
       "to_id": "avg_turnaround_by_reviewer",
       "relationship": "aggregates_up",
-      "join_key": "2.0"
+      "join_key": "5.0"
     },
     {
       "from_id": "escalation_patterns",
@@ -2633,7 +2741,7 @@
       "from_id": "escalation_patterns",
       "to_id": "department_restriction_type_concentration",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "escalation_patterns",
@@ -2663,19 +2771,25 @@
       "from_id": "escalation_patterns",
       "to_id": "average_approval_time_by_department",
       "relationship": "aggregates_up",
-      "join_key": "3.0"
+      "join_key": "Compliance"
     },
     {
       "from_id": "escalation_patterns",
       "to_id": "average_review_time_by_reviewer",
       "relationship": "aggregates_up",
-      "join_key": "2.0"
+      "join_key": "5.0"
     },
     {
       "from_id": "escalation_patterns",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "BUY"
+    },
+    {
+      "from_id": "escalation_patterns",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "BUY"
     },
     {
       "from_id": "escalation_patterns",
@@ -2687,7 +2801,7 @@
       "from_id": "reviewer_decision_distribution",
       "to_id": "avg_turnaround_by_department",
       "relationship": "drills_down",
-      "join_key": "3.0"
+      "join_key": null
     },
     {
       "from_id": "reviewer_decision_distribution",
@@ -2711,19 +2825,19 @@
       "from_id": "reviewer_decision_distribution",
       "to_id": "trade_requests_by_employee",
       "relationship": "corroborates",
-      "join_key": "2"
+      "join_key": "1"
     },
     {
       "from_id": "reviewer_decision_distribution",
       "to_id": "average_approval_time_by_department",
       "relationship": "drills_down",
-      "join_key": "3.0"
+      "join_key": "2"
     },
     {
       "from_id": "reviewer_decision_distribution",
       "to_id": "average_review_time_by_reviewer",
       "relationship": "same_entity",
-      "join_key": "5"
+      "join_key": "3"
     },
     {
       "from_id": "reviewer_decision_distribution",
@@ -2765,7 +2879,7 @@
       "from_id": "avg_turnaround_by_department",
       "to_id": "department_restriction_type_concentration",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "avg_turnaround_by_department",
@@ -2795,19 +2909,25 @@
       "from_id": "avg_turnaround_by_department",
       "to_id": "average_approval_time_by_department",
       "relationship": "same_entity",
-      "join_key": "1.25"
+      "join_key": "Compliance"
     },
     {
       "from_id": "avg_turnaround_by_department",
       "to_id": "average_review_time_by_reviewer",
       "relationship": "aggregates_up",
-      "join_key": "3.0"
+      "join_key": null
     },
     {
       "from_id": "avg_turnaround_by_department",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
+    },
+    {
+      "from_id": "avg_turnaround_by_department",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Risk Management"
     },
     {
       "from_id": "avg_turnaround_by_department",
@@ -2843,13 +2963,13 @@
       "from_id": "avg_turnaround_by_reviewer",
       "to_id": "average_approval_time_by_department",
       "relationship": "drills_down",
-      "join_key": "3.0"
+      "join_key": "2"
     },
     {
       "from_id": "avg_turnaround_by_reviewer",
       "to_id": "average_review_time_by_reviewer",
       "relationship": "same_entity",
-      "join_key": "5"
+      "join_key": "3"
     },
     {
       "from_id": "avg_turnaround_by_reviewer",
@@ -2897,19 +3017,25 @@
       "from_id": "pending_requests_no_review",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
     },
     {
       "from_id": "pending_requests_no_review",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
     },
     {
       "from_id": "pending_requests_no_review",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
       "join_key": null
+    },
+    {
+      "from_id": "pending_requests_no_review",
+      "to_id": "high_risk_employee_broker_combinations",
+      "relationship": "corroborates",
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "pending_requests_no_review",
@@ -2927,13 +3053,19 @@
       "from_id": "pending_requests_no_review",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "pending_requests_no_review",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Trading"
     },
     {
       "from_id": "pending_requests_no_review",
       "to_id": "high_risk_records_sample",
       "relationship": "drills_down",
-      "join_key": "Robinhood"
+      "join_key": "Trading"
     },
     {
       "from_id": "requests_pending_over_3_days",
@@ -2951,7 +3083,7 @@
       "from_id": "requests_pending_over_3_days",
       "to_id": "employees_zero_alerts",
       "relationship": "corroborates",
-      "join_key": "Paul Walker"
+      "join_key": "Trading"
     },
     {
       "from_id": "requests_pending_over_3_days",
@@ -2969,19 +3101,25 @@
       "from_id": "requests_pending_over_3_days",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
     },
     {
       "from_id": "requests_pending_over_3_days",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
     },
     {
       "from_id": "requests_pending_over_3_days",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
       "join_key": null
+    },
+    {
+      "from_id": "requests_pending_over_3_days",
+      "to_id": "high_risk_employee_broker_combinations",
+      "relationship": "corroborates",
+      "join_key": "TD Ameritrade"
     },
     {
       "from_id": "requests_pending_over_3_days",
@@ -2999,25 +3137,31 @@
       "from_id": "requests_pending_over_3_days",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Michael Brown"
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "requests_pending_over_3_days",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Trading"
     },
     {
       "from_id": "requests_pending_over_3_days",
       "to_id": "high_risk_records_sample",
       "relationship": "drills_down",
-      "join_key": "Charles Schwab"
+      "join_key": "Trading"
     },
     {
       "from_id": "most_traded_securities_by_volume",
       "to_id": "currently_active_restrictions",
       "relationship": "corroborates",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "most_traded_securities_by_volume",
       "to_id": "securities_in_restrictions_and_alerts",
       "relationship": "drills_down",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "most_traded_securities_by_volume",
@@ -3059,7 +3203,7 @@
       "from_id": "most_traded_securities_by_volume",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "most_traded_securities_by_volume",
@@ -3071,7 +3215,7 @@
       "from_id": "most_traded_securities_by_volume",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "same_entity",
-      "join_key": null
+      "join_key": "GOOG"
     },
     {
       "from_id": "most_traded_securities_by_volume",
@@ -3089,25 +3233,25 @@
       "from_id": "most_traded_securities_by_volume",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "IBM"
+      "join_key": "NVDA"
     },
     {
       "from_id": "most_traded_securities_by_volume",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "NVDA"
     },
     {
       "from_id": "most_traded_securities_by_volume",
       "to_id": "high_risk_records_sample",
       "relationship": "drills_down",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "securities_with_restriction_history",
       "to_id": "securities_in_restrictions_and_alerts",
       "relationship": "drills_down",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "securities_with_restriction_history",
@@ -3119,25 +3263,31 @@
       "from_id": "securities_with_restriction_history",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "META"
+      "join_key": "NVDA"
+    },
+    {
+      "from_id": "securities_with_restriction_history",
+      "to_id": "daily_trading_concentration_by_security",
+      "relationship": "corroborates",
+      "join_key": "GOOG"
     },
     {
       "from_id": "securities_with_restriction_history",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "AMZN"
+      "join_key": "NVDA"
     },
     {
       "from_id": "securities_with_restriction_history",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "NVDA"
     },
     {
       "from_id": "securities_with_restriction_history",
       "to_id": "high_risk_records_sample",
       "relationship": "corroborates",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "currently_active_restrictions",
@@ -3153,6 +3303,12 @@
     },
     {
       "from_id": "currently_active_restrictions",
+      "to_id": "daily_trading_concentration_by_security",
+      "relationship": "corroborates",
+      "join_key": "GOOG"
+    },
+    {
+      "from_id": "currently_active_restrictions",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
       "join_key": "Watch List"
@@ -3161,43 +3317,49 @@
       "from_id": "currently_active_restrictions",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Watch List"
     },
     {
       "from_id": "currently_active_restrictions",
       "to_id": "high_risk_records_sample",
       "relationship": "corroborates",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "securities_in_restrictions_and_alerts",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "securities_in_restrictions_and_alerts",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "GOOG"
     },
     {
       "from_id": "securities_in_restrictions_and_alerts",
       "to_id": "securities_in_restrictions_and_alerts",
       "relationship": "same_entity",
-      "join_key": null
+      "join_key": "3"
     },
     {
       "from_id": "securities_in_restrictions_and_alerts",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "META"
+      "join_key": "NVDA"
+    },
+    {
+      "from_id": "securities_in_restrictions_and_alerts",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "NVDA"
     },
     {
       "from_id": "securities_in_restrictions_and_alerts",
       "to_id": "high_risk_records_sample",
       "relationship": "corroborates",
-      "join_key": "META"
+      "join_key": "NVDA"
     },
     {
       "from_id": "department_compliance_scorecard",
@@ -3209,13 +3371,13 @@
       "from_id": "department_compliance_scorecard",
       "to_id": "department_restriction_type_concentration",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "department_compliance_scorecard",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "33"
+      "join_key": "Compliance"
     },
     {
       "from_id": "department_compliance_scorecard",
@@ -3227,7 +3389,7 @@
       "from_id": "department_compliance_scorecard",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "4"
+      "join_key": "3"
     },
     {
       "from_id": "department_compliance_scorecard",
@@ -3239,7 +3401,7 @@
       "from_id": "department_compliance_scorecard",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "1"
     },
     {
       "from_id": "department_compliance_scorecard",
@@ -3251,7 +3413,13 @@
       "from_id": "department_compliance_scorecard",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
+    },
+    {
+      "from_id": "department_compliance_scorecard",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Risk Management"
     },
     {
       "from_id": "department_compliance_scorecard",
@@ -3263,7 +3431,7 @@
       "from_id": "employees_zero_alerts",
       "to_id": "alert_rate_by_job_title",
       "relationship": "aggregates_up",
-      "join_key": "Counsel"
+      "join_key": "Risk Analyst"
     },
     {
       "from_id": "employees_zero_alerts",
@@ -3275,25 +3443,25 @@
       "from_id": "employees_zero_alerts",
       "to_id": "department_restriction_type_concentration",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "employees_zero_alerts",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "3"
+      "join_key": "Compliance"
     },
     {
       "from_id": "employees_zero_alerts",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Associate"
+      "join_key": "Analyst"
     },
     {
       "from_id": "employees_zero_alerts",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Rachel Patel"
+      "join_key": "David Lee"
     },
     {
       "from_id": "employees_zero_alerts",
@@ -3305,7 +3473,7 @@
       "from_id": "employees_zero_alerts",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "1"
     },
     {
       "from_id": "employees_zero_alerts",
@@ -3317,7 +3485,13 @@
       "from_id": "employees_zero_alerts",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Rachel Patel"
+      "join_key": "Risk Management"
+    },
+    {
+      "from_id": "employees_zero_alerts",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Risk Management"
     },
     {
       "from_id": "employees_zero_alerts",
@@ -3341,25 +3515,25 @@
       "from_id": "alert_rate_by_job_title",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Senior Analyst"
+      "join_key": "Senior Trader"
     },
     {
       "from_id": "alert_rate_by_job_title",
       "to_id": "trade_requests_by_employee",
       "relationship": "corroborates",
-      "join_key": "Senior Analyst"
+      "join_key": "Risk Analyst"
     },
     {
       "from_id": "alert_rate_by_job_title",
       "to_id": "alert_rate_by_job_title",
       "relationship": "corroborates",
-      "join_key": "Senior Analyst"
+      "join_key": "Risk Analyst"
     },
     {
       "from_id": "alert_rate_by_job_title",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "3"
     },
     {
       "from_id": "alert_rate_by_job_title",
@@ -3461,63 +3635,63 @@
       "from_id": "department_restriction_type_concentration",
       "to_id": "reviewer_coverage_gaps",
       "relationship": "corroborates",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "department_restriction_type_concentration",
       "to_id": "full_risk_profile_join",
       "relationship": "drills_down",
-      "join_key": "Watch List"
+      "join_key": "Blackout"
     },
     {
       "from_id": "department_restriction_type_concentration",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "department_restriction_type_concentration",
       "to_id": "daily_trading_concentration_by_security",
-      "relationship": "aggregates_up",
-      "join_key": null
-    },
-    {
-      "from_id": "department_restriction_type_concentration",
-      "to_id": "average_approval_time_by_department",
-      "relationship": "corroborates",
-      "join_key": "Compliance"
-    },
-    {
-      "from_id": "department_restriction_type_concentration",
-      "to_id": "five_table_random_sample",
-      "relationship": "drills_down",
-      "join_key": "Watch List"
-    },
-    {
-      "from_id": "department_restriction_type_concentration",
-      "to_id": "violation_records_sample",
-      "relationship": "drills_down",
-      "join_key": null
-    },
-    {
-      "from_id": "department_restriction_type_concentration",
-      "to_id": "high_risk_records_sample",
-      "relationship": "corroborates",
-      "join_key": "Trading"
-    },
-    {
-      "from_id": "reviewer_coverage_gaps",
-      "to_id": "full_risk_profile_join",
-      "relationship": "drills_down",
-      "join_key": "Trading"
-    },
-    {
-      "from_id": "reviewer_coverage_gaps",
-      "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
       "join_key": "4"
     },
     {
+      "from_id": "department_restriction_type_concentration",
+      "to_id": "average_approval_time_by_department",
+      "relationship": "corroborates",
+      "join_key": "Risk Management"
+    },
+    {
+      "from_id": "department_restriction_type_concentration",
+      "to_id": "five_table_random_sample",
+      "relationship": "drills_down",
+      "join_key": "Blackout"
+    },
+    {
+      "from_id": "department_restriction_type_concentration",
+      "to_id": "violation_records_sample",
+      "relationship": "drills_down",
+      "join_key": "Blackout"
+    },
+    {
+      "from_id": "department_restriction_type_concentration",
+      "to_id": "high_risk_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "reviewer_coverage_gaps",
+      "to_id": "full_risk_profile_join",
+      "relationship": "drills_down",
+      "join_key": "Trading"
+    },
+    {
+      "from_id": "reviewer_coverage_gaps",
+      "to_id": "trade_requests_by_employee",
+      "relationship": "aggregates_up",
+      "join_key": "Compliance"
+    },
+    {
       "from_id": "reviewer_coverage_gaps",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
@@ -3539,7 +3713,13 @@
       "from_id": "reviewer_coverage_gaps",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
+    },
+    {
+      "from_id": "reviewer_coverage_gaps",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Risk Management"
     },
     {
       "from_id": "reviewer_coverage_gaps",
@@ -3551,13 +3731,19 @@
       "from_id": "full_risk_profile_join",
       "to_id": "trade_requests_by_employee",
       "relationship": "aggregates_up",
-      "join_key": "Nancy Hall"
+      "join_key": "Senior Trader"
     },
     {
       "from_id": "full_risk_profile_join",
       "to_id": "daily_trading_concentration_by_security",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "GOOG"
+    },
+    {
+      "from_id": "full_risk_profile_join",
+      "to_id": "high_risk_employee_broker_combinations",
+      "relationship": "corroborates",
+      "join_key": "Charles Schwab"
     },
     {
       "from_id": "full_risk_profile_join",
@@ -3575,19 +3761,19 @@
       "from_id": "full_risk_profile_join",
       "to_id": "five_table_random_sample",
       "relationship": "same_entity",
-      "join_key": "Nancy Hall"
+      "join_key": "Trading"
     },
     {
       "from_id": "full_risk_profile_join",
       "to_id": "violation_records_sample",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "Trading"
     },
     {
       "from_id": "full_risk_profile_join",
       "to_id": "high_risk_records_sample",
       "relationship": "aggregates_up",
-      "join_key": "Nancy Hall"
+      "join_key": "Trading"
     },
     {
       "from_id": "trade_requests_by_employee",
@@ -3599,7 +3785,7 @@
       "from_id": "trade_requests_by_employee",
       "to_id": "high_risk_employee_broker_combinations",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "George Kim"
     },
     {
       "from_id": "trade_requests_by_employee",
@@ -3611,19 +3797,19 @@
       "from_id": "trade_requests_by_employee",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Nancy Hall"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "trade_requests_by_employee",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "Risk Management"
     },
     {
       "from_id": "trade_requests_by_employee",
       "to_id": "high_risk_records_sample",
       "relationship": "drills_down",
-      "join_key": "Nancy Hall"
+      "join_key": "Trading"
     },
     {
       "from_id": "daily_trading_concentration_by_security",
@@ -3641,19 +3827,19 @@
       "from_id": "daily_trading_concentration_by_security",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "2026-02-05"
     },
     {
       "from_id": "daily_trading_concentration_by_security",
       "to_id": "violation_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "2026-02-05"
     },
     {
       "from_id": "daily_trading_concentration_by_security",
       "to_id": "high_risk_records_sample",
       "relationship": "drills_down",
-      "join_key": null
+      "join_key": "GOOG"
     },
     {
       "from_id": "broker_dealers_high_rejection_and_alerts",
@@ -3662,16 +3848,40 @@
       "join_key": null
     },
     {
+      "from_id": "high_risk_employee_broker_combinations",
+      "to_id": "five_table_random_sample",
+      "relationship": "corroborates",
+      "join_key": "TD Ameritrade"
+    },
+    {
+      "from_id": "high_risk_employee_broker_combinations",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Charles Schwab"
+    },
+    {
+      "from_id": "high_risk_employee_broker_combinations",
+      "to_id": "high_risk_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Charles Schwab"
+    },
+    {
       "from_id": "average_approval_time_by_department",
       "to_id": "average_review_time_by_reviewer",
       "relationship": "aggregates_up",
-      "join_key": "1"
+      "join_key": "2"
     },
     {
       "from_id": "average_approval_time_by_department",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
+    },
+    {
+      "from_id": "average_approval_time_by_department",
+      "to_id": "violation_records_sample",
+      "relationship": "corroborates",
+      "join_key": "Risk Management"
     },
     {
       "from_id": "average_approval_time_by_department",
@@ -3695,19 +3905,19 @@
       "from_id": "five_table_random_sample",
       "to_id": "violation_records_sample",
       "relationship": "aggregates_up",
-      "join_key": null
+      "join_key": "Risk Management"
     },
     {
       "from_id": "five_table_random_sample",
       "to_id": "high_risk_records_sample",
       "relationship": "aggregates_up",
-      "join_key": "Nancy Hall"
+      "join_key": "Trading"
     },
     {
       "from_id": "violation_records_sample",
       "to_id": "high_risk_records_sample",
       "relationship": "corroborates",
-      "join_key": null
+      "join_key": "Trading"
     }
   ],
   "linked_capsule_ids": [
@@ -3718,6 +3928,7 @@
     "alert_violations_on_restricted_securities",
     "alert_repeat_violators",
     "alert_monthly_alert_volume_trend",
+    "alert_weekly_trade_request_volume",
     "alert_monthly_rejection_rate_by_broker_dealer",
     "alert_escalation_trend_by_department",
     "alert_alert_severity_trend",
@@ -3735,6 +3946,8 @@
     "alert_full_risk_profile_join",
     "alert_trade_requests_by_employee",
     "alert_alert_rate_by_job_title",
+    "alert_high_risk_employee_broker_combinations",
+    "alert_securities_in_restrictions_and_alerts",
     "alert_average_review_time_by_reviewer"
   ]
 }

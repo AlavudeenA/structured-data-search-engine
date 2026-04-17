@@ -37,10 +37,6 @@ def _clear_fastembed_cache() -> None:
         logger.warning("Cleared corrupted fastembed cache at %s", cache_root)
 
 
-def _local_cache_dir() -> str:
-    return str(Path(__file__).parent.parent / "fastembed_cache")
-
-
 def _get_model() -> Any:
     global _model
     if _model is None:
@@ -49,16 +45,15 @@ def _get_model() -> Any:
         from .config import get_settings
 
         settings = get_settings()
-        cache_dir = _local_cache_dir()
-        logger.info("Loading fastembed model: %s (cache: %s)", settings.embed_model, cache_dir)
+        logger.info("Loading fastembed model: %s", settings.embed_model)
         try:
-            _model = TextEmbedding(model_name=settings.embed_model, cache_dir=cache_dir)
+            _model = TextEmbedding(model_name=settings.embed_model)
         except ValueError as exc:
             if "tokenizer_config.json" not in str(exc):
                 raise
             logger.warning("fastembed cache appears corrupted: %s", exc)
             _clear_fastembed_cache()
-            _model = TextEmbedding(model_name=settings.embed_model, cache_dir=cache_dir)
+            _model = TextEmbedding(model_name=settings.embed_model)
     return _model
 
 
