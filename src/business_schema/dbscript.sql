@@ -294,6 +294,198 @@ GO
 
 
 -- =============================================
+-- ADDITIONAL DATA — extended dataset
+-- 5 broker dealers, 10 employees, 10 accounts,
+-- 50 trade requests (2024 history + 2025 Q1-Q3 + 2026),
+-- 20 compliance alerts, 30 approval workflows
+-- =============================================
+
+-- --------------------------------------------
+-- BROKERDEALER  (IDs 6–10, including international)
+-- --------------------------------------------
+INSERT INTO dbo.BrokerDealer VALUES
+(6,  'Goldman Sachs',       'USA', 'GS333'),
+(7,  'TD Ameritrade',       'USA', 'TD444'),
+(8,  'Interactive Brokers', 'USA', 'IB555'),
+(9,  'Barclays',            'UK',  'BC666'),
+(10, 'Deutsche Bank',       'DE',  'DB777');
+GO
+
+-- --------------------------------------------
+-- EMPLOYEE  (IDs 21–30; two terminated)
+-- --------------------------------------------
+INSERT INTO dbo.Employee VALUES
+(21, 'Carlos Rivera',   'Legal',              'Counsel',            '2020-08-01', 'Active'),
+(22, 'Megan Foster',    'Operations',         'Operations Analyst', '2021-11-15', 'Active'),
+(23, 'George Kim',      'Trading',            'Senior Trader',      '2016-05-01', 'Active'),
+(24, 'Rachel Patel',    'Investment Banking', 'Associate',          '2023-01-10', 'Active'),
+(25, 'Tom Nguyen',      'Risk Management',    'Risk Analyst',       '2022-04-01', 'Active'),
+(26, 'Diane Scott',     'Compliance',         'Senior Analyst',     '2019-07-20', 'Active'),
+(27, 'Alex Turner',     'Technology',         'Lead Engineer',      '2017-03-15', 'Active'),
+(28, 'Samantha Green',  'Investment Banking', 'Analyst',            '2024-02-01', 'Active'),
+(29, 'Brian Cooper',    'Trading',            'Trader',             '2023-09-01', 'Active'),
+(30, 'Michelle Reed',   'Compliance',         'Analyst',            '2021-05-10', 'Terminated');
+GO
+
+-- --------------------------------------------
+-- ACCOUNT  (IDs 21–30; some employees get a second account)
+-- --------------------------------------------
+INSERT INTO dbo.Account VALUES
+(21, 23, 6,  'ACC21', 'Individual', '2021-03-01', 'Active'),
+(22, 24, 7,  'ACC22', 'Individual', '2023-02-01', 'Active'),
+(23, 25, 8,  'ACC23', 'Individual', '2022-05-01', 'Active'),
+(24, 26, 9,  'ACC24', 'Individual', '2019-09-01', 'Active'),
+(25, 27, 10, 'ACC25', 'Individual', '2017-05-01', 'Active'),
+(26, 28, 6,  'ACC26', 'Individual', '2024-03-01', 'Active'),
+(27, 29, 7,  'ACC27', 'Individual', '2023-10-01', 'Active'),
+(28, 1,  6,  'ACC28', 'Retirement', '2023-06-01', 'Active'),  -- John Smith second account
+(29, 8,  6,  'ACC29', 'Joint',      '2022-08-01', 'Active'),  -- Amanda Martinez second account
+(30, 11, 8,  'ACC30', 'Individual', '2023-05-01', 'Active');  -- Kevin Jackson second account
+GO
+
+-- --------------------------------------------
+-- TRADEREQUEST  (IDs 1026–1075)
+-- 2024 full-year history for trend capsules,
+-- 2025 Q1–Q3 fill-in, 2026 additions with new violations
+-- --------------------------------------------
+INSERT INTO dbo.TradeRequest VALUES
+-- 2024 Q1
+(1026, 1,  1,  '2024-01-10', 'IBM',  'BUY',   120, 'Approved'),
+(1027, 5,  5,  '2024-01-20', 'AMZN', 'BUY',   200, 'Approved'),
+(1028, 8,  3,  '2024-02-05', 'GOOG', 'BUY',   600, 'Approved'),   -- Amanda: volume starts rising
+(1029, 7,  2,  '2024-02-15', 'MSFT', 'BUY',   150, 'Approved'),
+(1030, 4,  4,  '2024-03-01', 'TSLA', 'BUY',   250, 'Approved'),
+(1031, 12, 2,  '2024-03-10', 'AAPL', 'BUY',   100, 'Approved'),   -- pre-restriction
+-- 2024 Q2
+(1032, 18, 3,  '2024-04-01', 'GOOG', 'BUY',   400, 'Approved'),
+(1033, 8,  3,  '2024-04-15', 'GOOG', 'BUY',   750, 'Approved'),   -- Amanda: escalating volume
+(1034, 15, 5,  '2024-05-01', 'NVDA', 'BUY',   200, 'Approved'),
+(1035, 1,  6,  '2024-05-15', 'IBM',  'BUY',   110, 'Approved'),   -- Goldman Sachs account
+(1036, 23, 6,  '2024-06-01', 'AMZN', 'BUY',    85, 'Approved'),
+(1037, 24, 7,  '2024-06-15', 'IBM',  'BUY',    70, 'Approved'),
+-- 2024 Q3
+(1038, 8,  3,  '2024-07-01', 'GOOG', 'BUY',   900, 'Escalated'),  -- Amanda: third high-volume escalation
+(1039, 25, 8,  '2024-07-10', 'GOOG', 'BUY',   120, 'Approved'),
+(1040, 11, 1,  '2024-07-20', 'META', 'BUY',   300, 'Approved'),
+(1041, 5,  5,  '2024-08-01', 'TSLA', 'SELL',  150, 'Approved'),
+(1042, 26, 9,  '2024-08-15', 'IBM',  'BUY',    90, 'Approved'),
+(1043, 27, 10, '2024-09-01', 'GOOG', 'SELL',  130, 'Approved'),
+(1044, 29, 7,  '2024-09-15', 'IBM',  'BUY',    65, 'Approved'),
+-- 2024 Q4
+(1045, 28, 6,  '2024-10-01', 'AMZN', 'SELL',   95, 'Approved'),
+-- 2025 Q1–Q3 fill-in
+(1046, 1,  1,  '2025-01-05', 'IBM',  'BUY',   130, 'Approved'),
+(1047, 5,  5,  '2025-01-20', 'IBM',  'SELL',   80, 'Approved'),
+(1048, 23, 6,  '2025-02-01', 'GOOG', 'BUY',    95, 'Approved'),   -- GOOG watch list starts Sep 15
+(1049, 24, 7,  '2025-03-01', 'AMZN', 'BUY',    70, 'Approved'),
+(1050, 26, 9,  '2025-03-15', 'IBM',  'BUY',   100, 'Approved'),
+(1051, 8,  3,  '2025-04-01', 'GOOG', 'BUY',  1100, 'Escalated'),  -- Amanda: 2025 volume surge
+(1052, 27, 10, '2025-04-15', 'GOOG', 'SELL',  130, 'Approved'),
+(1053, 29, 7,  '2025-05-01', 'IBM',  'BUY',    75, 'Approved'),
+(1054, 4,  4,  '2025-05-15', 'TSLA', 'BUY',   180, 'Approved'),   -- pre-restriction
+(1055, 7,  2,  '2025-06-01', 'GOOG', 'BUY',    60, 'Approved'),
+(1056, 12, 2,  '2025-06-15', 'NVDA', 'BUY',   400, 'Approved'),   -- pre-restriction
+(1057, 15, 5,  '2025-07-01', 'IBM',  'SELL',   55, 'Approved'),
+(1058, 18, 3,  '2025-07-15', 'AMZN', 'BUY',   110, 'Approved'),
+(1059, 11, 1,  '2025-08-01', 'META', 'SELL',  250, 'Approved'),   -- pre-restriction
+(1060, 5,  5,  '2025-09-01', 'IBM',  'BUY',    95, 'Approved'),
+(1061, 28, 6,  '2025-09-10', 'AMZN', 'BUY',    80, 'Approved'),   -- pre-blackout
+(1062, 25, 8,  '2025-09-20', 'IBM',  'BUY',    70, 'Approved'),
+-- 2025 Q4 (overlaps with original data — fills gaps)
+(1063, 4,  4,  '2025-10-01', 'IBM',  'BUY',   160, 'Approved'),
+(1064, 29, 7,  '2025-10-15', 'IBM',  'SELL',   55, 'Approved'),
+(1065, 23, 6,  '2025-10-20', 'AMZN', 'BUY',    75, 'Approved'),
+-- 2026 additions
+(1066, 23, 6,  '2026-01-05', 'IBM',  'BUY',    85, 'Approved'),
+(1067, 26, 9,  '2026-01-20', 'IBM',  'BUY',    75, 'Approved'),
+(1068, 4,  4,  '2026-03-01', 'AAPL', 'BUY',   250, 'Rejected'),   -- AAPL insider list — third Emily violation
+(1069, 7,  2,  '2026-03-05', 'NVDA', 'SELL',  350, 'Rejected'),   -- NVDA insider list
+(1070, 8,  3,  '2026-03-15', 'GOOG', 'BUY',  3000, 'Escalated'),  -- Amanda: extreme volume
+(1071, 15, 5,  '2026-03-20', 'META', 'BUY',   400, 'Rejected'),   -- META watch list
+(1072, 29, 7,  '2026-03-25', 'IBM',  'BUY',    65, 'Pending'),
+(1073, 25, 8,  '2026-03-25', 'IBM',  'BUY',    70, 'Approved'),
+(1074, 1,  6,  '2026-04-01', 'IBM',  'BUY',   140, 'Pending'),
+(1075, 5,  5,  '2026-04-05', 'IBM',  'SELL',  110, 'Pending');
+GO
+
+-- --------------------------------------------
+-- COMPLIANCEALERT  (IDs 16–35)
+-- Tracks Amanda's multi-year volume escalation,
+-- Emily's repeated restricted-security violations,
+-- plus standalone pattern alerts for new employees
+-- --------------------------------------------
+INSERT INTO dbo.ComplianceAlert VALUES
+-- Amanda Martinez (emp 8): GOOG volume pattern across 2024–2026
+(16, 1028, 8,  'Excessive Volume',    '2024-02-05', 'Medium',   'Closed',        'GOOG volume advisory — 600 units flagged for monitoring',                   '2024-02-10'),
+(17, 1033, 8,  'Excessive Volume',    '2024-04-15', 'High',     'Closed',        'GOOG volume escalating: 750 units, second alert in 10 weeks',               '2024-04-22'),
+(18, 1038, 8,  'Excessive Volume',    '2024-07-01', 'High',     'Closed',        'Third high-volume GOOG batch — 900 units — escalated to compliance review', '2024-07-15'),
+(19, 1051, 8,  'Excessive Volume',    '2025-04-01', 'High',     'Closed',        'Volume pattern resumes in 2025 — 1100 GOOG units, fourth escalation',       '2025-04-14'),
+-- Emily Davis (emp 4): third restricted-security attempt
+(20, 1068, 4,  'Restricted Security', '2026-03-01', 'High',     'Open',          'Third AAPL attempt for same employee — pattern review initiated',           NULL),
+-- James Taylor (emp 7): NVDA insider window
+(21, 1069, 7,  'Restricted Security', '2026-03-05', 'High',     'Investigating', 'NVDA trade attempted during pre-earnings insider restriction window',        NULL),
+-- Amanda Martinez (emp 8): extreme 2026 volume
+(22, 1070, 8,  'Excessive Volume',    '2026-03-15', 'Critical', 'Investigating', '3000-unit GOOG order — unprecedented single-day volume, referred to Legal',  NULL),
+-- Daniel Lewis (emp 15): META watch-list
+(23, 1071, 15, 'Insider Trading',     '2026-03-20', 'High',     'Open',          'META trade during regulatory review watch-list period — second offense',     NULL),
+-- Standalone alerts
+(24, NULL,  4,  'Insider Trading',    '2026-03-08', 'Critical', 'Investigating', 'Pattern review: Emily Davis — three restricted-security attempts in 6 months', NULL),
+(25, NULL,  8,  'Excessive Volume',   '2024-08-20', 'Low',      'Closed',        'Monthly volume summary advisory issued after Q2–Q3 GOOG activity',           '2024-08-25'),
+(26, NULL,  23, 'Unusual Pattern',    '2025-10-22', 'Low',      'Closed',        'Same-day trades detected at two brokers — George Kim — investigated',         '2025-10-27'),
+(27, NULL,  26, 'Unusual Pattern',    '2025-03-16', 'Medium',   'Closed',        'Cross-border Barclays account activity flagged during onboarding review',     '2025-03-21'),
+(28, NULL,  11, 'Unusual Pattern',    '2025-08-02', 'Low',      'Closed',        'Concurrent sell/buy on META within 48-hour window — no policy breach found',  '2025-08-07'),
+(29, NULL,  27, 'Unusual Pattern',    '2026-02-12', 'Medium',   'Open',          'Multiple broker activity across Deutsche Bank and in-house account — 48h window', NULL),
+(30, NULL,  29, 'Unusual Pattern',    '2026-03-26', 'Low',      'Open',          'New employee account — three trades in one week — monitoring initiated',      NULL),
+(31, NULL,  5,  'Unusual Pattern',    '2026-04-05', 'Low',      'Open',          'Pending IBM sell overlaps active buy position — flagged for review',          NULL),
+(32, NULL,  1,  'Unusual Pattern',    '2026-04-01', 'Low',      'Open',          'Second IBM purchase via Goldman Sachs retirement account within 60 days',     NULL),
+(33, NULL,  12, 'Restricted Security','2026-02-21', 'Medium',   'Open',          'Follow-up advisory: NVDA restriction window now active — account monitored',  NULL),
+(34, NULL,  18, 'Insider Trading',    '2026-03-15', 'Medium',   'Investigating', 'Third-party tip received regarding Nancy Hall trading activity — referred to Legal', NULL),
+(35, NULL,  15, 'Insider Trading',    '2026-03-22', 'Medium',   'Open',          'Second META-related alert for Daniel Lewis within 30 days',                  NULL);
+GO
+
+-- --------------------------------------------
+-- APPROVALWORKFLOW  (IDs 26–55)
+-- Includes new reviewer: Diane Scott (emp 26)
+-- Turnaround days range from 1 day (routine)
+-- to 14 days (extreme escalations) for trend capsules
+-- --------------------------------------------
+INSERT INTO dbo.ApprovalWorkflow VALUES
+-- 2024 reviews
+(26, 1026, 6,  '2024-01-11', 'Approved',  'Standard IBM trade — no issues',                                           1),
+(27, 1028, 2,  '2024-02-08', 'Approved',  'High volume noted — within 2024 threshold, advisory issued',               3),
+(28, 1033, 10, '2024-04-18', 'Approved',  'Volume elevated, approved with written warning',                           3),
+(29, 1038, 10, '2024-07-08', 'Escalated', 'GOOG volume exceeds cumulative limit — escalated to Director',             7),
+(30, 1040, 6,  '2024-07-23', 'Approved',  'META trade cleared — no restriction in place',                             3),
+(31, 1041, 16, '2024-08-04', 'Approved',  'Normal sell within approved limits',                                       3),
+(32, 1042, 26, '2024-08-22', 'Approved',  'First Barclays account review — cleared after extended due diligence',     7),
+(33, 1044, 9,  '2024-09-19', 'Approved',  'Brian Cooper new account — additional KYC check completed',                4),
+(53, 1035, 2,  '2024-05-18', 'Approved',  'Goldman Sachs account first review — cleared',                             3),
+(54, 1036, 6,  '2024-06-04', 'Approved',  'George Kim new employee account — no issues',                              3),
+(55, 1037, 16, '2024-06-18', 'Approved',  'Rachel Patel — TD Ameritrade account approved after standard review',      3),
+-- 2025 reviews
+(34, 1046, 6,  '2025-01-09', 'Approved',  'Routine IBM buy — cleared',                                                4),
+(35, 1047, 16, '2025-01-24', 'Approved',  'Within sell limits — approved',                                            4),
+(36, 1051, 10, '2025-04-10', 'Escalated', 'Volume pattern across 4 months — escalated to Director and Legal review',  9),
+(37, 1053, 2,  '2025-05-05', 'Approved',  'Standard Brian Cooper review',                                             4),
+(38, 1054, 9,  '2025-05-22', 'Approved',  'TSLA pre-restriction — cleared with note that restriction starts Jan 2026', 7),
+(39, 1056, 19, '2025-06-26', 'Approved',  'NVDA not yet restricted — approved; restriction window noted for Jan 2026', 11),
+(40, 1057, 6,  '2025-07-05', 'Approved',  'Routine IBM sell',                                                         4),
+(41, 1058, 14, '2025-07-22', 'Approved',  'AMZN within policy — pre-blackout period',                                 7),
+(42, 1060, 2,  '2025-09-05', 'Approved',  'Cleared',                                                                  4),
+(43, 1063, 26, '2025-10-06', 'Approved',  'Normal volume, no restriction conflicts',                                   5),
+(44, 1064, 6,  '2025-10-18', 'Approved',  'IBM sell — within limits',                                                 3),
+(45, 1065, 16, '2025-10-23', 'Approved',  'AMZN buy approved — blackout window does not start until Dec 1',           3),
+-- 2026 reviews
+(46, 1066, 2,  '2026-01-08', 'Approved',  'Standard Goldman Sachs account review',                                    3),
+(47, 1067, 26, '2026-01-23', 'Approved',  'Barclays IBM trade — no restriction conflicts',                             3),
+(48, 1068, 10, '2026-03-06', 'Rejected',  'AAPL insider list active — third violation for this employee, referred to Legal', 5),
+(49, 1069, 19, '2026-03-10', 'Rejected',  'NVDA pre-earnings restriction in force — trade denied, employee notified',  5),
+(50, 1070, 10, '2026-03-29', 'Escalated', 'Extreme GOOG volume 3000 units — Director, Legal, and Risk reviewed; decision pending', 14),
+(51, 1071, 20, '2026-03-27', 'Rejected',  'META watch-list restriction — flagged employee, second offense escalated',  7),
+(52, 1073, 9,  '2026-03-29', 'Approved',  'IBM within limits — Interactive Brokers account cleared',                  4);
+GO
+
+-- =============================================
 -- QUICK VERIFICATION QUERIES
 -- =============================================
 

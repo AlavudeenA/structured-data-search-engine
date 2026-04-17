@@ -227,7 +227,7 @@ src/
 
   query_engine/             ← Pipeline 2 — runs on every user question
     orchestrator.py         ← Entry point: coordinates all steps, returns final AnswerResult
-    query_router.py         ← Calls LLM to classify intent as structured/analytical/hybrid/operational
+    query_router.py         ← Classifies intent (structured/analytical/hybrid/operational) via Groq; keyword-counting fallback if LLM fails
     context_searcher.py     ← Vector searches all 3 Qdrant collections for relevant capsules
     context_packager.py     ← Ranks and packages primary + linked + schema + related context
     analytical_retriever.py ← Answers directly from capsule signal when confidence is high enough
@@ -326,7 +326,13 @@ orchestrator.py  ← entry point
        │
        ├─ Step 1: query_router.py
        │       sends question to Groq with INTENT_DETECTION_SYSTEM prompt (llm_instructions.py)
-       │       LLM classifies intent → "structured" / "analytical" / "hybrid" / "operational"
+       │       LLM classifies intent into one of four types:
+       │         • "structured"   — direct retrieval ("which", "show", "list", "how many", "top")
+       │         • "analytical"   — trends, patterns, anomalies ("over time", "unusual", "increasing")
+       │         • "operational"  — live urgency state ("pending", "open", "active", "right now")
+       │         • "hybrid"       — question contains both retrieval and analysis cues simultaneously
+       │       If Groq fails or returns an unexpected value, a keyword-counting fallback
+       │       (_fallback) runs entirely without an LLM call.
        │       also extracts structured_parts and analytical_parts
        │
        ├─ Step 2: context_searcher.py
@@ -336,29 +342,44 @@ orchestrator.py  ← entry point
        │
        ├─ Step 3: context_packager.py
        │       ranks and groups the retrieved capsules:
-       │         • primary capsule   = best single match
-       │         • linked capsules   = capsules related via relationship graph
-       │         • schema capsules   = best schema_context_capsule matches
-       │         • linked capsules   = any anomaly/risk alerts relevant to question
+       │         • primary capsule  = best single match from analytical_capsules
+       │         • graph_capsules   = capsules connected via the relationship graph (BFS neighbours)
+       │         • schema_capsules  = best matches from schema_context_capsules
+       │         • linked_capsules  = anomaly/risk alert capsules relevant to the question
        │
-       ├─ Step 4A: if intent = "analytical" AND confidence ≥ threshold
-       │       analytical_retriever.py
-       │           packages the combined capsule signals as context
-       │           calls Groq with ANALYTICAL_ANSWER_SYSTEM prompt (llm_instructions.py)
-       │           LLM writes answer using pre-computed signal text only (no new SQL)
-       │           → Answer returned immediately (milliseconds)
+       ├─ Step 4A: if intent = "structured" OR "operational"
+       │       → SQL path immediately (no capsule answer attempt)
+       │       Reason: these questions ask for live, current data — cached signals from
+       │       yesterday's capsule run would be stale or incomplete.
+       │       sql_generator.py assembles: question + schema capsule context + FK relationships
+       │           calls Groq with SQL_GENERATION_SYSTEM prompt (llm_instructions.py)
+       │           LLM returns a raw SQL SELECT query
+       │           → sql_executor.py runs it against SQL Server
+       │           → if SQL error: sql_autofix.py sends broken SQL + error to Groq
+       │                           (SQL_AUTOFIX_SYSTEM prompt), gets corrected SQL, retries once
+       │           → result_summarizer.py calls Groq with RESULT_SUMMARIZER_SYSTEM
+       │                           LLM summarizes the actual rows into plain English
+       │           → Answer returned with SQL shown + raw rows expandable
        │
-       └─ Step 4B: if intent = "structured" / "operational" / low confidence
-               sql_generator.py
-                   assembles: question + schema capsule context + FK relationships
-                   calls Groq with SQL_GENERATION_SYSTEM prompt (llm_instructions.py)
-                   LLM returns a raw SQL SELECT query
-                   → sql_executor.py runs it against SQL Server
-                   → if SQL error: sql_autofix.py sends broken SQL + error to Groq
-                                   (SQL_AUTOFIX_SYSTEM prompt), gets corrected SQL, retries once
-                   → result_summarizer.py calls Groq with RESULT_SUMMARIZER_SYSTEM
-                                   LLM summarizes the actual rows into plain English
-                   → Answer returned with SQL shown + raw rows expandable
+       ├─ Step 4B: if intent = "analytical"
+       │       checks overall_confidence from context_packager:
+       │         • confidence ≥ threshold AND primary capsule exists:
+       │             analytical_retriever.py
+       │                 concatenates signal text from all context slots
+       │                 calls Groq with ANALYTICAL_ANSWER_SYSTEM prompt
+       │                 LLM writes answer using only pre-computed signals (no new SQL)
+       │                 → Answer returned immediately (milliseconds)
+       │         • confidence too low OR top hit is schema-only:
+       │             falls back to SQL path (same as Step 4A above)
+       │
+       └─ Step 4C: if intent = "hybrid"
+               runs BOTH paths in sequence:
+               1. answer_from_capsules → gets the capsule-based analytical view
+               2. _run_sql_path       → generates and executes live SQL
+               answer returned as two-part response:
+                 "Capsule view: <signal-based insight>"
+                 "SQL view: <live query result>"
+               route_taken is recorded as "hybrid"
 
 Displayed to user:
   - Plain-English answer
