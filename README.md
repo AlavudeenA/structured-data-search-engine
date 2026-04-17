@@ -720,3 +720,79 @@ flowchart TD
     AnalAnswer --> FinalAnswer([Plain-English Answer\nRoute · Confidence · Source SQL · Raw Rows]):::answer
     Summarize --> FinalAnswer
 ```
+
+---
+
+## Presentation Diagrams
+
+> Two slides for presenting this system to business stakeholders — no technical jargon, clear story, arrows show what happens next.
+
+---
+
+### Slide 1 — How the System Learns from Your Database
+
+```mermaid
+flowchart TD
+    classDef db     fill:#1a365d,stroke:#2a4a7f,color:#fff,font-weight:bold
+    classDef ai     fill:#2b6cb0,stroke:#2c5282,color:#fff,font-weight:bold
+    classDef math   fill:#44337a,stroke:#322659,color:#fff,font-weight:bold
+    classDef store  fill:#22543d,stroke:#1c4532,color:#fff,font-weight:bold
+    classDef risk   fill:#742a2a,stroke:#63171b,color:#fff,font-weight:bold
+    classDef plain  fill:#f0fff4,stroke:#9ae6b4,color:#2d3748
+
+    DB1[("① Your Compliance Database\nBrokers · Employees · Trades\nViolations · Approvals")]:::db
+
+    DB1 -->|"Run 40+ pre-written\nbusiness questions\nagainst live data"| RES["② Raw Query Results\nBroker volumes · rejection counts\nviolation types · turnaround times\napproval decisions by department"]:::plain
+
+    RES -->|"AI reads every result\nand writes a plain-English\nbusiness insight from it"| INS["③ Pre-built Business Insights\n─────────────────────────────\n'Broker X has the highest rejection rate at 42%'\n'Department Y shows rising escalations over 3 months'\n'6 trades were submitted during restricted windows'\n'Average approval time is 4.2 days in Trading'"]:::ai
+
+    INS -->|"Pure statistical math\nchecks every number\nfor unusual behaviour\nno AI involved"| STAT["④ Anomaly & Trend Detection\n─────────────────────────────\nIs this number unusually high or low?\nIs it rising or falling over time?\nWhich results are outside the normal range?"]:::math
+
+    STAT -->|"When an anomaly is found\nAI writes a targeted\nrisk alert — no company\nnames stored in the alert"| ALERT["⑤ Auto-generated Risk Alerts\n─────────────────────────────\n'Statistical outlier detected in broker rejection analysis'\n'Escalation trend is rising — review source insight'\n'Unusual volume pattern found — above 3× normal range'"]:::risk
+
+    INS -->|"Cross-check all insights\nfor shared topics\nbuild a relationship map"| REL["⑥ Insight Relationship Map\n─────────────────────────────\nBroker rejection insight  ←→  Broker volume insight\nViolation insight  ←→  Employee risk insight\nSaved so related insights surface together"]:::plain
+
+    INS & ALERT & REL -->|"Convert every insight\nto a searchable format\nso questions find the\nright answer instantly"| KB[("⑦ Searchable Knowledge Base\n─────────────────────────────\nAll insights stored as vectors\nSearched by meaning — not exact keywords\nReady to answer questions in milliseconds")]:::store
+```
+
+---
+
+### Slide 2 — How the System Answers Your Question
+
+```mermaid
+flowchart TD
+    classDef user   fill:#1a365d,stroke:#2a4a7f,color:#fff,font-weight:bold
+    classDef ai     fill:#2b6cb0,stroke:#2c5282,color:#fff,font-weight:bold
+    classDef db     fill:#22543d,stroke:#1c4532,color:#fff,font-weight:bold
+    classDef decide fill:#744210,stroke:#5f370e,color:#fff,font-weight:bold
+    classDef risk   fill:#742a2a,stroke:#63171b,color:#fff,font-weight:bold
+    classDef out    fill:#c05621,stroke:#9c4221,color:#fff,font-weight:bold
+    classDef plain  fill:#fffaf0,stroke:#fbd38d,color:#2d3748
+
+    Q(["① Compliance Officer Types a Question\nin Plain English — no SQL needed\n\n'Which broker has the highest rejection rate?'\n'Are there any unusual trading patterns this month?'\n'Show me all open critical alerts right now'"]):::user
+
+    Q -->|"② AI reads the question\nand classifies what\nkind of answer is needed"| ROUTE{"③ What Kind of Question?"}:::decide
+
+    ROUTE -->|"Trend · Anomaly · Pattern\nSomething to analyse\nover time or across groups"| PATH_A["Search the Knowledge Base\nfor pre-built business insights\nthat match this question\n+ pull related insights\nfrom the relationship map"]:::plain
+
+    ROUTE -->|"Specific number · Live status\nCurrent count · Right now data\nWho is active · What is pending"| PATH_B["AI writes a precise SQL query\ntailored to this exact question\nand runs it against the\nlive compliance database"]:::ai
+
+    ROUTE -->|"Both — needs analysis\nand live current data"| PATH_C["Run both paths\nand combine the answers\ninto one response"]:::plain
+
+    PATH_A --> CONF{"④ Is there a\nhigh-confidence\ninsight match?"}:::decide
+
+    CONF -->|"Yes — insight found\nwith high confidence"| ANS_A["⑤a AI composes answer\nfrom pre-built insights\n\nAlso surfaces any related\nrisk alerts automatically\nif anomalies were previously\ndetected in that area"]:::ai
+
+    CONF -->|"No direct match —\nneeds live data"| PATH_B
+
+    PATH_B -->|"Runs securely\nSELECT only\nnever modifies data"| LIVE[("⑤b Live Compliance\nDatabase Query")]:::db
+
+    LIVE -->|"Gets live rows back"| ANS_B["AI reads the raw rows\nand summarises into\nplain-English findings\nwith the key numbers called out"]:::ai
+
+    PATH_C --> ANS_A
+    PATH_C --> ANS_B
+
+    ANS_A --> FINAL(["⑥ Answer Delivered to the User\n──────────────────────────────────────────\n✓ Plain-English explanation — no jargon\n✓ Confidence score shown\n✓ Which insights were used — fully auditable\n✓ Related risk alerts surfaced if any exist\n✓ Exact SQL shown if live query was used\n✓ Raw data rows available to expand and verify"]):::out
+
+    ANS_B --> FINAL
+```
