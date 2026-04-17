@@ -1,0 +1,47 @@
+{
+  "name": "vscode-lm-sample",
+  "displayName": "VSCode LM Sample",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "vscode-lm-sample.askModel",
+        "title": "Ask Language Model"
+      }
+    ],
+    "configuration": {
+      "title": "VSCode LM Sample",
+      "properties": {
+        "vscodeLmSample.localServerPort": {
+          "type": "number",
+          "default": 50234,
+          "description": "Port for the local LM HTTP server"
+        },
+        "vscodeLmSample.localServerSecret": {
+          "type": "string",
+          "default": "abc123",
+          "description": "Shared secret for the local LM HTTP server"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -w"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/vscode": "^1.105.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@vscode/prompt-tsx": "^0.4.0-alpha.5"
+  }
+}

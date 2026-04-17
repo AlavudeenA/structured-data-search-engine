@@ -1,8 +1,7 @@
 streamlit==1.45.0
 pyodbc==5.3.0
-qdrant-client==1.17.0
 fastembed==0.7.4
-groq
+requests
 pydantic
 pydantic-settings
 python-dotenv

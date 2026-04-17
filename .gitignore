@@ -16,3 +16,5 @@
 /src/qdrant_test_data/.lock
 *.py.tmp.*
 /src/business_schema/dbscript.sql.tmp.*
+/vscode-lm-extension/node_modules/@types
+/vscode-lm-extension/node_modules

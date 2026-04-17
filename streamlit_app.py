@@ -237,7 +237,7 @@ with generate_tab:
         )
 
         with st.spinner(
-            "Reading live schema → building prompt → calling Groq 70b → generating 35+ capsules… "
+            "Reading live schema → building prompt → calling language model → generating 35+ capsules… "
             "This takes 30–90 seconds."
         ):
             try:

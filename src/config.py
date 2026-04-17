@@ -18,13 +18,8 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
-    groq_intent_model: str = Field(default="llama-3.1-8b-instant", alias="GROQ_INTENT_MODEL")
-    groq_sql_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_SQL_MODEL")
-    groq_summary_model: str = Field(default="llama-3.1-8b-instant", alias="GROQ_SUMMARY_MODEL")
-    groq_sql_fix_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_SQL_FIX_MODEL")
-    groq_analytical_model: str = Field(default="llama-3.1-8b-instant", alias="GROQ_ANALYTICAL_MODEL")
-    groq_signal_model: str = Field(default="llama-3.1-8b-instant", alias="GROQ_SIGNAL_MODEL")
+    vscode_lm_port: int = Field(default=50234, alias="VSCODE_LM_PORT")
+    vscode_lm_secret: str = Field(default="abc123", alias="VSCODE_LM_SECRET")
     sqlserver_conn_str: str = Field(
         default=(
             "DRIVER={ODBC Driver 17 for SQL Server};"
