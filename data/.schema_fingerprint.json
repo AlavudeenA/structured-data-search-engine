@@ -1,211 +1,211 @@
 {
-  "generated_at": "2026-04-17T06:59:14.115853+00:00",
-  "fingerprint": "2d6df15104d5da91b9d897970073be0acb8f871da3794b5c2d7bc41daa5b767f",
+  "generated_at": "2026-04-17T20:01:15.336882+00:00",
+  "fingerprint": "735090e546fa4cbb906b410accc1fab774f9a81b93024ec57d716ef69889c131",
   "tables": {
     "Account": [
       {
         "name": "AccountID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "EmployeeID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "BrokerDealerID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "AccountNumber",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "AccountType",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "OpenDate",
-        "type": "date"
+        "type": "TEXT"
       },
       {
         "name": "Status",
-        "type": "varchar"
+        "type": "TEXT"
       }
     ],
     "ApprovalWorkflow": [
       {
         "name": "WorkflowID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "TradeRequestID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "ReviewerID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "ReviewDate",
-        "type": "date"
+        "type": "TEXT"
       },
       {
         "name": "Decision",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "Comments",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "TurnaroundDays",
-        "type": "int"
+        "type": "INTEGER"
       }
     ],
     "BrokerDealer": [
       {
         "name": "BrokerDealerID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "BrokerDealerName",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "Country",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "RegistrationNumber",
-        "type": "varchar"
+        "type": "TEXT"
       }
     ],
     "ComplianceAlert": [
       {
         "name": "AlertID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "TradeRequestID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "EmployeeID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "AlertType",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "AlertDate",
-        "type": "date"
+        "type": "TEXT"
       },
       {
         "name": "Severity",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "Status",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "Description",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "ResolvedDate",
-        "type": "date"
+        "type": "TEXT"
       }
     ],
     "Employee": [
       {
         "name": "EmployeeID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "EmployeeName",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "Department",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "JobTitle",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "HireDate",
-        "type": "date"
+        "type": "TEXT"
       },
       {
         "name": "Status",
-        "type": "varchar"
+        "type": "TEXT"
       }
     ],
     "RestrictedSecurity": [
       {
         "name": "RestrictionID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "SecuritySymbol",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "RestrictionType",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "StartDate",
-        "type": "date"
+        "type": "TEXT"
       },
       {
         "name": "EndDate",
-        "type": "date"
+        "type": "TEXT"
       },
       {
         "name": "Reason",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "AddedBy",
-        "type": "varchar"
+        "type": "TEXT"
       }
     ],
     "TradeRequest": [
       {
         "name": "TradeRequestID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "EmployeeID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "BrokerDealerID",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "RequestDate",
-        "type": "date"
+        "type": "TEXT"
       },
       {
         "name": "SecuritySymbol",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "TradeType",
-        "type": "varchar"
+        "type": "TEXT"
       },
       {
         "name": "Quantity",
-        "type": "int"
+        "type": "INTEGER"
       },
       {
         "name": "Status",
-        "type": "varchar"
+        "type": "TEXT"
       }
     ]
   },
@@ -223,30 +223,6 @@
       "ref_column": "EmployeeID"
     },
     {
-      "parent_table": "ApprovalWorkflow",
-      "parent_column": "ReviewerID",
-      "ref_table": "Employee",
-      "ref_column": "EmployeeID"
-    },
-    {
-      "parent_table": "ApprovalWorkflow",
-      "parent_column": "TradeRequestID",
-      "ref_table": "TradeRequest",
-      "ref_column": "TradeRequestID"
-    },
-    {
-      "parent_table": "ComplianceAlert",
-      "parent_column": "EmployeeID",
-      "ref_table": "Employee",
-      "ref_column": "EmployeeID"
-    },
-    {
-      "parent_table": "ComplianceAlert",
-      "parent_column": "TradeRequestID",
-      "ref_table": "TradeRequest",
-      "ref_column": "TradeRequestID"
-    },
-    {
       "parent_table": "TradeRequest",
       "parent_column": "BrokerDealerID",
       "ref_table": "BrokerDealer",
@@ -257,6 +233,30 @@
       "parent_column": "EmployeeID",
       "ref_table": "Employee",
       "ref_column": "EmployeeID"
+    },
+    {
+      "parent_table": "ComplianceAlert",
+      "parent_column": "EmployeeID",
+      "ref_table": "Employee",
+      "ref_column": "EmployeeID"
+    },
+    {
+      "parent_table": "ComplianceAlert",
+      "parent_column": "TradeRequestID",
+      "ref_table": "TradeRequest",
+      "ref_column": "TradeRequestID"
+    },
+    {
+      "parent_table": "ApprovalWorkflow",
+      "parent_column": "ReviewerID",
+      "ref_table": "Employee",
+      "ref_column": "EmployeeID"
+    },
+    {
+      "parent_table": "ApprovalWorkflow",
+      "parent_column": "TradeRequestID",
+      "ref_table": "TradeRequest",
+      "ref_column": "TradeRequestID"
     }
   ]
 }
