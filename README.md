@@ -567,3 +567,45 @@ The capsule is immediately embedded, stored in Qdrant, and permanently written t
 - **Schema discovery:** Fully dynamic — engine reads `INFORMATION_SCHEMA` at runtime, no hardcoded table lists
 - **Data folder:** Always written to the repo root `data/` via `Path(__file__)` anchor — consistent regardless of launch directory
 - **Anomaly & Trend Detection:** Pure, deterministic statistical math via `numpy` instead of LLMs (Z-scores for anomalies, moving averages for trends) to prevent data hallucination
+
+---
+
+## Executive Presentation Diagram
+
+This diagram provides a high-level overview of how the engine transforms a user's plain-English question into a reliable business answer, combining offline intelligence with live SQL execution.
+
+```mermaid
+graph TD
+    classDef userReq fill:#2d3748,stroke:#4a5568,stroke-width:2px,color:#fff,font-weight:bold;
+    classDef aiAgent fill:#3182ce,stroke:#2b6cb0,stroke-width:2px,color:#fff,font-weight:bold,rx:10px,ry:10px;
+    classDef db fill:#38a169,stroke:#2f855a,stroke-width:2px,color:#fff;
+    classDef result fill:#d69e2e,stroke:#b7791f,stroke-width:2px,color:#fff,font-weight:bold;
+    classDef process fill:#edf2f7,stroke:#cbd5e0,stroke-width:1px,color:#2d3748;
+
+    %% User Interaction
+    User([Business User]):::userReq -->|Asks plain English question| Intent[AI Intent Engine]:::aiAgent
+    
+    %% Intent & Search
+    Intent -->|Understands context| Search[Find Existing Insights Knowledge Base]:::process
+
+    %% Two Paths
+    Search -->|Matches found| DirectAnswer[AI Summarizes Pre-computed Insights]:::aiAgent
+    Search -->|No direct match| SQLGen[AI Generates Live SQL]:::aiAgent
+    
+    %% Live Data Execution
+    SQLGen -->|Runs securely| DB[(Corporate Database)]:::db
+    DB -->|Returns Rows| SQLSum[AI Summarizes Raw Data]:::aiAgent
+
+    %% Final Answer
+    DirectAnswer --> Final([Clear Business Answer]):::result
+    SQLSum --> Final
+    
+    %% Offline Knowledge Process
+    subgraph Offline Process: Knowledge Building 
+        Capsules[Domain Experts Define Business Questions]:::process --> RunSQL[Nightly Run against Database]:::process
+        RunSQL --> Math[Statistical Anomalies & Trends checked]:::process
+        Math --> Store[(Vector Knowledge Base)]:::db
+    end
+    
+    Store -.->|Feeds Insights| Search
+```

@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-04-17T06:53:39.600037+00:00",
+  "built_at": "2026-04-17T06:58:05.371187+00:00",
   "edges": [
     {
       "from_id": "trade_requests_by_broker_dealer",
@@ -635,7 +635,7 @@
       "from_id": "trade_requests_by_department",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "trade_requests_by_department",
@@ -2921,7 +2921,7 @@
       "from_id": "avg_turnaround_by_department",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "avg_turnaround_by_department",
@@ -3413,7 +3413,7 @@
       "from_id": "department_compliance_scorecard",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "department_compliance_scorecard",
@@ -3485,7 +3485,7 @@
       "from_id": "employees_zero_alerts",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "employees_zero_alerts",
@@ -3713,7 +3713,7 @@
       "from_id": "reviewer_coverage_gaps",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "reviewer_coverage_gaps",
@@ -3797,7 +3797,7 @@
       "from_id": "trade_requests_by_employee",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "trade_requests_by_employee",
@@ -3875,7 +3875,7 @@
       "from_id": "average_approval_time_by_department",
       "to_id": "five_table_random_sample",
       "relationship": "drills_down",
-      "join_key": "Compliance"
+      "join_key": "Risk Management"
     },
     {
       "from_id": "average_approval_time_by_department",
