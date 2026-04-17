@@ -824,7 +824,7 @@ SELECT
     e.JobTitle                               AS job_title,
     COUNT(ca.AlertID)                        AS total_alerts,
     COUNT(DISTINCT ca.AlertType)             AS distinct_alert_types,
-    STUFF((SELECT DISTINCT ', ' + ca2.AlertType FROM ComplianceAlert ca2 WHERE ca2.EmployeeID = e.EmployeeID FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, '') AS alert_types_list,
+    (SELECT GROUP_CONCAT(DISTINCT ca2.AlertType, ', ') FROM ComplianceAlert ca2 WHERE ca2.EmployeeID = e.EmployeeID) AS alert_types_list,
     MAX(ca.Severity)                         AS max_severity,
     SUM(CASE WHEN ca.Status IN ('Open','Investigating') THEN 1 ELSE 0 END) AS unresolved_alerts
 FROM Employee e
@@ -1617,7 +1617,7 @@ SELECT
     COUNT(DISTINCT tr.BrokerDealerID)        AS broker_dealers_involved,
     COUNT(DISTINCT ca.AlertID)               AS total_alerts,
     COUNT(DISTINCT ca.AlertType)             AS distinct_alert_types,
-    STUFF((SELECT DISTINCT ' | ' + bd2.BrokerDealerName FROM Account a2 JOIN BrokerDealer bd2 ON a2.BrokerDealerID = bd2.BrokerDealerID WHERE a2.EmployeeID = e.EmployeeID FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 3, '') AS broker_dealer_names,
+    (SELECT GROUP_CONCAT(DISTINCT bd2.BrokerDealerName, ' | ') FROM Account a2 JOIN BrokerDealer bd2 ON a2.BrokerDealerID = bd2.BrokerDealerID WHERE a2.EmployeeID = e.EmployeeID) AS broker_dealer_names,
     MAX(ca.Severity)                         AS max_severity
 FROM Employee e
 JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
@@ -1847,8 +1847,7 @@ ORDER BY total_requests DESC
         "what": "Security showing unusually high trading concentration on a given day",
         "how": "Group trades by RequestDate and SecuritySymbol and find peaks",
         "sql": """
-SELECT top 20
-    tr.RequestDate                       AS request_date,
+SELECT  tr.RequestDate                       AS request_date,
     tr.SecuritySymbol                    AS security_symbol,
     COUNT(tr.TradeRequestID)             AS distinct_requests,
     COUNT(DISTINCT tr.EmployeeID)        AS unique_employees,
@@ -1856,7 +1855,7 @@ SELECT top 20
 FROM TradeRequest tr
 GROUP BY tr.RequestDate, tr.SecuritySymbol
 HAVING COUNT(DISTINCT tr.EmployeeID) >= 3 OR COUNT(tr.TradeRequestID) >= 5
-ORDER BY distinct_requests DESC, total_quantity DESC
+ORDER BY distinct_requests DESC, total_quantity DESC LIMIT 20
 """.strip(),
         "signal_method": "rule_based",
         "embed_text_template": (
@@ -1950,8 +1949,7 @@ ORDER BY alerts_per_employee DESC
         "what": "Employee and Broker Dealer combinations with highest risk signals",
         "how": "Group rejections and alerts by Employee and Broker Dealer",
         "sql": """
-SELECT top 50
-    e.EmployeeName                       AS employee_name,
+SELECT  e.EmployeeName                       AS employee_name,
     bd.BrokerDealerName                  AS broker_dealer,
     COUNT(DISTINCT tr.TradeRequestID)    AS total_requests,
     SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_requests,
@@ -1963,7 +1961,7 @@ LEFT JOIN TradeRequest tr ON tr.EmployeeID = a.EmployeeID AND tr.Status = 'Rejec
 LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = a.EmployeeID
 GROUP BY e.EmployeeID, e.EmployeeName, bd.BrokerDealerID, bd.BrokerDealerName
 HAVING SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) > 0 OR COUNT(DISTINCT ca.AlertID) > 0
-ORDER BY rejected_requests DESC, total_alerts DESC
+ORDER BY rejected_requests DESC, total_alerts DESC LIMIT 50
 """.strip(),
         "signal_method": "rule_based",
         "embed_text_template": (
@@ -1991,7 +1989,7 @@ SELECT
     rs.SecuritySymbol                    AS security_symbol,
     COUNT(DISTINCT rs.RestrictionID)     AS restriction_count,
     COUNT(DISTINCT ca.AlertID)           AS alert_count,
-    STUFF((SELECT DISTINCT ', ' + rs2.RestrictionType FROM RestrictedSecurity rs2 WHERE rs2.SecuritySymbol = rs.SecuritySymbol FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, '') AS restriction_types
+    (SELECT GROUP_CONCAT(DISTINCT rs2.RestrictionType, ', ') FROM RestrictedSecurity rs2 WHERE rs2.SecuritySymbol = rs.SecuritySymbol) AS restriction_types
 FROM RestrictedSecurity rs
 JOIN TradeRequest tr ON tr.SecuritySymbol = rs.SecuritySymbol
 JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID
@@ -2150,7 +2148,7 @@ ORDER BY avg_turnaround_days DESC
             "tr.TradeType AS trade_type, tr.Status AS trade_status, tr.Quantity AS quantity, "
             "tr.RequestDate AS request_date, "
             "rs.StartDate AS restriction_start, "
-            "CONVERT(VARCHAR, COALESCE(rs.EndDate, '9999-12-31'), 23) AS restriction_end "
+            "COALESCE(rs.EndDate, '9999-12-31') AS restriction_end "
             "FROM TradeRequest tr "
             "JOIN RestrictedSecurity rs ON rs.SecuritySymbol = tr.SecuritySymbol "
             "AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31') "
