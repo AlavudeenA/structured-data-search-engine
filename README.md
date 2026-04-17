@@ -1,4 +1,4 @@
-﻿# Analytical Search Engine
+# Analytical Search Engine
 
 A **database-agnostic, schema-agnostic** analytical question-answering system. Connect it to any SQL Server database and ask plain-English questions — the engine figures out the SQL, retrieves pre-computed insights, and delivers a natural-language answer.
 
@@ -130,11 +130,12 @@ A **capsule** is a pre-computed unit of knowledge. Before you ask a question, th
 
 There are three types:
 
-| Type                      | What it is                                                                       | Count (example) |
-| ------------------------- | -------------------------------------------------------------------------------- | --------------- |
-| `analytical_capsules`     | Pre-run SQL results + signals for common business questions                      | ~42             |
-| `schema_context_capsules` | Maps of the database structure — which tables join to what                       | 5               |
-| `linked_capsules`         | Auto-generated linked capsules — risk/anomaly alerts from capsule cross-analysis | ~17             |
+| Type                      | What it is                                                                                                                                  | Count (example) |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `analytical_capsules`     | Pre-run SQL results + signals for common business questions (includes `aggregation`, `trend`, `violation`, `risk`, `pattern`, `operational`) | ~39             |
+| `sample_capsules`         | 50 random joined rows per run (`ORDER BY NEWID()`) — Groq narrates 2-3 patterns visible across the raw rows; ML enrichment is skipped       | 3               |
+| `schema_context_capsules` | Maps of the database structure — which tables join to what                                                                                  | 5               |
+| `linked_capsules`         | Auto-generated linked capsules — risk/anomaly alerts from capsule cross-analysis                                                            | ~17             |
 
 ### Two Pipelines
 
@@ -220,7 +221,7 @@ src/
     store_manager.py        ← Master orchestrator: calls all generators, persists results, saves plan
     capsule_generator.py    ← Runs each capsule's SQL, optionally calls LLM for signal, returns capsule
     schema_capsule_generator.py  ← Turns SCHEMA_DEFINITIONS into embedded schema context capsules
-    ml_enricher.py          ← Adds anomaly score (z-score on numeric cols) and trend direction
+    ml_enricher.py          ← Computes anomaly score (numpy Z-score) and trend direction (moving average) without using an LLM
     relationship_builder.py ← Finds capsule overlaps by entity, generates related risk capsules
     append_capsules.py      ← Writes a new capsule dict into capsule_definitions.py + embeds it
 
@@ -266,14 +267,20 @@ store_manager.py  ← master coordinator
        ├─── capsule_generator.py
        │         │  reads each capsule definition
        │         │  runs SQL against SQL Server (database_connection.py)
+       │         │  if capsule_type = "sample":
+       │         │      sends all 50 random rows to Groq with SAMPLE_SIGNAL_SYSTEM prompt (llm_instructions.py)
+       │         │      Groq narrates 2-3 patterns visible in the raw joined rows
        │         │  if signal_method = "llm_summary":
        │         │      calls Groq with SIGNAL_GENERATION_SYSTEM prompt (llm_instructions.py)
        │         │      LLM writes 2–3 sentence signal from the raw rows
        │         │  if signal_method = "rule_based":
        │         │      picks top rows / computes summary without LLM
        │         │  then calls ml_enricher.py:
-       │         │      computes anomaly_score (z-score on numeric columns)
-       │         │      computes trend_direction (rising/falling/flat)
+       │         │      sample capsules → skipped entirely (random rows have no statistical
+       │         │        baseline; z-score and trend detection would be meaningless)
+       │         │        returns anomaly_score=0.0, trend_direction="flat" immediately
+       │         │      all other capsules → computes anomaly_score (z-score on numeric columns)
+       │         │                           computes trend_direction (rising/falling/flat)
        │         └─► returns GeneratedCapsule (signal + rows + scores + embed_text)
        │
        ├─── schema_capsule_generator.py
@@ -379,7 +386,7 @@ After all analytical capsules are generated, `build_graph()` creates a graph of 
 **Explicit edges** (declared in `capsule_definitions.py`):
 Each capsule definition includes two optional lists:
 
-- `linked_capsule_ids` — capsule IDs this capsule is related to
+- `linked_capsule_ids` — capsule IDs this capsule is related to. Sample capsules always populate this list, pointing at the matching aggregation or violation capsule (e.g., `five_table_random_sample` links to `broker_rejection_rate`, `violation_type_breakdown`, and `open_alerts_by_severity`). This means when a user asks for raw examples, the engine surfaces the raw rows _and_ the aggregate view in the same answer.
 - `relationship_types` — one label per related ID:
   - `corroborates` — both measure the same risk from different angles
   - `drills_down` — this capsule is a narrower view of the related one
@@ -464,7 +471,7 @@ In both routes, linked capsules are the mechanism that lets a single question su
 | **Generate All Capsules**        | Full rebuild — wipes Qdrant and regenerates everything from scratch                                                                                                                                                                                                                                                                                                                                      | First run, after changing `capsule_definitions.py`, or when something is broken                                                |
 | **Refresh Data**                 | Re-runs only the analytical SQL queries; leaves schema and linked capsules untouched                                                                                                                                                                                                                                                                                                                     | Daily/routine refresh when DB data changed but structure hasn't                                                                |
 | **Schema Refresh**               | Detects whether the DB schema changed (via fingerprint) and rebuilds everything if it has                                                                                                                                                                                                                                                                                                                | After adding or removing columns/tables in SQL Server                                                                          |
-| **Generate Capsule Definitions** | Sends your live DB schema and FK relationships to Groq; the LLM regenerates the entire `CAPSULE_DEFINITIONS` list (all 37+ capsules, all 8 categories) with correct SQL Server syntax and compliance domain rules; output is validated with `ast.parse()` before being written to `capsule_definitions.py`, and the module is hot-reloaded so the next Generate picks up the new definitions immediately | When you want a fresh AI-generated set of capsule definitions — e.g., after major schema changes, or to bootstrap a new domain |
+| **Generate Capsule Definitions** | Sends your live DB schema and FK relationships to Groq; the LLM regenerates the entire `CAPSULE_DEFINITIONS` list (all 38+ capsules, all 9 categories — including 3 sample capsules with `ORDER BY NEWID()` joins) with correct SQL Server syntax and compliance domain rules; output is validated with `ast.parse()` before being written to `capsule_definitions.py`, and the module is hot-reloaded so the next Generate picks up the new definitions immediately | When you want a fresh AI-generated set of capsule definitions — e.g., after major schema changes, or to bootstrap a new domain |
 
 ---
 
@@ -489,11 +496,11 @@ This updates automatically after Generate, Reset, or Insert operations.
 | Column              | Meaning                                                                           |
 | ------------------- | --------------------------------------------------------------------------------- |
 | `capsule_id`        | Unique identifier                                                                 |
-| `type`              | aggregation / trend / violation / risk / pattern / operational / related / schema |
-| `what`              | Plain-English description of what this capsule measures                           |
-| `how`               | How the measurement is computed                                                   |
-| `priority`          | P1 (critical) → P4 (low)                                                          |
-| `signal_method`     | `rule_based` (fast formula) or `llm_summary` (AI-generated signal)                |
+| `type`              | `aggregation` / `trend` / `violation` / `risk` / `pattern` / `operational` / `sample` / `linked` / `schema` |
+| `what`              | Plain-English description of what this capsule measures                                                      |
+| `how`               | How the measurement is computed                                                                               |
+| `priority`          | P1 (critical) → P4 (low)                                                                                     |
+| `signal_method`     | `rule_based` (fast formula), `llm_summary` (AI-generated signal), or `sample` (Groq pattern narration over raw joined rows) |
 | `tables`            | Database tables involved                                                          |
 | `tags`              | Search tags                                                                       |
 | `staleness_trigger` | What event makes this capsule outdated                                            |
@@ -528,3 +535,4 @@ The capsule is immediately embedded, stored in Qdrant, and permanently written t
 - **SQL dialect:** Microsoft SQL Server — all generated and capsule queries are `SELECT` only
 - **Schema discovery:** Fully dynamic — engine reads `INFORMATION_SCHEMA` at runtime, no hardcoded table lists
 - **Data folder:** Always written to the repo root `data/` via `Path(__file__)` anchor — consistent regardless of launch directory
+- **Anomaly & Trend Detection:** Pure, deterministic statistical math via `numpy` instead of LLMs (Z-scores for anomalies, moving averages for trends) to prevent data hallucination

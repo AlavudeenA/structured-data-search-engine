@@ -13,6 +13,7 @@ import numpy as np
 from ..app_constants import (
     ANOMALY_DETECTED_THRESHOLD,
     ANOMALY_STDDEV_MULTIPLIER,
+    CAPSULE_TYPE_SAMPLE,
     TAG_ANOMALY,
     TAG_ESCALATING,
     TREND_CHANGE_PCT,
@@ -130,7 +131,11 @@ def enrich_capsule(
     """
     Compute anomaly_score and trend_direction, add tags if thresholds are met.
     Returns dict with anomaly_score, trend_direction, and updated tags.
+    Sample capsules are skipped — random rows have no statistical baseline.
     """
+    if capsule_type == CAPSULE_TYPE_SAMPLE:
+        return {"anomaly_score": 0.0, "trend_direction": "flat", "tags": list(tags)}
+
     anomaly_score = compute_anomaly_score(rows)
     trend_direction = compute_trend_direction(rows)
     updated_tags = list(tags)

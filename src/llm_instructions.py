@@ -47,6 +47,21 @@ Data signals:
 
 Write the intersection summary."""
 
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Stage: Sample Capsule Signal Writing (capsule_generator.py)
+# When: capsule_type = "sample" — SQL returns random joined rows, not aggregates
+# Job: describe 2-3 patterns or notable observations visible across the sample rows
+SAMPLE_SIGNAL_SYSTEM = """You are a compliance data analyst reviewing a random sample of raw records.
+Identify 2 to 3 patterns, anomalies, or notable observations you can see across the rows.
+Mention specific values, names, or counts you observe. Do not invent data not present in the rows."""
+
+SAMPLE_SIGNAL_USER = """Capsule context: {capsule_what}
+Random sample ({row_count} records):
+{rows_json}
+
+Describe 2-3 patterns or notable observations you see across these records."""
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PIPELINE 2 — QUERY ENGINE
 # ══════════════════════════════════════════════════════════════════════════════
@@ -251,12 +266,12 @@ SQL RULES — strictly enforced
 CAPSULE STRUCTURE — every capsule must have ALL keys
 ═══════════════════════════════════════
   capsule_id           unique snake_case string (no spaces, no hyphens)
-  capsule_type         aggregation | trend | violation | risk | pattern | operational | distribution
+  capsule_type         aggregation | trend | violation | risk | pattern | operational | distribution | sample
   priority             P1 (violation/critical) | P2 (monitoring/trend) | P3 (operational) | P4 (info)
   what                 one sentence: what entity/metric this capsule measures
   how                  one sentence: how it is computed or joined
   sql                  complete valid SQL Server SELECT query — single-line string, no triple-quotes
-  signal_method        "rule_based" for counts/aggregations | "llm_summary" for complex patterns
+  signal_method        "rule_based" for counts/aggregations | "llm_summary" for complex patterns | "sample" for random-row joins
   embed_text_template  compliance officer search query style — see requirements below
   ttl_hours            P1 violation=6, pending/operational=2, trend=12, other=24-48 (integer)
   tags                 list of lowercase snake_case strings (5-10 per capsule)
@@ -337,6 +352,36 @@ CATEGORY 8 — Cross-Entity Risk (type=risk, P1): generate 4 capsules
   full five-table risk profile join: Employee + TradeRequest + ComplianceAlert +
     ApprovalWorkflow + RestrictedSecurity (TOP 50, ordered by severity DESC)
 
+CATEGORY 9 — Random Sample Views (type=sample, signal_method="sample"): generate 3 capsules
+  Rules for sample capsules:
+  - SQL must use TOP 50 ORDER BY NEWID() to return random rows
+  - Use LEFT JOIN so rows still appear even when related tables have no match
+  - Select 12-16 columns spanning all joined tables — mix entity names, dates, statuses, and amounts
+  - signal_method must be exactly "sample" (not "llm_summary" or "rule_based")
+  - priority = P3, ttl_hours = 12
+  - linked_capsule_ids must point to 2-3 aggregation/violation capsules from the same tables
+
+  Capsule 1 — full five-table random sample:
+    Join Employee + TradeRequest + BrokerDealer + ComplianceAlert (LEFT) + ApprovalWorkflow (LEFT) + RestrictedSecurity (LEFT, date-overlap)
+    Select: employee_name, department, broker_dealer, security_symbol, trade_type, trade_status,
+            request_date, alert_type, severity, alert_status, review_decision, turnaround_days,
+            restriction_type, restriction_start
+    Link to: violations_on_restricted_securities, trade_requests_by_broker_dealer, high_severity_open_alerts
+
+  Capsule 2 — violation records sample:
+    Join TradeRequest + RestrictedSecurity (INNER, date-overlap) + Employee + BrokerDealer
+    Only records where an active restriction overlapped the trade date
+    Select: employee_name, department, security_symbol, restriction_type, trade_type,
+            trade_status, request_date, restriction_start, restriction_end, broker_dealer
+    Link to: violations_on_restricted_securities, violations_by_broker_dealer, repeat_violators
+
+  Capsule 3 — high risk records sample:
+    Join TradeRequest + ComplianceAlert (INNER) + ApprovalWorkflow (LEFT) + Employee + BrokerDealer
+    Only records where Severity IN ('Critical','High') AND alert Status IN ('Open','Investigating')
+    Select: employee_name, department, broker_dealer, security_symbol, alert_type, severity,
+            alert_status, trade_status, review_decision, turnaround_days, request_date, alert_date
+    Link to: high_severity_open_alerts, repeat_violators, broker_dealers_high_rejection_and_alerts
+
 ═══════════════════════════════════════
 OUTPUT FORMAT — critical
 ═══════════════════════════════════════
@@ -345,7 +390,7 @@ OUTPUT FORMAT — critical
 - No markdown fences, no explanation text, no comments
 - Every string value properly escaped for Python single or double quotes
 - SQL values must be single-line strings (no line breaks inside the string value)
-- Produce all 37+ capsules across all 8 categories. Do not truncate or summarize."""
+- Produce all 40+ capsules across all 9 categories. Do not truncate or summarize."""
 
 CAPSULE_REGEN_USER = """Database schema (all tables and columns):
 {schema}
@@ -357,5 +402,5 @@ Format examples — follow this exact dict structure for every capsule:
 {format_example}
 
 Generate the complete CAPSULE_DEFINITIONS list for this Compliance database.
-Cover all 8 categories. Minimum 35 capsules. Return the Python list only."""
+Cover all 9 categories including the 3 sample capsules. Minimum 38 capsules. Return the Python list only."""
 

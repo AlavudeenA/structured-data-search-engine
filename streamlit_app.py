@@ -422,9 +422,9 @@ with insert_tab:
     capsule_id = st.text_input("Capsule ID*", placeholder="e.g. high_risk_broker_trades", help="Unique identifier in snake_case (e.g. high_risk_trades)")
     
     type_options = [
-        "aggregation", "anomaly", "concentration", "correlation", 
-        "distribution", "escalation", "forecast", "outlier", 
-        "pattern", "profiling", "risk_score", "summary", 
+        "aggregation", "anomaly", "concentration", "correlation",
+        "distribution", "escalation", "forecast", "outlier",
+        "pattern", "profiling", "risk_score", "sample", "summary",
         "threshold_breach", "trend", "Custom..."
     ]
     selected_type = st.selectbox("Capsule Type*", type_options, index=0)

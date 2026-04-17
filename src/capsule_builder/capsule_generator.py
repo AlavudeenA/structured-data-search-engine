@@ -10,12 +10,12 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
-from ..app_constants import CAPSULE_RESULT_MAX_ROWS
+from ..app_constants import CAPSULE_RESULT_MAX_ROWS, CAPSULE_TYPE_SAMPLE
 from ..database_connection import execute_select
 from ..embedding import embed_single
 from ..llm_service import call_llm
 from ..models import CapsuleDefinition, GeneratedCapsule
-from ..llm_instructions import SIGNAL_GENERATION_SYSTEM, SIGNAL_GENERATION_USER
+from ..llm_instructions import SIGNAL_GENERATION_SYSTEM, SIGNAL_GENERATION_USER, SAMPLE_SIGNAL_SYSTEM, SAMPLE_SIGNAL_USER
 from .ml_enricher import enrich_capsule
 
 logger = logging.getLogger(__name__)
@@ -123,6 +123,25 @@ def _llm_signal(rows: list[dict[str, Any]], capsule_def: CapsuleDefinition) -> s
     return result
 
 
+def _sample_signal(rows: list[dict[str, Any]], capsule_def: CapsuleDefinition) -> str:
+    """Pattern narration over random joined rows — used only for sample capsule type."""
+    rows_json = json.dumps(rows, default=str, indent=2)
+    prompt = SAMPLE_SIGNAL_USER.format(
+        capsule_what=capsule_def.what,
+        row_count=len(rows),
+        rows_json=rows_json,
+    )
+    result = call_llm(
+        system_prompt=SAMPLE_SIGNAL_SYSTEM,
+        user_prompt=prompt,
+        model_slot="groq_signal_model",
+        max_tokens=300,
+    )
+    if not result or result.startswith("[LLM"):
+        return f"Sample of {len(rows)} records from {', '.join(capsule_def.tables_used)}. Review raw rows for patterns."
+    return result
+
+
 def generate_capsule(capsule_def: CapsuleDefinition) -> GeneratedCapsule | None:
     """
     Execute SQL, extract signal, embed, and return a GeneratedCapsule.
@@ -135,7 +154,9 @@ def generate_capsule(capsule_def: CapsuleDefinition) -> GeneratedCapsule | None:
         rows = []
 
     # Extract signal
-    if capsule_def.signal_method == "llm_summary" and rows:
+    if capsule_def.capsule_type == CAPSULE_TYPE_SAMPLE and rows:
+        signal = _sample_signal(rows, capsule_def)
+    elif capsule_def.signal_method == "llm_summary" and rows:
         signal = _llm_signal(rows, capsule_def)
     else:
         signal = _dominant_signal(rows, capsule_def)

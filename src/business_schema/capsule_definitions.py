@@ -2085,6 +2085,148 @@ ORDER BY avg_turnaround_days DESC
         "staleness_trigger": "daily",
         "linked_capsule_ids": [],
         "relationship_types": [],
-    }
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 9 — RANDOM SAMPLE VIEWS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "five_table_random_sample",
+        "capsule_type": "sample",
+        "priority": "P3",
+        "what": "50 random compliance records spanning all five core tables",
+        "how": "Random TOP 50 via NEWID() joining Employee, TradeRequest, BrokerDealer, ComplianceAlert, ApprovalWorkflow, and RestrictedSecurity",
+        "sql": (
+            "SELECT TOP 50 "
+            "e.EmployeeName AS employee_name, e.Department AS department, "
+            "bd.BrokerDealerName AS broker_dealer, bd.Country AS broker_country, "
+            "tr.SecuritySymbol AS security_symbol, tr.TradeType AS trade_type, "
+            "tr.Status AS trade_status, tr.Quantity AS quantity, "
+            "CONVERT(VARCHAR, tr.RequestDate, 23) AS request_date, "
+            "ca.AlertType AS alert_type, ca.Severity AS severity, ca.Status AS alert_status, "
+            "aw.Decision AS review_decision, aw.TurnaroundDays AS turnaround_days, "
+            "rs.RestrictionType AS restriction_type, "
+            "CONVERT(VARCHAR, rs.StartDate, 23) AS restriction_start "
+            "FROM TradeRequest tr "
+            "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
+            "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
+            "LEFT JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID "
+            "LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID "
+            "LEFT JOIN RestrictedSecurity rs ON rs.SecuritySymbol = tr.SecuritySymbol "
+            "AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31') "
+            "ORDER BY NEWID()"
+        ),
+        "signal_method": "sample",
+        "embed_text_template": (
+            "A random spot-check sample of 50 live compliance records drawn from all five tables: "
+            "Employee, TradeRequest, BrokerDealer, ComplianceAlert, and ApprovalWorkflow. "
+            "Use this capsule to answer: what do real compliance records look like end to end, "
+            "show me example records with both alerts and decisions, "
+            "what does a typical trade request look like across broker and employee, "
+            "give me a ground-level view of actual compliance data for spot checking or audit preparation. "
+            "This capsule provides raw evidence rather than aggregated counts — "
+            "useful for data quality checks, auditor walkthroughs, and pattern discovery. "
+            "Synonyms: sample records, example data, spot check, raw compliance data, record examples. "
+            "Finding: {signal}"
+        ),
+        "ttl_hours": 12,
+        "tags": ["sample", "raw_data", "five_table_join", "exploratory", "spot_check", "audit"],
+        "tables_used": ["Employee", "TradeRequest", "BrokerDealer", "ComplianceAlert", "ApprovalWorkflow", "RestrictedSecurity"],
+        "key_columns": ["employee_name", "broker_dealer", "security_symbol", "trade_status", "alert_type", "review_decision"],
+        "staleness_trigger": "any new row in any of the five tables",
+        "linked_capsule_ids": ["violations_on_restricted_securities", "trade_requests_by_broker_dealer", "high_severity_open_alerts"],
+        "relationship_types": ["corroborates", "corroborates", "corroborates"],
+    },
+
+    {
+        "capsule_id": "violation_records_sample",
+        "capsule_type": "sample",
+        "priority": "P3",
+        "what": "50 random records where a trade occurred while the security was under active restriction",
+        "how": "Random TOP 50 via NEWID() joining TradeRequest to RestrictedSecurity on date-overlap, with Employee and BrokerDealer",
+        "sql": (
+            "SELECT TOP 50 "
+            "e.EmployeeName AS employee_name, e.Department AS department, "
+            "bd.BrokerDealerName AS broker_dealer, "
+            "tr.SecuritySymbol AS security_symbol, rs.RestrictionType AS restriction_type, "
+            "tr.TradeType AS trade_type, tr.Status AS trade_status, tr.Quantity AS quantity, "
+            "CONVERT(VARCHAR, tr.RequestDate, 23) AS request_date, "
+            "CONVERT(VARCHAR, rs.StartDate, 23) AS restriction_start, "
+            "CONVERT(VARCHAR, ISNULL(rs.EndDate, '9999-12-31'), 23) AS restriction_end "
+            "FROM TradeRequest tr "
+            "JOIN RestrictedSecurity rs ON rs.SecuritySymbol = tr.SecuritySymbol "
+            "AND tr.RequestDate BETWEEN rs.StartDate AND ISNULL(rs.EndDate, '9999-12-31') "
+            "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
+            "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
+            "ORDER BY NEWID()"
+        ),
+        "signal_method": "sample",
+        "embed_text_template": (
+            "A random sample of 50 raw violation records — trades that occurred while the security "
+            "was on an active restriction list such as a blackout, insider list, or watch list. "
+            "Use this capsule to answer: show me real violation examples, "
+            "what do restriction breach records look like, "
+            "give me example records of trades made during active bans or blackouts, "
+            "show me employees and brokers caught in restriction overlaps. "
+            "This capsule shows the raw evidence behind violation counts — "
+            "useful for auditor review, case building, and understanding which restriction types are most breached. "
+            "Synonyms: breach examples, violation records, non-compliant trade samples, policy break records. "
+            "Finding: {signal}"
+        ),
+        "ttl_hours": 12,
+        "tags": ["sample", "violation", "restriction", "raw_data", "breach", "audit", "date_overlap"],
+        "tables_used": ["TradeRequest", "RestrictedSecurity", "Employee", "BrokerDealer"],
+        "key_columns": ["employee_name", "broker_dealer", "security_symbol", "restriction_type", "trade_status", "request_date"],
+        "staleness_trigger": "new TradeRequest or RestrictedSecurity row",
+        "linked_capsule_ids": ["violations_on_restricted_securities", "violations_by_broker_dealer", "repeat_violators"],
+        "relationship_types": ["drills_down", "corroborates", "corroborates"],
+    },
+
+    {
+        "capsule_id": "high_risk_records_sample",
+        "capsule_type": "sample",
+        "priority": "P3",
+        "what": "50 random records with Critical or High severity alerts that are still open or under investigation",
+        "how": "Random TOP 50 via NEWID() joining TradeRequest to ComplianceAlert on Critical/High severity and open status, with Employee, BrokerDealer, and ApprovalWorkflow",
+        "sql": (
+            "SELECT TOP 50 "
+            "e.EmployeeName AS employee_name, e.Department AS department, "
+            "bd.BrokerDealerName AS broker_dealer, "
+            "tr.SecuritySymbol AS security_symbol, tr.TradeType AS trade_type, tr.Status AS trade_status, "
+            "CONVERT(VARCHAR, tr.RequestDate, 23) AS request_date, "
+            "ca.AlertType AS alert_type, ca.Severity AS severity, ca.Status AS alert_status, "
+            "CONVERT(VARCHAR, ca.AlertDate, 23) AS alert_date, "
+            "aw.Decision AS review_decision, aw.TurnaroundDays AS turnaround_days "
+            "FROM TradeRequest tr "
+            "JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID "
+            "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
+            "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
+            "LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID "
+            "WHERE ca.Severity IN ('Critical', 'High') "
+            "AND ca.Status IN ('Open', 'Investigating') "
+            "ORDER BY NEWID()"
+        ),
+        "signal_method": "sample",
+        "embed_text_template": (
+            "A random sample of 50 high-risk compliance records where a Critical or High severity "
+            "alert is still open or actively being investigated. "
+            "Use this capsule to answer: show me examples of open critical alerts, "
+            "what do high severity unresolved incidents look like, "
+            "give me sample records of employees and brokers with active compliance flags, "
+            "show me unresolved issues that need immediate attention. "
+            "This capsule surfaces the raw evidence behind the open alert count — "
+            "ideal for triage reviews, escalation decisions, and understanding what high-risk records contain. "
+            "Synonyms: open critical alerts, unresolved high severity incidents, active compliance flags, urgent cases. "
+            "Finding: {signal}"
+        ),
+        "ttl_hours": 12,
+        "tags": ["sample", "high_severity", "open_alerts", "raw_data", "critical", "unresolved", "triage"],
+        "tables_used": ["TradeRequest", "ComplianceAlert", "Employee", "BrokerDealer", "ApprovalWorkflow"],
+        "key_columns": ["employee_name", "broker_dealer", "alert_type", "severity", "alert_status", "review_decision"],
+        "staleness_trigger": "new ComplianceAlert row or status change",
+        "linked_capsule_ids": ["high_severity_open_alerts", "repeat_violators", "broker_dealers_high_rejection_and_alerts"],
+        "relationship_types": ["drills_down", "corroborates", "corroborates"],
+    },
 
 ]
