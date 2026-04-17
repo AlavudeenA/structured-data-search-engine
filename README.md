@@ -251,52 +251,172 @@ qdrant_data/                ← Local Qdrant vector store persistence (auto-crea
 > This runs when you click **Generate All Capsules** in the UI.
 > The goal: pre-run all SQL queries, extract meaningful signals, and store everything as searchable vectors.
 
-```
-capsule_definitions.py
-       │
-       │  provides: list of capsule dicts
-       │  (each has: capsule_id, SQL, what, how, ttl_hours, tags, priority...)
-       ▼
-store_manager.py  ← master coordinator
-       │
-       ├─── capsule_generator.py
-       │         │  reads each capsule definition
-       │         │  runs SQL against SQL Server (database_connection.py)
-       │         │  if signal_method = "llm_summary":
-       │         │      calls Groq with SIGNAL_GENERATION_SYSTEM prompt (llm_instructions.py)
-       │         │      LLM writes 2–3 sentence signal from the raw rows
-       │         │  if signal_method = "rule_based":
-       │         │      picks top rows / computes summary without LLM
-       │         │  then calls ml_enricher.py:
-       │         │      computes anomaly_score (z-score on numeric columns)
-       │         │      computes trend_direction (rising/falling/flat)
-       │         └─► returns GeneratedCapsule (signal + rows + scores + embed_text)
-       │
-       ├─── schema_capsule_generator.py
-       │         │  reads SCHEMA_DEFINITIONS from capsule_definitions.py
-       │         │  (these describe how tables relate, FK paths, example questions)
-       │         └─► returns SchemaContextCapsule list (no SQL needed — pure metadata)
-       │
-       ├─── relationship_builder.py
-       │         │  compares entity values across all analytical capsules
-       │         │  finds capsules that share entity names (broker, employee, security)
-       │         │  for each high-anomaly capsule:
-       │         │      calls Groq with RELATED_SIGNAL_SYSTEM prompt (llm_instructions.py)
-       │         │      LLM writes a 2-sentence risk alert for that entity
-       │         └─► returns RelatedCapsule list + saves .capsule_graph.json
-       │
-       ├─── embedding.py
-       │         │  takes embed_text from every capsule
-       │         └─► calls fastembed → 768-dim float vector
-       │
-       └─── vector_store.py
-                 │  upserts each (capsule_id, vector, payload) into Qdrant
-                 └─► analytical_capsules, schema_context_capsules, related_capsules
+---
 
-Final saves:
-  .analytical_refresh_plan.json  ← capsule IDs + expiry (for Refresh Data)
-  .schema_fingerprint.json       ← DB schema hash (for Schema Refresh)
+### Step 0 — Button click
+**`streamlit_app.py`**
+
+The UI calls `generate_all_capsule_collections(progress_callback)` in `store_manager.py`. A live progress table updates on screen after each capsule finishes via the callback.
+
+---
+
+### Step 1 — Wipe the old knowledge base
+**`src/vector_store.py`** → `purge_local_qdrant_storage()`
+
+The entire `qdrant_data/` folder on disk is deleted and recreated. All 3 Qdrant collections are wiped and re-created empty. This guarantees no stale data from a previous run survives.
+
+---
+
+### Step 2 — Load the capsule definitions
+**`src/capsule_builder/store_manager.py`** → `_load_definitions()`
+**`src/business_schema/capsule_definitions.py`** → `CAPSULE_DEFINITIONS`
+**`src/models.py`** → `CapsuleDefinition`
+
+All 37 entries from `CAPSULE_DEFINITIONS` are loaded and each dict is validated and converted into a typed `CapsuleDefinition` model. Settings like `signal_method`, `ttl_hours`, and `related_capsule_ids` are parsed here.
+
+---
+
+### Step 3 — Run every capsule's SQL and build a signal
+**`src/capsule_builder/capsule_generator.py`** → `generate_all_capsules()` → `generate_capsule()`
+
+For each of the 37 definitions:
+
+**3a. Run SQL against SQL Server**
+**`src/database_connection.py`** → `execute_select()`
+Connects via pyodbc using `SQLSERVER_CONN_STR` from `.env`. Runs the capsule's SELECT query. Returns rows as a list of dicts. `SQL_DEBUG=1` in `.env` prints every query to the console.
+
+**3b. Extract a signal (the summary sentence)**
+Two paths based on `signal_method` in the capsule definition:
+
+- `rule_based` → `_dominant_signal()` in `capsule_generator.py`
+  Finds the first numeric column, identifies the top row, calculates concentration % (`top / total × 100`), and detects a trend if a date column is present — no LLM involved, pure arithmetic.
+
+- `llm_summary` → `_llm_signal()` in `capsule_generator.py`
+  **`src/llm_service.py`** → `call_llm()` with `model_slot="groq_signal_model"`
+  **`src/llm_instructions.py`** → `SIGNAL_GENERATION_SYSTEM` + `SIGNAL_GENERATION_USER`
+  Sends up to 20 rows as JSON to Groq. Groq writes a 2–3 sentence human-readable signal. If Groq fails, falls back to `_dominant_signal()`.
+
+**3c. Fill the embed text template**
+The capsule definition's `embed_text_template` has a `{signal}` placeholder. The signal from 3b is injected there. The resulting text is what gets embedded and searched later.
+
+**3d. ML enrichment**
+**`src/capsule_builder/ml_enricher.py`** → `enrich_capsule()`
+
+- `compute_anomaly_score()` — iterates every numeric column in the result rows. For each column, computes `mean + N×stddev` threshold (N from `app_constants.py`). Counts how many values exceed it. Returns the fraction as a 0.0–1.0 score.
+- `compute_trend_direction()` — finds a date column in the rows, sorts by it, splits rows into first half and second half, compares the average of the primary numeric column. If second half is >10% higher → `increasing`; >10% lower → `decreasing`; otherwise `flat`.
+- If `anomaly_score` exceeds the threshold, the tag `anomaly` is appended to the capsule's tag list. If a violation-type capsule is `increasing`, the tag `escalating` is added.
+
+**3e. Embed the text to a vector**
+**`src/embedding.py`** → `embed_single()`
+**`src/config.py`** → `get_settings()` → `settings.embed_model`
+
+Loads `BAAI/bge-base-en-v1.5` via fastembed on first call (cached in `LOCALAPPDATA/Temp/fastembed_cache/`). Converts the embed text to a 768-dimensional float vector. If the cache is corrupted it is automatically cleared and re-downloaded.
+
+Result: a fully populated `GeneratedCapsule` object — signal, rows, anomaly score, trend direction, vector, expiry timestamp.
+
+---
+
+### Step 4 — Build schema context capsules
+**`src/capsule_builder/schema_capsule_generator.py`** → `generate_schema_capsules()`
+**`src/business_schema/capsule_definitions.py`** → `SCHEMA_DEFINITIONS`
+**`src/database_connection.py`** → `get_schema_metadata()`, `get_fk_relationships()`, `get_join_paths()`
+**`src/models.py`** → `SchemaContextCapsule`
+
+For each of the 5 `SCHEMA_DEFINITIONS`:
+- Queries `INFORMATION_SCHEMA` live to get the current table/column layout and FK relationships.
+- Builds an embed text from the summary + tables + columns + recommended joins.
+- Embeds via `embedding.py`.
+
+These capsules carry **no SQL result rows** — they are pure structural knowledge used later to guide SQL generation when a user question requires a live query.
+
+---
+
+### Step 5 — Build the relationship graph and risk alerts
+**`src/capsule_builder/relationship_builder.py`** → `build_graph()`, `generate_related_capsules()`, `save_graph()`
+
+**Graph edges** (`build_graph`):
+- Explicit edges: from each capsule's declared `related_capsule_ids` + `relationship_types`
+- Inferred edges: every unique capsule pair is tested — same table set + different type → `same_entity`; A's tables ⊂ B's → `drills_down`; B's tables ⊂ A's → `aggregates_up`; ≥2 shared tags or a shared entity value found in result rows → `corroborates`
+- `_shared_entity_value()` scans actual result rows of both capsules for a column name that appears in both and has at least one overlapping value (e.g., both have `broker_name = "Acme Capital"`)
+- Graph saved to `data/.capsule_graph.json`
+
+**Risk alert capsules** (`generate_related_capsules`):
+- Every capsule with `anomaly_score > 0.0` triggers creation of a `RelatedCapsule`
+- `risk_level` = `critical` if score ≥ 0.8, else `high`
+- First entity value from the first result row becomes `entity_name`
+- **`src/llm_service.py`** → `call_llm()` with `model_slot="groq_signal_model"`
+- **`src/llm_instructions.py`** → `RELATED_SIGNAL_SYSTEM` + `RELATED_SIGNAL_USER`
+- Groq writes exactly 2 sentences tying the entity to the anomaly
+- `capsule_id` = `alert_{source_capsule_id}_{entity_name[:15]}`
+- Embedded via `embedding.py` → stored in `related_capsules` Qdrant collection
+
+---
+
+### Step 6 — Save everything to Qdrant
+**`src/capsule_builder/store_manager.py`** → `_persist_analytical()`, `_persist_schema()`, `_persist_related()`
+**`src/vector_store.py`** → `upsert_capsules_batch()`
+
+Each capsule becomes one Qdrant point: a deterministic UUID (derived from collection name + capsule_id), the 768-dim vector, and the full payload dict. Written in batch per collection.
+
+| Collection | Source | Typical count |
+|---|---|---|
+| `analytical_capsules` | All `GeneratedCapsule` objects | ~42 |
+| `schema_context_capsules` | All `SchemaContextCapsule` objects | 5 |
+| `related_capsules` | All `RelatedCapsule` risk alerts | ~16 |
+
+---
+
+### Step 7 — Save the plan and fingerprint files
+**`src/embedding.py`** → `save_refresh_plan()`, `save_schema_fingerprint()`
+**`src/database_connection.py`** → `get_schema_metadata()`, `get_fk_relationships()`
+**`src/app_constants.py`** → `ANALYTICAL_REFRESH_PLAN_FILE`, `SCHEMA_FINGERPRINT_FILE`, `DATA_DIR`
+
+- `data/.analytical_refresh_plan.json` — list of all capsule IDs that were just built. The **Refresh Data** button reads this to know which capsules to re-run without touching schema or related collections.
+- `data/.schema_fingerprint.json` — SHA-256 hash of the live DB schema + FK relationships. The **Schema Refresh** button computes a fresh hash on next click and compares — if they differ, a full rebuild is triggered automatically.
+
+---
+
+### Complete file map
+
 ```
+Button click
+  streamlit_app.py
+        │
+        ▼
+  store_manager.py                      ← master coordinator
+        │
+        ├── vector_store.py             WIPE qdrant_data/ entirely
+        │
+        ├── capsule_definitions.py      READ 37 CAPSULE_DEFINITIONS
+        │   models.py                   parse each into CapsuleDefinition
+        │
+        ├── capsule_generator.py        FOR EACH of 37 capsules:
+        │     ├── database_connection.py   run SQL → rows (pyodbc → SQL Server)
+        │     ├── llm_service.py           (if llm_summary) call Groq
+        │     │   llm_instructions.py        SIGNAL_GENERATION_SYSTEM prompt
+        │     │   config.py                  groq_api_key, groq_signal_model
+        │     ├── ml_enricher.py           anomaly_score (z-score) + trend_direction
+        │     │   app_constants.py           ANOMALY_STDDEV_MULTIPLIER, TREND_CHANGE_PCT
+        │     └── embedding.py             embed_text → 768-dim vector (fastembed)
+        │         config.py                  embed_model setting
+        │
+        ├── schema_capsule_generator.py  FOR EACH of 5 SCHEMA_DEFINITIONS:
+        │     ├── database_connection.py   get_schema_metadata / get_fk_relationships
+        │     └── embedding.py             embed summary text → vector
+        │
+        ├── relationship_builder.py      BUILD graph + risk alerts
+        │     ├── llm_service.py           call Groq for 2-sentence risk alert
+        │     │   llm_instructions.py        RELATED_SIGNAL_SYSTEM prompt
+        │     └── embedding.py             embed each RelatedCapsule
+        │
+        ├── vector_store.py             SAVE all capsules to Qdrant (3 collections)
+        │
+        └── embedding.py               SAVE .analytical_refresh_plan.json
+            database_connection.py     SAVE .schema_fingerprint.json (live schema hash)
+            app_constants.py             DATA_DIR, file path constants
+```
+
+---
 
 **Key distinction:** `capsule_definitions.py` defines *what to query and what context to carry*. `llm_instructions.py` defines *how the LLM should interpret and summarize those query results*. They work at different stages but both feed the same output: the capsule's `signal` text.
 
