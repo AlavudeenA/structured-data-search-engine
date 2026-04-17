@@ -10,6 +10,9 @@ async function collectStreamText(asyncIterable: AsyncIterable<string>) {
   return out;
 }
 
+// Cached at activate() — selectChatModels returns empty in HTTP handler context
+let cachedModel: vscode.LanguageModelChat | undefined;
+
 function startLocalServer(context: vscode.ExtensionContext) {
   // Choose a port or read from config
   const config = vscode.workspace.getConfiguration("vscodeLmSample");
@@ -62,21 +65,15 @@ function startLocalServer(context: vscode.ExtensionContext) {
         ? String(json.system)
         : "You are a helpful assistant. Be concise.";
 
-      // Choose the model (user initiated - this is okay because server runs in extension)
-      const models = await vscode.lm.selectChatModels({
-        vendor: "copilot",
-        family: "gpt-5-mini",
-      });
-      if (!models || models.length === 0) {
+      const model = cachedModel;
+      if (!model) {
         res.writeHead(503, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "no-model" }));
         return;
       }
-      const model = models[0];
 
       const messages = [
-        vscode.LanguageModelChatMessage.User(systemText),
-        vscode.LanguageModelChatMessage.User(prompt),
+        vscode.LanguageModelChatMessage.User(`${systemText}\n\n${prompt}`),
       ];
 
       // send the request and collect streamed text
@@ -121,6 +118,10 @@ function startLocalServer(context: vscode.ExtensionContext) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  // Cache the model at activation (user context — selectChatModels works here)
+  vscode.lm.selectChatModels({ vendor: "copilot", family: "gpt-5-mini" })
+    .then(models => { cachedModel = models[0]; });
+
   // register the command declared in package.json
   const disposable = vscode.commands.registerCommand(
     "vscode-lm-sample.askModel",
