@@ -134,7 +134,7 @@ There are three types:
 | ------------------------- | -------------------------------------------------------------- | --------------- |
 | `analytical_capsules`     | Pre-run SQL results + signals for common business questions    | ~42             |
 | `schema_context_capsules` | Maps of the database structure — which tables join to what     | 5               |
-| `related_capsules`        | Auto-generated risk/anomaly alerts from capsule cross-analysis | ~17             |
+| `linked_capsules`         | Auto-generated linked capsules — risk/anomaly alerts from capsule cross-analysis | ~17             |
 
 ### Two Pipelines
 
@@ -285,7 +285,7 @@ store_manager.py  ← master coordinator
        │         │  compares entity values across all analytical capsules
        │         │  finds capsules that share entity names (broker, employee, security)
        │         │  for each high-anomaly capsule:
-       │         │      calls Groq with RELATED_SIGNAL_SYSTEM prompt (llm_instructions.py)
+       │         │      calls Groq with LINKED_SIGNAL_SYSTEM prompt (llm_instructions.py)
        │         │      LLM writes a 2-sentence risk alert for that entity
        │         └─► returns RelatedCapsule list + saves .capsule_graph.json
        │
@@ -332,7 +332,7 @@ orchestrator.py  ← entry point
        │         • primary capsule   = best single match
        │         • linked capsules   = capsules related via relationship graph
        │         • schema capsules   = best schema_context_capsule matches
-       │         • related capsules  = any anomaly/risk alerts relevant to question
+       │         • linked capsules   = any anomaly/risk alerts relevant to question
        │
        ├─ Step 4A: if intent = "analytical" AND confidence ≥ threshold
        │       analytical_retriever.py
@@ -364,11 +364,11 @@ Displayed to user:
 
 ---
 
-## How Related Capsules Are Established
+## How Linked Capsules Are Established
 
-> **Why this matters:** Related capsules are what let the engine surface risk patterns across multiple data dimensions — a broker with high rejection rate _and_ compliance alerts, or an employee appearing in both a restriction violation capsule and a turnaround anomaly capsule. They connect the dots automatically.
+> **Why this matters:** Linked capsules are what let the engine surface risk patterns across multiple data dimensions — a broker with high rejection rate _and_ compliance alerts, or an employee appearing in both a restriction violation capsule and a turnaround anomaly capsule. They connect the dots automatically.
 
-Related capsules are created through two completely separate mechanisms, both in `src/capsule_builder/relationship_builder.py`. They are produced during the **Generate Capsules** pipeline and consumed during the **Answer** pipeline.
+Linked capsules are created through two completely separate mechanisms, both in `src/capsule_builder/relationship_builder.py`. They are produced during the **Generate Capsules** pipeline and consumed during the **Answer** pipeline.
 
 ---
 
@@ -379,7 +379,7 @@ After all analytical capsules are generated, `build_graph()` creates a graph of 
 **Explicit edges** (declared in `capsule_definitions.py`):
 Each capsule definition includes two optional lists:
 
-- `related_capsule_ids` — capsule IDs this capsule is related to
+- `linked_capsule_ids` — capsule IDs this capsule is related to
 - `relationship_types` — one label per related ID:
   - `corroborates` — both measure the same risk from different angles
   - `drills_down` — this capsule is a narrower view of the related one
@@ -404,26 +404,26 @@ The full graph is saved to `data/.capsule_graph.json` and visualized in the **Ca
 
 ---
 
-### Phase 2 — Auto-Generated Risk Alert Capsules (`generate_related_capsules`)
+### Phase 2 — Auto-Generated Risk Alert Capsules (`generate_linked_capsules`)
 
-Separately, after all capsules are enriched by `ml_enricher.py`, any capsule with `anomaly_score > 0.0` triggers automatic creation of a **RelatedCapsule** — a short AI-written risk alert:
+Separately, after all capsules are enriched by `ml_enricher.py`, any capsule with `anomaly_score > 0.0` triggers automatic creation of a **linked capsule** — a short AI-written risk alert:
 
 1. The capsule's anomaly score is computed by z-score on its numeric result columns (see `ml_enricher.py`). Any score above 0.0 means the values are statistically unusual.
 2. The first entity value from the capsule's first result row becomes the `entity_name` (e.g., a broker name, department name, or employee name).
-3. Groq is called with the `RELATED_SIGNAL_SYSTEM` prompt to write exactly **2 sentences** tying the anomaly back to the entity.
-4. A new `RelatedCapsule` is created:
+3. Groq is called with the `LINKED_SIGNAL_SYSTEM` prompt to write exactly **2 sentences** tying the anomaly back to the entity.
+4. A new linked capsule (`RelatedCapsule`) is created:
    - `capsule_id` = `alert_{source_capsule_id}_{entity_name[:15]}`
    - `risk_level` = `critical` if anomaly_score ≥ 0.8, otherwise `high`
-   - `related_from` = source capsule ID
-5. The alert text is embedded via fastembed and stored in the **`related_capsules`** Qdrant collection.
+   - `linked_from` = source capsule ID
+5. The alert text is embedded via fastembed and stored in the **`linked_capsules`** Qdrant collection.
 
 This means: every time you generate capsules, the engine scans for anomalies across all results and automatically writes targeted risk alerts — with no manual configuration.
 
 ---
 
-### How Related Capsules Feed Into the Answer Pipeline
+### How Linked Capsules Feed Into the Answer Pipeline
 
-Every time a user asks a question, `context_searcher.py` runs a **vector search against all 3 Qdrant collections** — including `related_capsules`. The search uses the same embedding of the user's question.
+Every time a user asks a question, `context_searcher.py` runs a **vector search against all 3 Qdrant collections** — including `linked_capsules`. The search uses the same embedding of the user's question.
 
 `context_packager.py` then slots the results into a `ContextPackage`:
 
@@ -432,14 +432,14 @@ Every time a user asks a question, `context_searcher.py` runs a **vector search 
 | `primary_capsule`  | Best single match from `analytical_capsules`         |
 | `linked_capsules`  | Graph neighbours of the primary capsule              |
 | `schema_capsules`  | Best matches from `schema_context_capsules`          |
-| `related_capsules` | Top matches from `related_capsules` (anomaly alerts) |
+| `linked_capsules` | Top matches from `linked_capsules` (anomaly alerts) |
 
 These slots are used differently depending on the answer route:
 
 - **Analytical path** (`analytical_retriever.py`): all slots are concatenated into `combined_context` and sent to Groq. The LLM sees both the main capsule signals _and_ any anomaly alerts relevant to the question — it can reference them in the same answer.
-- **SQL path** (`sql_generator.py`): related capsule signals appear in the `{related_context}` slot of the `SQL_GENERATION_SYSTEM` prompt. This lets the LLM know about flagged entities when deciding which joins or filters to apply.
+- **SQL path** (`sql_generator.py`): linked capsule signals appear in the `{related_context}` slot of the `SQL_GENERATION_SYSTEM` prompt. This lets the LLM know about flagged entities when deciding which joins or filters to apply.
 
-In both routes, related capsules are the mechanism that lets a single question surface cross-dimensional risk — for example, answering "Is there anything unusual about Acme Capital?" by combining a rejection-rate capsule signal, a violation capsule signal, and a Groq-written anomaly alert that ties both together.
+In both routes, linked capsules are the mechanism that lets a single question surface cross-dimensional risk — for example, answering "Is there anything unusual about Acme Capital?" by combining a rejection-rate capsule signal, a violation capsule signal, and a Groq-written anomaly alert that ties both together.
 
 ---
 
@@ -462,7 +462,7 @@ In both routes, related capsules are the mechanism that lets a single question s
 | Button                     | What it does                                                                                                                                                                                                                                                                                                                                                                                             | When to use                                                                                                                    |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | **Generate All Capsules**  | Full rebuild — wipes Qdrant and regenerates everything from scratch                                                                                                                                                                                                                                                                                                                                      | First run, after changing `capsule_definitions.py`, or when something is broken                                                |
-| **Refresh Data**           | Re-runs only the analytical SQL queries; leaves schema and related capsules untouched                                                                                                                                                                                                                                                                                                                    | Daily/routine refresh when DB data changed but structure hasn't                                                                |
+| **Refresh Data**           | Re-runs only the analytical SQL queries; leaves schema and linked capsules untouched                                                                                                                                                                                                                                                                                                                    | Daily/routine refresh when DB data changed but structure hasn't                                                                |
 | **Schema Refresh**         | Detects whether the DB schema changed (via fingerprint) and rebuilds everything if it has                                                                                                                                                                                                                                                                                                                | After adding or removing columns/tables in SQL Server                                                                          |
 | **AI Rebuild Definitions** | Sends your live DB schema and FK relationships to Groq; the LLM regenerates the entire `CAPSULE_DEFINITIONS` list (all 37+ capsules, all 8 categories) with correct SQL Server syntax and compliance domain rules; output is validated with `ast.parse()` before being written to `capsule_definitions.py`, and the module is hot-reloaded so the next Generate picks up the new definitions immediately | When you want a fresh AI-generated set of capsule definitions — e.g., after major schema changes, or to bootstrap a new domain |
 
@@ -476,7 +476,7 @@ The top of the sidebar shows live Qdrant collection counts:
 {
   "analytical_capsules": 42,
   "schema_context_capsules": 5,
-  "related_capsules": 16
+  "linked_capsules": 16
 }
 ```
 

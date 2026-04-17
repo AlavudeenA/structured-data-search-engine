@@ -8,7 +8,7 @@ import streamlit as st
 
 from src.app_constants import (
     COLLECTION_ANALYTICAL,
-    COLLECTION_RELATED,
+    COLLECTION_LINKED,
     COLLECTION_SCHEMA,
     INTENT_ANALYTICAL,
     INTENT_HYBRID,
@@ -193,7 +193,7 @@ with generate_tab:
         st.success(
             f"Generated {actual_counts.get(COLLECTION_ANALYTICAL, 0)} analytical, "
             f"{actual_counts.get(COLLECTION_SCHEMA, 0)} schema_context, and "
-            f"{actual_counts.get(COLLECTION_RELATED, 0)} related capsules."
+            f"{actual_counts.get(COLLECTION_LINKED, 0)} linked capsules."
         )
         st.write(f"Relationship graph edges: {summary.graph_edge_count}")
         st.dataframe(progress_rows, width='stretch')
@@ -211,7 +211,7 @@ with generate_tab:
 
         with st.spinner("Refreshing analytical capsules from saved plan..."):
             summary = refresh_data_only(progress_callback=on_progress)
-        st.success(f"Refreshed {summary.analytical_count} analytical capsules. Schema-context and related capsules were kept.")
+        st.success(f"Refreshed {summary.analytical_count} analytical capsules. Schema-context and linked capsules were kept.")
         if progress_rows:
             st.dataframe(progress_rows, width='stretch')
 
@@ -224,7 +224,7 @@ with generate_tab:
         with st.spinner("Refreshing schema and rebuilding all collections..."):
             summary = schema_refresh(progress_callback=on_progress)
         st.success(
-            f"Schema refresh complete. Schema changed: {summary.schema_changed}. Rebuilt {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.related_count} related capsules."
+            f"Schema refresh complete. Schema changed: {summary.schema_changed}. Rebuilt {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.linked_count} linked capsules."
         )
         if progress_rows:
             st.dataframe(progress_rows, width='stretch')
@@ -293,7 +293,7 @@ with explorer_tab:
     if st.button("Load All Capsules"):
         analytical = scroll_all(COLLECTION_ANALYTICAL)
         schema = scroll_all(COLLECTION_SCHEMA)
-        related = scroll_all(COLLECTION_RELATED)
+        related = scroll_all(COLLECTION_LINKED)
         st.session_state.explorer_capsules = analytical + schema + related
 
     capsules = st.session_state.explorer_capsules
@@ -336,7 +336,7 @@ with explorer_tab:
                     "ttl_hours": capsule.get("ttl_hours", "-"),
                     "anomaly_score": capsule.get("anomaly_score", "-"),
                     "trend_direction": capsule.get("trend_direction", "-"),
-                    "related_count": len(capsule.get("related_capsule_ids", [])),
+                    "linked_count": len(capsule.get("linked_capsule_ids", [])),
                     "expires_at": capsule.get("expires_at", "-"),
                 }
                 for capsule in filtered
@@ -354,7 +354,7 @@ with explorer_tab:
                 "ttl_hours":         st.column_config.NumberColumn("TTL (hrs)",         width="small"),
                 "anomaly_score":     st.column_config.NumberColumn("Anomaly",           width="small",   format="%.2f"),
                 "trend_direction":   st.column_config.TextColumn("Trend",              width="small"),
-                "related_count":     st.column_config.NumberColumn("Related",           width="small"),
+                "linked_count":      st.column_config.NumberColumn("Linked",            width="small"),
                 "expires_at":        st.column_config.TextColumn("Expires At",         width="medium"),
             },
             width='stretch',
@@ -368,15 +368,15 @@ with explorer_tab:
             st.write("**Embed Text**")
             st.write(capsule.get("embed_text", "-"))
             st.write("**Related Capsules**")
-            st.write(list(zip(capsule.get("related_capsule_ids", []), capsule.get("relationship_types", []))))
+            st.write(list(zip(capsule.get("linked_capsule_ids", []), capsule.get("relationship_types", []))))
             st.write("**Source SQL**")
             st.code(capsule.get("sql", capsule.get("sql_template", "")), language="sql")
 
             delete_collection = COLLECTION_ANALYTICAL
             if "summary" in capsule and "tables" in capsule:
                 delete_collection = COLLECTION_SCHEMA
-            elif "related_from" in capsule:
-                delete_collection = COLLECTION_RELATED
+            elif "linked_from" in capsule:
+                delete_collection = COLLECTION_LINKED
             if st.button(f"Delete {selected_capsule}"):
                 delete_by_capsule_id(delete_collection, selected_capsule)
                 st.success(f"Deleted {selected_capsule}")
@@ -403,7 +403,7 @@ with graph_tab:
             width='stretch',
         )
         st.write("### Related Capsules")
-        st.dataframe(scroll_all(COLLECTION_RELATED), width='stretch')
+        st.dataframe(scroll_all(COLLECTION_LINKED), width='stretch')
     else:
         st.info("No capsule graph found yet. Generate capsules first.")
 
@@ -558,7 +558,7 @@ with insert_tab:
                         "tables_used": final_tables,
                         "key_columns": final_keys,
                         "staleness_trigger": final_stale,
-                        "related_capsule_ids": [],
+                        "linked_capsule_ids": [],
                         "relationship_types": []
                     }
                     

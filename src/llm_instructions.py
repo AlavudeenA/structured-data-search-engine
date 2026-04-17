@@ -3,7 +3,7 @@ All LLM instruction templates for the engine. Two pipelines use this file:
 
   CAPSULE BUILDER  (Generate Capsules — runs offline)
     SIGNAL_GENERATION  → narrate SQL result rows into a plain-English signal
-    RELATED_SIGNAL     → write a risk alert for a cross-capsule flagged entity
+    LINKED_SIGNAL      → write a risk alert for a cross-capsule flagged entity
 
   QUERY ENGINE  (Ask Question — runs on every user question)
     INTENT_DETECTION   → classify the question before any retrieval
@@ -38,10 +38,10 @@ Write a concise signal summary."""
 #       for each entity (broker, employee, security) that appears across
 #       multiple high-anomaly capsules
 # Job: write a 2-sentence risk alert tying the entity's cross-capsule signals together
-RELATED_SIGNAL_SYSTEM = """You are an analyst generating a short relationship summary for a flagged entity.
+LINKED_SIGNAL_SYSTEM = """You are an analyst generating a short relationship summary for a flagged entity.
 Write exactly 2 sentences with specific numbers."""
 
-RELATED_SIGNAL_USER = """Entity: {entity_type} - {entity_name}
+LINKED_SIGNAL_USER = """Entity: {entity_type} - {entity_name}
 Data signals:
 {signals}
 
@@ -263,8 +263,8 @@ CAPSULE STRUCTURE — every capsule must have ALL keys
   tables_used          list of exact table names the SQL queries
   key_columns          list of the most important output column AS aliases
   staleness_trigger    short string: what event/time makes this stale
-  related_capsule_ids  list of capsule_ids this relates to (empty list [] if none applies yet)
-  relationship_types   list matching related_capsule_ids:
+  linked_capsule_ids   list of capsule_ids this links to (empty list [] if none applies yet)
+  relationship_types   list matching linked_capsule_ids:
                          corroborates | drills_down | aggregates_up | same_entity
 
 ═══════════════════════════════════════

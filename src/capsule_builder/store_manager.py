@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from ..app_constants import COLLECTION_ANALYTICAL, COLLECTION_RELATED, COLLECTION_SCHEMA
+from ..app_constants import COLLECTION_ANALYTICAL, COLLECTION_LINKED, COLLECTION_SCHEMA
 from ..database_connection import get_fk_relationships, get_schema_metadata
 from ..embedding import (
     compute_schema_fingerprint,
@@ -14,11 +14,11 @@ from ..embedding import (
     save_refresh_plan,
     save_schema_fingerprint,
 )
-from ..models import BuildStatus, BuildSummary, CapsuleDefinition, RelatedCapsule, GeneratedCapsule, SchemaContextCapsule
+from ..models import BuildStatus, BuildSummary, CapsuleDefinition, LinkedCapsule, GeneratedCapsule, SchemaContextCapsule
 from ..vector_store import clear_collection, collection_counts, purge_local_qdrant_storage, upsert_capsules_batch
 from ..business_schema.capsule_definitions import CAPSULE_DEFINITIONS
 from .capsule_generator import generate_all_capsules
-from .relationship_builder import build_graph, generate_related_capsules, save_graph
+from .relationship_builder import build_graph, generate_linked_capsules, save_graph
 from .schema_capsule_generator import generate_schema_capsules
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ def _analytical_payload(capsule: GeneratedCapsule) -> dict:
         "sql": capsule.sql,
         "anomaly_score": capsule.anomaly_score,
         "trend_direction": capsule.trend_direction,
-        "related_capsule_ids": capsule.related_capsule_ids,
+        "linked_capsule_ids": capsule.linked_capsule_ids,
         "relationship_types": capsule.relationship_types,
     }
 
@@ -66,10 +66,10 @@ def _schema_payload(capsule: SchemaContextCapsule) -> dict:
     }
 
 
-def _related_payload(capsule: RelatedCapsule) -> dict:
+def _related_payload(capsule: LinkedCapsule) -> dict:
     return {
         "capsule_id": capsule.capsule_id,
-        "related_from": capsule.related_from,
+        "linked_from": capsule.linked_from,
         "signal": capsule.signal,
         "embed_text": capsule.embed_text,
         "entity_type": capsule.entity_type,
@@ -92,9 +92,9 @@ def _persist_schema(capsules: list[SchemaContextCapsule]) -> int:
     return len(items)
 
 
-def _persist_related(capsules: list[RelatedCapsule]) -> int:
+def _persist_linked(capsules: list[LinkedCapsule]) -> int:
     items = [(capsule.capsule_id, capsule.vector or [], _related_payload(capsule)) for capsule in capsules if capsule.vector]
-    upsert_capsules_batch(COLLECTION_RELATED, items)
+    upsert_capsules_batch(COLLECTION_LINKED, items)
     return len(items)
 
 
@@ -123,16 +123,16 @@ def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
         _progress(sc.capsule_id, "ok", sc.summary[:80], COLLECTION_SCHEMA)
 
     graph = build_graph(analytical_capsules)
-    related_capsules = generate_related_capsules(analytical_capsules)
-    for rc in related_capsules:
-        _progress(rc.capsule_id, "ok", rc.signal[:80], COLLECTION_RELATED)
+    linked_capsules = generate_linked_capsules(analytical_capsules)
+    for rc in linked_capsules:
+        _progress(rc.capsule_id, "ok", rc.signal[:80], COLLECTION_LINKED)
 
-    graph.related_capsule_ids = [capsule.capsule_id for capsule in related_capsules]
+    graph.linked_capsule_ids = [capsule.capsule_id for capsule in linked_capsules]
     save_graph(graph)
 
     analytical_count = _persist_analytical(analytical_capsules)
     schema_count = _persist_schema(schema_capsules)
-    related_count = _persist_related(related_capsules)
+    linked_count = _persist_linked(linked_capsules)
 
     save_refresh_plan([definition.model_dump() for definition in definitions])
     save_schema_fingerprint(get_schema_metadata(), get_fk_relationships())
@@ -140,7 +140,7 @@ def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
     return BuildSummary(
         analytical_count=analytical_count,
         schema_count=schema_count,
-        related_count=related_count,
+        linked_count=linked_count,
         graph_edge_count=len(graph.edges),
         statuses=statuses,
         schema_changed=None,

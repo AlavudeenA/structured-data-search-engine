@@ -176,7 +176,7 @@ def generate_capsule(capsule_def: CapsuleDefinition) -> GeneratedCapsule | None:
         result_rows=rows,
         anomaly_score=enrichment["anomaly_score"],
         trend_direction=enrichment["trend_direction"],
-        related_capsule_ids=capsule_def.related_capsule_ids,
+        linked_capsule_ids=capsule_def.linked_capsule_ids,
         relationship_types=capsule_def.relationship_types,
         vector=vector,
     )

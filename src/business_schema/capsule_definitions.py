@@ -134,7 +134,7 @@ ORDER BY total_requests DESC
         "tables_used": ["BrokerDealer", "TradeRequest"],
         "key_columns": ["BrokerDealerName", "total_requests", "rejected_count", "escalated_count", "rejection_rate_pct"],
         "staleness_trigger": "new TradeRequest row inserted",
-        "related_capsule_ids": ["violations_by_broker_dealer", "broker_dealers_high_rejection_and_alerts"],
+        "linked_capsule_ids": ["violations_by_broker_dealer", "broker_dealers_high_rejection_and_alerts"],
         "relationship_types": ["corroborates", "aggregates_up"],
     },
 
@@ -179,7 +179,7 @@ ORDER BY total_requests DESC
         "tables_used": ["Employee", "TradeRequest"],
         "key_columns": ["Department", "total_requests", "rejected_count", "non_approval_rate_pct"],
         "staleness_trigger": "new TradeRequest or Employee row",
-        "related_capsule_ids": ["violations_by_department", "escalation_trend_by_department", "department_compliance_scorecard"],
+        "linked_capsule_ids": ["violations_by_department", "escalation_trend_by_department", "department_compliance_scorecard"],
         "relationship_types": ["corroborates", "corroborates", "aggregates_up"],
     },
 
@@ -222,7 +222,7 @@ ORDER BY request_count DESC
         "tables_used": ["TradeRequest", "RestrictedSecurity"],
         "key_columns": ["SecuritySymbol", "request_count", "total_quantity", "rejected_count", "has_restriction_history"],
         "staleness_trigger": "new TradeRequest or RestrictedSecurity row",
-        "related_capsule_ids": ["currently_active_restrictions", "securities_in_restrictions_and_alerts"],
+        "linked_capsule_ids": ["currently_active_restrictions", "securities_in_restrictions_and_alerts"],
         "relationship_types": ["corroborates", "drills_down"],
     },
 
@@ -264,7 +264,7 @@ ORDER BY request_count DESC
         "tables_used": ["TradeRequest"],
         "key_columns": ["TradeType", "request_count", "total_quantity", "pct_of_total"],
         "staleness_trigger": "new TradeRequest row",
-        "related_capsule_ids": ["trade_requests_by_security_symbol"],
+        "linked_capsule_ids": ["trade_requests_by_security_symbol"],
         "relationship_types": ["corroborates"],
     },
 
@@ -305,7 +305,7 @@ ORDER BY request_month ASC
         "tables_used": ["TradeRequest"],
         "key_columns": ["request_month", "total_requests", "rejected_count", "escalated_count"],
         "staleness_trigger": "daily",
-        "related_capsule_ids": ["monthly_alert_volume_trend", "weekly_trade_request_volume"],
+        "linked_capsule_ids": ["monthly_alert_volume_trend", "weekly_trade_request_volume"],
         "relationship_types": ["corroborates", "same_entity"],
     },
 
@@ -362,7 +362,7 @@ ORDER BY tr.RequestDate DESC
         "tables_used": ["TradeRequest", "RestrictedSecurity", "Employee", "BrokerDealer"],
         "key_columns": ["employee_name", "security_symbol", "restriction_type", "request_date", "request_status"],
         "staleness_trigger": "any new TradeRequest or RestrictedSecurity change",
-        "related_capsule_ids": ["violations_by_restriction_type", "violations_by_broker_dealer", "violations_by_department", "repeat_violators"],
+        "linked_capsule_ids": ["violations_by_restriction_type", "violations_by_broker_dealer", "violations_by_department", "repeat_violators"],
         "relationship_types": ["drills_down", "aggregates_up", "aggregates_up", "corroborates"],
     },
 
@@ -405,7 +405,7 @@ ORDER BY violation_count DESC
         "tables_used": ["TradeRequest", "RestrictedSecurity"],
         "key_columns": ["restriction_type", "violation_count", "unique_employees", "unique_securities"],
         "staleness_trigger": "new violation or restriction change",
-        "related_capsule_ids": ["violations_on_restricted_securities", "currently_active_restrictions"],
+        "linked_capsule_ids": ["violations_on_restricted_securities", "currently_active_restrictions"],
         "relationship_types": ["aggregates_up", "corroborates"],
     },
 
@@ -448,7 +448,7 @@ ORDER BY violation_count DESC
         "tables_used": ["TradeRequest", "RestrictedSecurity", "BrokerDealer"],
         "key_columns": ["broker_dealer", "country", "violation_count", "unique_employees"],
         "staleness_trigger": "new violation detected",
-        "related_capsule_ids": ["trade_requests_by_broker_dealer", "broker_dealers_high_rejection_and_alerts"],
+        "linked_capsule_ids": ["trade_requests_by_broker_dealer", "broker_dealers_high_rejection_and_alerts"],
         "relationship_types": ["same_entity", "corroborates"],
     },
 
@@ -492,7 +492,7 @@ ORDER BY violation_count DESC
         "tables_used": ["TradeRequest", "RestrictedSecurity", "Employee"],
         "key_columns": ["department", "violation_count", "unique_violators", "restriction_types_hit"],
         "staleness_trigger": "new violation detected",
-        "related_capsule_ids": ["trade_requests_by_department", "department_compliance_scorecard"],
+        "linked_capsule_ids": ["trade_requests_by_department", "department_compliance_scorecard"],
         "relationship_types": ["same_entity", "drills_down"],
     },
 
@@ -537,7 +537,7 @@ ORDER BY alert_count DESC
         "tables_used": ["Employee", "ComplianceAlert"],
         "key_columns": ["employee_name", "department", "alert_count", "open_alerts"],
         "staleness_trigger": "new ComplianceAlert row",
-        "related_capsule_ids": ["violations_on_restricted_securities", "employees_multiple_alert_types"],
+        "linked_capsule_ids": ["violations_on_restricted_securities", "employees_multiple_alert_types"],
         "relationship_types": ["corroborates", "same_entity"],
     },
 
@@ -586,7 +586,7 @@ ORDER BY recent_trade_attempts DESC
         "tables_used": ["RestrictedSecurity", "TradeRequest"],
         "key_columns": ["security_symbol", "restriction_type", "recent_trade_attempts", "unique_employees", "latest_attempt_date"],
         "staleness_trigger": "any TradeRequest or RestrictedSecurity change",
-        "related_capsule_ids": ["currently_active_restrictions", "violations_on_restricted_securities"],
+        "linked_capsule_ids": ["currently_active_restrictions", "violations_on_restricted_securities"],
         "relationship_types": ["drills_down", "corroborates"],
     },
 
@@ -633,7 +633,7 @@ ORDER BY alert_month ASC
         "tables_used": ["ComplianceAlert"],
         "key_columns": ["alert_month", "total_alerts", "critical_count", "high_count", "open_count"],
         "staleness_trigger": "daily",
-        "related_capsule_ids": ["monthly_request_volume", "alert_severity_trend"],
+        "linked_capsule_ids": ["monthly_request_volume", "alert_severity_trend"],
         "relationship_types": ["corroborates", "same_entity"],
     },
 
@@ -673,7 +673,7 @@ ORDER BY request_week ASC
         "tables_used": ["TradeRequest"],
         "key_columns": ["request_week", "total_requests", "rejected_count", "escalated_count"],
         "staleness_trigger": "daily",
-        "related_capsule_ids": ["monthly_request_volume"],
+        "linked_capsule_ids": ["monthly_request_volume"],
         "relationship_types": ["drills_down"],
     },
 
@@ -717,7 +717,7 @@ ORDER BY request_month ASC, rejection_rate_pct DESC
         "tables_used": ["TradeRequest", "BrokerDealer"],
         "key_columns": ["request_month", "broker_dealer", "rejection_rate_pct"],
         "staleness_trigger": "monthly",
-        "related_capsule_ids": ["trade_requests_by_broker_dealer"],
+        "linked_capsule_ids": ["trade_requests_by_broker_dealer"],
         "relationship_types": ["drills_down"],
     },
 
@@ -761,7 +761,7 @@ ORDER BY request_month ASC, escalated_count DESC
         "tables_used": ["TradeRequest", "Employee"],
         "key_columns": ["request_month", "department", "escalated_count", "escalation_rate_pct"],
         "staleness_trigger": "monthly",
-        "related_capsule_ids": ["trade_requests_by_department"],
+        "linked_capsule_ids": ["trade_requests_by_department"],
         "relationship_types": ["drills_down"],
     },
 
@@ -803,7 +803,7 @@ ORDER BY alert_month ASC, ca.Severity ASC
         "tables_used": ["ComplianceAlert"],
         "key_columns": ["alert_month", "severity", "alert_count", "open_count"],
         "staleness_trigger": "daily",
-        "related_capsule_ids": ["monthly_alert_volume_trend", "high_severity_open_alerts"],
+        "linked_capsule_ids": ["monthly_alert_volume_trend", "high_severity_open_alerts"],
         "relationship_types": ["drills_down", "corroborates"],
     },
 
@@ -853,7 +853,7 @@ ORDER BY distinct_alert_types DESC, total_alerts DESC
         "tables_used": ["Employee", "ComplianceAlert"],
         "key_columns": ["employee_name", "department", "distinct_alert_types", "alert_types_list", "unresolved_alerts"],
         "staleness_trigger": "new ComplianceAlert row",
-        "related_capsule_ids": ["repeat_violators", "high_severity_open_alerts"],
+        "linked_capsule_ids": ["repeat_violators", "high_severity_open_alerts"],
         "relationship_types": ["corroborates", "corroborates"],
     },
 
@@ -903,7 +903,7 @@ ORDER BY ca.Severity DESC, days_open DESC
         "tables_used": ["ComplianceAlert", "Employee", "TradeRequest", "BrokerDealer"],
         "key_columns": ["employee_name", "severity", "alert_date", "status", "days_open", "description"],
         "staleness_trigger": "any ComplianceAlert status change",
-        "related_capsule_ids": ["repeat_violators", "alert_severity_trend"],
+        "linked_capsule_ids": ["repeat_violators", "alert_severity_trend"],
         "relationship_types": ["corroborates", "drills_down"],
     },
 
@@ -950,7 +950,7 @@ ORDER BY rejection_rate_pct DESC, total_alerts DESC
         "tables_used": ["BrokerDealer", "TradeRequest", "ComplianceAlert"],
         "key_columns": ["broker_dealer", "rejection_rate_pct", "total_alerts", "high_severity_alerts"],
         "staleness_trigger": "new TradeRequest or ComplianceAlert row",
-        "related_capsule_ids": ["trade_requests_by_broker_dealer", "violations_by_broker_dealer"],
+        "linked_capsule_ids": ["trade_requests_by_broker_dealer", "violations_by_broker_dealer"],
         "relationship_types": ["same_entity", "corroborates"],
     },
 
@@ -997,7 +997,7 @@ ORDER BY tr.Status, request_count DESC
         "tables_used": ["TradeRequest", "Employee", "BrokerDealer", "ApprovalWorkflow", "ComplianceAlert"],
         "key_columns": ["request_status", "department", "trade_type", "request_count", "avg_turnaround_days"],
         "staleness_trigger": "weekly",
-        "related_capsule_ids": ["escalation_trend_by_department", "reviewer_decision_distribution"],
+        "linked_capsule_ids": ["escalation_trend_by_department", "reviewer_decision_distribution"],
         "relationship_types": ["corroborates", "corroborates"],
     },
 
@@ -1051,7 +1051,7 @@ ORDER BY total_reviews DESC
         "tables_used": ["ApprovalWorkflow", "Employee"],
         "key_columns": ["reviewer_name", "total_reviews", "approval_rate_pct", "avg_turnaround_days"],
         "staleness_trigger": "new ApprovalWorkflow row",
-        "related_capsule_ids": ["avg_turnaround_by_reviewer", "reviewer_coverage_gaps"],
+        "linked_capsule_ids": ["avg_turnaround_by_reviewer", "reviewer_coverage_gaps"],
         "relationship_types": ["same_entity", "corroborates"],
     },
 
@@ -1094,7 +1094,7 @@ ORDER BY avg_turnaround_days DESC
         "tables_used": ["ApprovalWorkflow", "TradeRequest", "Employee"],
         "key_columns": ["department", "avg_turnaround_days", "slow_reviews_over_3_days"],
         "staleness_trigger": "new ApprovalWorkflow row",
-        "related_capsule_ids": ["avg_turnaround_by_reviewer", "pending_requests_no_review"],
+        "linked_capsule_ids": ["avg_turnaround_by_reviewer", "pending_requests_no_review"],
         "relationship_types": ["corroborates", "corroborates"],
     },
 
@@ -1136,7 +1136,7 @@ ORDER BY avg_turnaround_days DESC
         "tables_used": ["ApprovalWorkflow", "Employee"],
         "key_columns": ["reviewer_name", "avg_turnaround_days", "sla_breaches"],
         "staleness_trigger": "new ApprovalWorkflow row",
-        "related_capsule_ids": ["reviewer_decision_distribution"],
+        "linked_capsule_ids": ["reviewer_decision_distribution"],
         "relationship_types": ["same_entity"],
     },
 
@@ -1185,7 +1185,7 @@ ORDER BY days_waiting DESC
         "tables_used": ["TradeRequest", "Employee", "BrokerDealer", "ApprovalWorkflow"],
         "key_columns": ["employee_name", "department", "security_symbol", "request_date", "days_waiting"],
         "staleness_trigger": "any TradeRequest or ApprovalWorkflow change",
-        "related_capsule_ids": ["requests_pending_over_3_days", "reviewer_coverage_gaps"],
+        "linked_capsule_ids": ["requests_pending_over_3_days", "reviewer_coverage_gaps"],
         "relationship_types": ["same_entity", "corroborates"],
     },
 
@@ -1235,7 +1235,7 @@ ORDER BY days_waiting DESC
         "tables_used": ["TradeRequest", "Employee", "BrokerDealer", "ApprovalWorkflow"],
         "key_columns": ["employee_name", "department", "request_date", "days_waiting", "reviewer_name"],
         "staleness_trigger": "daily",
-        "related_capsule_ids": ["pending_requests_no_review"],
+        "linked_capsule_ids": ["pending_requests_no_review"],
         "relationship_types": ["same_entity"],
     },
 
@@ -1281,7 +1281,7 @@ ORDER BY total_quantity DESC
         "tables_used": ["TradeRequest"],
         "key_columns": ["security_symbol", "total_quantity", "request_count", "unique_employees"],
         "staleness_trigger": "new TradeRequest row",
-        "related_capsule_ids": ["trade_requests_by_security_symbol", "securities_with_restriction_history"],
+        "linked_capsule_ids": ["trade_requests_by_security_symbol", "securities_with_restriction_history"],
         "relationship_types": ["same_entity", "corroborates"],
     },
 
@@ -1322,7 +1322,7 @@ ORDER BY restriction_count DESC
         "tables_used": ["RestrictedSecurity"],
         "key_columns": ["security_symbol", "restriction_count", "distinct_restriction_types", "currently_active_restrictions"],
         "staleness_trigger": "new RestrictedSecurity row",
-        "related_capsule_ids": ["currently_active_restrictions"],
+        "linked_capsule_ids": ["currently_active_restrictions"],
         "relationship_types": ["aggregates_up"],
     },
 
@@ -1366,7 +1366,7 @@ ORDER BY rs.RestrictionType ASC, rs.StartDate DESC
         "tables_used": ["RestrictedSecurity"],
         "key_columns": ["security_symbol", "restriction_type", "start_date", "end_date", "days_active"],
         "staleness_trigger": "any RestrictedSecurity change",
-        "related_capsule_ids": ["active_restrictions_recent_trade_attempts", "securities_with_restriction_history"],
+        "linked_capsule_ids": ["active_restrictions_recent_trade_attempts", "securities_with_restriction_history"],
         "relationship_types": ["drills_down", "drills_down"],
     },
 
@@ -1408,7 +1408,7 @@ ORDER BY alert_count DESC, restriction_entries DESC
         "tables_used": ["RestrictedSecurity", "TradeRequest", "ComplianceAlert"],
         "key_columns": ["security_symbol", "restriction_entries", "alert_count", "max_alert_severity"],
         "staleness_trigger": "new alert or restriction",
-        "related_capsule_ids": ["currently_active_restrictions", "violations_on_restricted_securities"],
+        "linked_capsule_ids": ["currently_active_restrictions", "violations_on_restricted_securities"],
         "relationship_types": ["corroborates", "corroborates"],
     },
 
@@ -1461,7 +1461,7 @@ ORDER BY high_severity_alerts DESC, non_approval_rate_pct DESC
         "tables_used": ["Employee", "TradeRequest", "ComplianceAlert"],
         "key_columns": ["department", "headcount", "non_approval_rate_pct", "total_alerts", "high_severity_alerts"],
         "staleness_trigger": "new TradeRequest or ComplianceAlert",
-        "related_capsule_ids": ["trade_requests_by_department", "violations_by_department"],
+        "linked_capsule_ids": ["trade_requests_by_department", "violations_by_department"],
         "relationship_types": ["aggregates_up", "aggregates_up"],
     },
 
@@ -1506,7 +1506,7 @@ ORDER BY years_of_service DESC, total_requests DESC
         "tables_used": ["Employee", "ComplianceAlert", "TradeRequest"],
         "key_columns": ["employee_name", "department", "total_requests", "years_of_service"],
         "staleness_trigger": "new ComplianceAlert row",
-        "related_capsule_ids": ["department_compliance_scorecard"],
+        "linked_capsule_ids": ["department_compliance_scorecard"],
         "relationship_types": ["corroborates"],
     },
 
@@ -1549,7 +1549,7 @@ ORDER BY alerts_per_employee DESC
         "tables_used": ["Employee", "ComplianceAlert"],
         "key_columns": ["job_title", "employee_count", "alerts_per_employee", "high_severity_alerts"],
         "staleness_trigger": "new ComplianceAlert row",
-        "related_capsule_ids": ["department_compliance_scorecard"],
+        "linked_capsule_ids": ["department_compliance_scorecard"],
         "relationship_types": ["drills_down"],
     },
 
@@ -1596,7 +1596,7 @@ ORDER BY total_alerts DESC, months_of_service ASC
         "tables_used": ["Employee", "TradeRequest", "ComplianceAlert"],
         "key_columns": ["employee_name", "department", "months_of_service", "total_alerts"],
         "staleness_trigger": "new ComplianceAlert or Employee row",
-        "related_capsule_ids": ["department_compliance_scorecard"],
+        "linked_capsule_ids": ["department_compliance_scorecard"],
         "relationship_types": ["drills_down"],
     },
 
@@ -1649,7 +1649,7 @@ ORDER BY broker_dealers_involved DESC, total_alerts DESC
         "tables_used": ["Employee", "ComplianceAlert", "TradeRequest", "BrokerDealer"],
         "key_columns": ["employee_name", "department", "broker_dealers_involved", "total_alerts", "broker_dealer_names"],
         "staleness_trigger": "new ComplianceAlert row",
-        "related_capsule_ids": ["repeat_violators", "broker_dealers_high_rejection_and_alerts"],
+        "linked_capsule_ids": ["repeat_violators", "broker_dealers_high_rejection_and_alerts"],
         "relationship_types": ["corroborates", "corroborates"],
     },
 
@@ -1693,7 +1693,7 @@ ORDER BY violation_count DESC
         "tables_used": ["TradeRequest", "RestrictedSecurity", "Employee"],
         "key_columns": ["department", "restriction_type", "violation_count", "unique_employees"],
         "staleness_trigger": "new violation",
-        "related_capsule_ids": ["violations_by_department", "violations_by_restriction_type"],
+        "linked_capsule_ids": ["violations_by_department", "violations_by_restriction_type"],
         "relationship_types": ["drills_down", "drills_down"],
     },
 
@@ -1738,7 +1738,7 @@ ORDER BY unreviewed_rate_pct DESC
         "tables_used": ["TradeRequest", "Employee", "ApprovalWorkflow"],
         "key_columns": ["department", "unreviewed_count", "unreviewed_rate_pct", "distinct_reviewers"],
         "staleness_trigger": "new TradeRequest or ApprovalWorkflow change",
-        "related_capsule_ids": ["pending_requests_no_review", "reviewer_decision_distribution"],
+        "linked_capsule_ids": ["pending_requests_no_review", "reviewer_decision_distribution"],
         "relationship_types": ["corroborates", "corroborates"],
     },
 
@@ -1798,7 +1798,7 @@ ORDER BY ca.Severity DESC, tr.RequestDate DESC
         "tables_used": ["TradeRequest", "Employee", "BrokerDealer", "ComplianceAlert", "ApprovalWorkflow", "RestrictedSecurity"],
         "key_columns": ["employee_name", "security_symbol", "alert_severity", "restriction_type", "reviewer_decision"],
         "staleness_trigger": "any data change",
-        "related_capsule_ids": ["violations_on_restricted_securities", "high_severity_open_alerts"],
+        "linked_capsule_ids": ["violations_on_restricted_securities", "high_severity_open_alerts"],
         "relationship_types": ["aggregates_up", "corroborates"],
     },
 
@@ -1839,7 +1839,7 @@ ORDER BY total_requests DESC
         "tables_used": ["Employee", "TradeRequest"],
         "key_columns": ["employee_name", "total_requests", "rejected_count"],
         "staleness_trigger": "new TradeRequest",
-        "related_capsule_ids": ["trade_requests_by_department"],
+        "linked_capsule_ids": ["trade_requests_by_department"],
         "relationship_types": ["aggregates_up"],
     },
 
@@ -1873,7 +1873,7 @@ ORDER BY distinct_requests DESC, total_quantity DESC
         "tables_used": ["TradeRequest"],
         "key_columns": ["request_date", "security_symbol", "distinct_requests"],
         "staleness_trigger": "daily",
-        "related_capsule_ids": [],
+        "linked_capsule_ids": [],
         "relationship_types": [],
     },
 
@@ -1909,7 +1909,7 @@ ORDER BY rejection_rate_pct DESC, total_alerts DESC
         "tables_used": ["BrokerDealer", "TradeRequest", "ComplianceAlert", "Account"],
         "key_columns": ["broker_dealer", "rejection_rate_pct", "total_alerts"],
         "staleness_trigger": "weekly",
-        "related_capsule_ids": [],
+        "linked_capsule_ids": [],
         "relationship_types": [],
     },
 
@@ -1942,7 +1942,7 @@ ORDER BY alerts_per_employee DESC
         "tables_used": ["Employee", "ComplianceAlert"],
         "key_columns": ["job_title", "total_alerts", "alerts_per_employee"],
         "staleness_trigger": "weekly",
-        "related_capsule_ids": [],
+        "linked_capsule_ids": [],
         "relationship_types": [],
     },
 
@@ -1979,7 +1979,7 @@ ORDER BY rejected_requests DESC, total_alerts DESC
         "tables_used": ["Employee", "BrokerDealer", "Account", "TradeRequest", "ComplianceAlert"],
         "key_columns": ["employee_name", "broker_dealer", "rejected_requests", "total_alerts"],
         "staleness_trigger": "weekly",
-        "related_capsule_ids": [],
+        "linked_capsule_ids": [],
         "relationship_types": [],
     },
 
@@ -2013,7 +2013,7 @@ ORDER BY alert_count DESC
         "tables_used": ["RestrictedSecurity", "TradeRequest", "ComplianceAlert"],
         "key_columns": ["security_symbol", "restriction_count", "alert_count", "restriction_types"],
         "staleness_trigger": "daily",
-        "related_capsule_ids": [],
+        "linked_capsule_ids": [],
         "relationship_types": [],
     },
 
@@ -2049,7 +2049,7 @@ ORDER BY avg_turnaround_days DESC
         "tables_used": ["ApprovalWorkflow", "TradeRequest", "Employee"],
         "key_columns": ["department", "avg_turnaround_days", "total_reviews"],
         "staleness_trigger": "daily",
-        "related_capsule_ids": [],
+        "linked_capsule_ids": [],
         "relationship_types": [],
     },
 
@@ -2083,7 +2083,7 @@ ORDER BY avg_turnaround_days DESC
         "tables_used": ["ApprovalWorkflow", "Employee"],
         "key_columns": ["reviewer_name", "avg_turnaround_days", "total_reviews"],
         "staleness_trigger": "daily",
-        "related_capsule_ids": [],
+        "linked_capsule_ids": [],
         "relationship_types": [],
     }
 

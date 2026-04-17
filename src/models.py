@@ -23,7 +23,7 @@ class CapsuleDefinition(BaseModel):
     tables_used: list[str]
     key_columns: list[str]
     staleness_trigger: str
-    related_capsule_ids: list[str] = Field(default_factory=list)
+    linked_capsule_ids: list[str] = Field(default_factory=list)
     relationship_types: list[str] = Field(default_factory=list)
 
 
@@ -50,7 +50,7 @@ class GeneratedCapsule(BaseModel):
     result_rows: list[dict[str, Any]] = Field(default_factory=list)
     anomaly_score: float = 0.0
     trend_direction: str = "flat"
-    related_capsule_ids: list[str] = Field(default_factory=list)
+    linked_capsule_ids: list[str] = Field(default_factory=list)
     relationship_types: list[str] = Field(default_factory=list)
     vector: list[float] | None = None
 
@@ -72,11 +72,11 @@ class SchemaContextCapsule(BaseModel):
     vector: list[float] | None = None
 
 
-class RelatedCapsule(BaseModel):
-    """Related risk capsule generated from capsule relationships and signals."""
+class LinkedCapsule(BaseModel):
+    """Linked risk capsule generated from capsule relationships and anomaly signals."""
 
     capsule_id: str
-    related_from: list[str]
+    linked_from: list[str]
     signal: str
     embed_text: str
     entity_type: str
@@ -110,8 +110,8 @@ class ContextPackage(BaseModel):
     """Packaged multi-source capsule context for answering or SQL planning."""
 
     primary_capsule: dict[str, Any] | None = None
+    graph_capsules: list[dict[str, Any]] = Field(default_factory=list)
     linked_capsules: list[dict[str, Any]] = Field(default_factory=list)
-    related_capsules: list[dict[str, Any]] = Field(default_factory=list)
     schema_capsules: list[dict[str, Any]] = Field(default_factory=list)
     combined_context: str = ""
     overall_confidence: float = 0.0
@@ -149,7 +149,7 @@ class CapsuleGraph(BaseModel):
 
     built_at: str
     edges: list[RelationshipEdge] = Field(default_factory=list)
-    related_capsule_ids: list[str] = Field(default_factory=list)
+    linked_capsule_ids: list[str] = Field(default_factory=list)
 
 
 class BuildStatus(BaseModel):
@@ -166,7 +166,7 @@ class BuildSummary(BaseModel):
 
     analytical_count: int = 0
     schema_count: int = 0
-    related_count: int = 0
+    linked_count: int = 0
     graph_edge_count: int = 0
     statuses: list[BuildStatus] = Field(default_factory=list)
     schema_changed: bool | None = None

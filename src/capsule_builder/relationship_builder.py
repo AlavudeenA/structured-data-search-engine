@@ -1,4 +1,4 @@
-"""Build capsule relationships and related risk capsules from generated analytical capsules."""
+"""Build capsule relationships and linked risk capsules from generated analytical capsules."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from ..app_constants import (
 )
 from ..embedding import embed_single, ensure_data_dir
 from ..llm_service import call_llm
-from ..models import CapsuleGraph, RelatedCapsule, GeneratedCapsule, RelationshipEdge
-from ..llm_instructions import RELATED_SIGNAL_SYSTEM, RELATED_SIGNAL_USER
+from ..models import CapsuleGraph, LinkedCapsule, GeneratedCapsule, RelationshipEdge
+from ..llm_instructions import LINKED_SIGNAL_SYSTEM, LINKED_SIGNAL_USER
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ def build_graph(capsules: list[GeneratedCapsule]) -> CapsuleGraph:
     seen: set[tuple[str, str]] = set()
 
     for capsule in capsules:
-        for related_id, relationship in zip(capsule.related_capsule_ids, capsule.relationship_types):
+        for related_id, relationship in zip(capsule.linked_capsule_ids, capsule.relationship_types):
             key = tuple(sorted([capsule.capsule_id, related_id]))
             if key not in seen:
                 edges.append(RelationshipEdge(from_id=capsule.capsule_id, to_id=related_id, relationship=relationship))
@@ -82,26 +82,26 @@ def build_graph(capsules: list[GeneratedCapsule]) -> CapsuleGraph:
                 )
                 seen.add(key)
 
-    return CapsuleGraph(built_at=datetime.now(timezone.utc).isoformat(), edges=edges, related_capsule_ids=[])
+    return CapsuleGraph(built_at=datetime.now(timezone.utc).isoformat(), edges=edges, linked_capsule_ids=[])
 
 
-def _build_related_signal(entity_type: str, entity_name: str, signals: list[str]) -> str:
-    prompt = RELATED_SIGNAL_USER.format(entity_type=entity_type, entity_name=entity_name, signals="\n".join(signals))
-    text = call_llm(RELATED_SIGNAL_SYSTEM, prompt, model_slot="groq_signal_model", max_tokens=150)
+def _build_linked_signal(entity_type: str, entity_name: str, signals: list[str]) -> str:
+    prompt = LINKED_SIGNAL_USER.format(entity_type=entity_type, entity_name=entity_name, signals="\n".join(signals))
+    text = call_llm(LINKED_SIGNAL_SYSTEM, prompt, model_slot="groq_signal_model", max_tokens=150)
     if not text or text.startswith("[LLM"):
         return f"{entity_name} is high risk because {'; '.join(signals[:2])}."
     return text
 
 
-def generate_related_capsules(capsules: list[GeneratedCapsule]) -> list[RelatedCapsule]:
-    """Generate dynamic related risk capsules based on anomaly thresholds."""
-    related_capsules: list[RelatedCapsule] = []
+def generate_linked_capsules(capsules: list[GeneratedCapsule]) -> list[LinkedCapsule]:
+    """Generate dynamic linked risk capsules based on anomaly thresholds."""
+    linked_capsules: list[LinkedCapsule] = []
 
     for capsule in capsules:
         if capsule.anomaly_score is not None and capsule.anomaly_score > 0.0:
             risk_level = "critical" if capsule.anomaly_score >= 0.8 else "high"
             first_entity = str(next(iter(capsule.result_rows[0].values()))) if capsule.result_rows else "unknown"
-            signal = _build_related_signal(
+            signal = _build_linked_signal(
                 "data entity",
                 first_entity,
                 [
@@ -110,22 +110,22 @@ def generate_related_capsules(capsules: list[GeneratedCapsule]) -> list[RelatedC
                 ]
             )
             embed_text = f"Analytical risk profile for {first_entity}. {signal}"
-            related_capsules.append(
-                RelatedCapsule(
+            linked_capsules.append(
+                LinkedCapsule(
                     capsule_id=f"alert_{capsule.capsule_id}_{first_entity[:15]}",
-                    related_from=[capsule.capsule_id],
+                    linked_from=[capsule.capsule_id],
                     signal=signal,
                     embed_text=embed_text,
                     entity_type="data entity",
                     entity_name=first_entity,
                     risk_level=risk_level,
                     generated_at=datetime.now(timezone.utc).isoformat(),
-                    tags=["related", "auto_generated", risk_level],
+                    tags=["linked", "auto_generated", risk_level],
                     vector=embed_single(embed_text),
                 )
             )
 
-    return related_capsules
+    return linked_capsules
 
 
 def save_graph(graph: CapsuleGraph) -> None:
