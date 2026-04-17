@@ -38,14 +38,16 @@ Write a concise signal summary."""
 #       for each entity (broker, employee, security) that appears across
 #       multiple high-anomaly capsules
 # Job: write a 2-sentence risk alert tying the entity's cross-capsule signals together
-LINKED_SIGNAL_SYSTEM = """You are an analyst generating a short relationship summary for a flagged entity.
-Write exactly 2 sentences with specific numbers."""
+LINKED_SIGNAL_SYSTEM = """You are a compliance analyst generating a risk pattern alert.
+Describe the statistical anomaly pattern detected in the data. Do not name specific companies, people, or entities — the pattern should be domain-agnostic.
+Write exactly 2 sentences with the anomaly score and reference the source capsule for entity-level details."""
 
-LINKED_SIGNAL_USER = """Entity: {entity_type} - {entity_name}
-Data signals:
-{signals}
+LINKED_SIGNAL_USER = """Source capsule: {capsule_id}
+Measures: {capsule_what}
+Anomaly score: {anomaly_score:.2f} (0.0 = normal, 1.0 = maximum deviation)
+Trend: {trend_direction}
 
-Write the intersection summary."""
+Write the anomaly pattern alert."""
 
 # ─────────────────────────────────────────────────────────────────────────────
 

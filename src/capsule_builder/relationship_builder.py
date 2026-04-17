@@ -85,39 +85,46 @@ def build_graph(capsules: list[GeneratedCapsule]) -> CapsuleGraph:
     return CapsuleGraph(built_at=datetime.now(timezone.utc).isoformat(), edges=edges, linked_capsule_ids=[])
 
 
-def _build_linked_signal(entity_type: str, entity_name: str, signals: list[str]) -> str:
-    prompt = LINKED_SIGNAL_USER.format(entity_type=entity_type, entity_name=entity_name, signals="\n".join(signals))
+def _build_linked_signal(capsule_id: str, capsule_what: str, anomaly_score: float, trend_direction: str) -> str:
+    prompt = LINKED_SIGNAL_USER.format(
+        capsule_id=capsule_id,
+        capsule_what=capsule_what,
+        anomaly_score=anomaly_score,
+        trend_direction=trend_direction,
+    )
     text = call_llm(LINKED_SIGNAL_SYSTEM, prompt, model_slot="groq_signal_model", max_tokens=150)
     if not text or text.startswith("[LLM"):
-        return f"{entity_name} is high risk because {'; '.join(signals[:2])}."
+        return (
+            f"Anomaly detected in {capsule_what} (score: {anomaly_score:.2f}). "
+            f"Review the {capsule_id} capsule for entity-level details."
+        )
     return text
 
 
 def generate_linked_capsules(capsules: list[GeneratedCapsule]) -> list[LinkedCapsule]:
-    """Generate dynamic linked risk capsules based on anomaly thresholds."""
+    """Generate pattern-level risk alert capsules for capsules with anomaly scores above zero.
+    Alerts describe the statistical pattern only — no entity names are embedded in IDs or signals.
+    """
     linked_capsules: list[LinkedCapsule] = []
 
     for capsule in capsules:
         if capsule.anomaly_score is not None and capsule.anomaly_score > 0.0:
             risk_level = "critical" if capsule.anomaly_score >= 0.8 else "high"
-            first_entity = str(next(iter(capsule.result_rows[0].values()))) if capsule.result_rows else "unknown"
             signal = _build_linked_signal(
-                "data entity",
-                first_entity,
-                [
-                    f"Anomaly score indicates unusual variance ({capsule.anomaly_score:.2f}).",
-                    f"Derived from capsule: {capsule.capsule_id}."
-                ]
+                capsule.capsule_id,
+                capsule.what,
+                capsule.anomaly_score,
+                capsule.trend_direction or "flat",
             )
-            embed_text = f"Analytical risk profile for {first_entity}. {signal}"
+            embed_text = f"Anomaly pattern in {capsule.what}. {signal}"
             linked_capsules.append(
                 LinkedCapsule(
-                    capsule_id=f"alert_{capsule.capsule_id}_{first_entity[:15]}",
+                    capsule_id=f"alert_{capsule.capsule_id}",
                     linked_from=[capsule.capsule_id],
                     signal=signal,
                     embed_text=embed_text,
-                    entity_type="data entity",
-                    entity_name=first_entity,
+                    entity_type=capsule.capsule_type,
+                    entity_name=capsule.capsule_id,
                     risk_level=risk_level,
                     generated_at=datetime.now(timezone.utc).isoformat(),
                     tags=["linked", "auto_generated", risk_level],
