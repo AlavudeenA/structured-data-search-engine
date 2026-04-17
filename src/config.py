@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     vscode_lm_secret: str = Field(default="abc123", alias="VSCODE_LM_SECRET")
     db_path: str = Field(default="./compliance.db", alias="DB_PATH")
     qdrant_path: str = Field(default="./qdrant_data", alias="QDRANT_PATH")
-    embed_model: str = Field(default="BAAI/bge-base-en-v1.5", alias="EMBED_MODEL")
+    embed_model: str = Field(default="BAAI/bge-small-en-v1.5", alias="EMBED_MODEL")
     sql_debug: int = Field(default=0, alias="SQL_DEBUG")
 
 
