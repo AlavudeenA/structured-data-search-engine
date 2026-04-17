@@ -124,8 +124,11 @@ def _llm_signal(rows: list[dict[str, Any]], capsule_def: CapsuleDefinition) -> s
 
 
 def _sample_signal(rows: list[dict[str, Any]], capsule_def: CapsuleDefinition) -> str:
-    """Pattern narration over random joined rows — used only for sample capsule type."""
-    rows_json = json.dumps(rows, default=str, indent=2)
+    """Pattern narration over random joined rows — used only for sample capsule type.
+    Capped at 15 rows to stay within Groq TPM limits (multi-table joins produce wide rows).
+    """
+    rows_sample = rows[:15]
+    rows_json = json.dumps(rows_sample, default=str, indent=2)
     prompt = SAMPLE_SIGNAL_USER.format(
         capsule_what=capsule_def.what,
         row_count=len(rows),

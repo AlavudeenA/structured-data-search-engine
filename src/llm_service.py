@@ -49,6 +49,10 @@ def call_llm(
             )
             return (response.choices[0].message.content or "").strip()
         except RateLimitError as exc:
+            error_str = str(exc)
+            if "413" in error_str or "tokens" in error_str.lower():
+                logger.warning("Groq request too large | model=%s | error=%s", model_name, exc)
+                return "[LLM request too large: reduce input size]"
             logger.warning("Groq rate limit | model=%s | attempt=%s | error=%s", model_name, attempt + 1, exc)
             if attempt == 0:
                 time.sleep(5)
