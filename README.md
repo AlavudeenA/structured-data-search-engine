@@ -609,3 +609,114 @@ graph TD
     
     Store -.->|Feeds Insights| Search
 ```
+
+---
+
+## How Capsules Are Built — Technical Flow
+
+> What happens inside when you click **Generate All Capsules**.
+
+```mermaid
+flowchart TD
+    classDef input    fill:#2d3748,stroke:#4a5568,color:#fff,font-weight:bold
+    classDef llm      fill:#3182ce,stroke:#2b6cb0,color:#fff,font-weight:bold
+    classDef ml       fill:#6b46c1,stroke:#553c9a,color:#fff,font-weight:bold
+    classDef store    fill:#38a169,stroke:#2f855a,color:#fff,font-weight:bold
+    classDef process  fill:#edf2f7,stroke:#cbd5e0,color:#2d3748
+
+    Defs([capsule_definitions.py\nSQL · what · how · tags · TTL]):::input
+    Schema([SCHEMA_DEFINITIONS\nTable maps · FK paths]):::input
+
+    Defs --> RunSQL[Run SQL against\nSQL Server]:::process
+    Schema --> SchCap[Schema Capsule Generator\nno SQL needed — pure metadata]:::process
+
+    RunSQL --> SigRoute{Signal Method?}:::process
+
+    SigRoute -->|capsule_type = sample\nrandom 50-row join| SampleLLM[Groq llama-3.1-8b-instant\nnarrates 2-3 patterns\nacross 15 sampled rows]:::llm
+    SigRoute -->|signal_method = llm_summary| SigLLM[Groq llama-3.1-8b-instant\nwrites 2-3 sentence\nbusiness signal]:::llm
+    SigRoute -->|signal_method = rule_based| SigRule[Rule engine\ntop value · concentration %\ntrend direction]:::process
+
+    SampleLLM --> MLCheck{capsule_type\n= sample?}:::process
+    SigLLM --> MLCheck
+    SigRule --> MLCheck
+
+    MLCheck -->|yes — skip ML\nrandom rows have no baseline| SkipML[anomaly_score = 0.0\ntrend = flat]:::process
+    MLCheck -->|no — run ML enrichment| MLEnrich[ml_enricher.py\nnumpy Z-score on numeric columns\nanomalyScore 0.0–1.0\ntrendDirection rising·falling·flat]:::ml
+
+    SkipML --> EmbedA
+    MLEnrich --> LinkCheck{anomaly_score\n> threshold?}:::process
+
+    LinkCheck -->|yes| AlertLLM[Groq llama-3.1-8b-instant\nwrites pattern-level\nrisk alert — no entity names]:::llm
+    LinkCheck -->|no| EmbedA
+
+    AlertLLM --> AlertCap([LinkedCapsule\nalert_broker_rejection_rate\npattern signal · risk_level\nlinked_from source capsule]):::store
+    AlertCap --> EmbedB[fastembed\nBAAI/bge-base-en-v1.5\n768-dim vector]:::ml
+    EmbedB --> QdrantLinked[(Qdrant\nlinked_capsules)]:::store
+
+    EmbedA[fastembed\nBAAI/bge-base-en-v1.5\n768-dim vector]:::ml
+
+    SampleLLM --> EmbedA
+    SigLLM --> EmbedA
+    SigRule --> EmbedA
+    SchCap --> EmbedA
+
+    EmbedA --> QdrantMain[(Qdrant\nanalytical_capsules\nschema_context_capsules)]:::store
+
+    MLEnrich --> GraphBuilder[relationship_builder.py\nExplicit edges declared in capsule_definitions\nInferred edges — same tables · shared tags · shared entity values\nSaved to .capsule_graph.json]:::process
+    GraphBuilder --> QdrantMain
+
+    QdrantMain --> PlanFile([.analytical_refresh_plan.json\ncapsule IDs · expiry timestamps]):::store
+    QdrantMain --> FingerprintFile([.schema_fingerprint.json\nSHA-256 of table + column + FK schema]):::store
+```
+
+---
+
+## How a Question Gets Answered — Technical Flow
+
+> What happens inside every time a user types a question and clicks Ask.
+
+```mermaid
+flowchart TD
+    classDef user     fill:#2d3748,stroke:#4a5568,color:#fff,font-weight:bold
+    classDef llm      fill:#3182ce,stroke:#2b6cb0,color:#fff,font-weight:bold
+    classDef ml       fill:#6b46c1,stroke:#553c9a,color:#fff,font-weight:bold
+    classDef store    fill:#38a169,stroke:#2f855a,color:#fff,font-weight:bold
+    classDef process  fill:#edf2f7,stroke:#cbd5e0,color:#2d3748
+    classDef answer   fill:#d69e2e,stroke:#b7791f,color:#fff,font-weight:bold
+    classDef sql      fill:#c53030,stroke:#9b2c2c,color:#fff,font-weight:bold
+
+    Q([User Question]):::user
+
+    Q --> Embed[fastembed · BAAI/bge-base-en-v1.5\nEmbeds question → 768-dim vector]:::ml
+    Q --> Intent[query_router.py\nGroq llama-3.1-8b-instant\nclassifies intent]:::llm
+
+    Intent --> IntentType{Intent?}:::process
+    IntentType -->|structured\n which · list · how many| SQLPath
+    IntentType -->|operational\n pending · open · active right now| SQLPath
+    IntentType -->|analytical\n trend · anomaly · pattern| AnalyticalCheck
+    IntentType -->|hybrid\n both retrieval + analysis| HybridPath
+
+    Embed --> VecSearch[context_searcher.py\nVector search all 3 Qdrant collections\nanalytical · schema · linked]:::process
+
+    VecSearch --> Package[context_packager.py\nRanks and slots results]:::process
+
+    Package --> Slots["primary_capsule — best single match\ngraph_capsules  — BFS neighbours via .capsule_graph.json\nschema_capsules — table · FK context\nlinked_capsules — pre-built anomaly alert capsules"]:::process
+
+    Slots --> AnalyticalCheck{confidence ≥\nthreshold?}:::process
+    AnalyticalCheck -->|yes — answer from capsules| AnalAnswer[analytical_retriever.py\nGroq llama-3.1-8b-instant\ncombines all slot signals\nno new SQL written]:::llm
+    AnalyticalCheck -->|no — fall back to SQL| SQLPath
+
+    HybridPath --> AnalAnswer
+    HybridPath --> SQLPath
+
+    SQLPath[sql_generator.py\nGroq llama-3.3-70b-versatile\nquestion + schema context + FK graph\n→ generates SELECT query]:::sql
+
+    SQLPath --> Execute[sql_executor.py\nRuns SELECT against SQL Server]:::process
+    Execute --> SQLError{Error?}:::process
+    SQLError -->|yes — one retry| AutoFix[sql_autofix.py\nGroq llama-3.3-70b-versatile\nbroken SQL + error → fixed SQL]:::sql
+    AutoFix --> Execute
+    SQLError -->|no| Summarize[result_summarizer.py\nGroq llama-3.1-8b-instant\nrow data → plain-English answer]:::llm
+
+    AnalAnswer --> FinalAnswer([Plain-English Answer\nRoute · Confidence · Source SQL · Raw Rows]):::answer
+    Summarize --> FinalAnswer
+```
