@@ -169,7 +169,7 @@ with ask_tab:
 
         with st.expander("SQL Rows Returned", expanded=False):
             if result.sql_rows:
-                st.dataframe(result.sql_rows, width='stretch')
+                st.dataframe(result.sql_rows, use_container_width=True)
             else:
                 st.write("No SQL rows returned.")
 
@@ -177,7 +177,7 @@ with generate_tab:
     st.subheader("Generate Capsules")
     col1, col2, col3, col4 = st.columns([1, 1, 1, 1], gap="small")
 
-    if col1.button("Generate All Capsules", type="primary", width='stretch'):
+    if col1.button("Generate All Capsules", type="primary", use_container_width=True):
         progress = st.progress(0, text="Starting full build")
         progress_rows: list[dict] = []
 
@@ -196,14 +196,14 @@ with generate_tab:
             f"{actual_counts.get(COLLECTION_LINKED, 0)} linked capsules."
         )
         st.write(f"Relationship graph edges: {summary.graph_edge_count}")
-        st.dataframe(progress_rows, width='stretch')
+        st.dataframe(progress_rows, use_container_width=True)
 
         # Sidebar updated from same actual_counts — guaranteed to match success message
         with sidebar_collections.container():
             st.markdown("### Collections")
             st.json(actual_counts)
 
-    if col2.button("Refresh Data", type="primary", width='stretch'):
+    if col2.button("Refresh Data", type="primary", use_container_width=True):
         progress_rows: list[dict] = []
 
         def on_progress(capsule_id: str, status: str, preview: str, collection: str = "analytical_capsules") -> None:
@@ -213,9 +213,9 @@ with generate_tab:
             summary = refresh_data_only(progress_callback=on_progress)
         st.success(f"Refreshed {summary.analytical_count} analytical capsules. Schema-context and linked capsules were kept.")
         if progress_rows:
-            st.dataframe(progress_rows, width='stretch')
+            st.dataframe(progress_rows, use_container_width=True)
 
-    if col3.button("Schema Refresh", type="primary", width='stretch'):
+    if col3.button("Schema Refresh", type="primary", use_container_width=True):
         progress_rows: list[dict] = []
 
         def on_progress(capsule_id: str, status: str, preview: str, collection: str = "analytical_capsules") -> None:
@@ -227,9 +227,9 @@ with generate_tab:
             f"Schema refresh complete. Schema changed: {summary.schema_changed}. Rebuilt {summary.analytical_count} analytical, {summary.schema_count} schema_context, and {summary.linked_count} linked capsules."
         )
         if progress_rows:
-            st.dataframe(progress_rows, width='stretch')
+            st.dataframe(progress_rows, use_container_width=True)
 
-    if col4.button("Generate Capsule Definitions", type="primary", width='stretch'):
+    if col4.button("Generate Capsule Definitions", type="primary", use_container_width=True):
         from src.capsule_builder.definitions_generator import (
             generate_capsule_definitions_via_llm,
             save_generated_definitions,
@@ -357,7 +357,7 @@ with explorer_tab:
                 "linked_count":      st.column_config.NumberColumn("Linked",            width="small"),
                 "expires_at":        st.column_config.TextColumn("Expires At",         width="medium"),
             },
-            width='stretch',
+            use_container_width=True,
         )
 
         selected_capsule = st.selectbox("Inspect Capsule", [""] + [capsule.get("capsule_id") for capsule in filtered])
@@ -400,17 +400,17 @@ with graph_tab:
                 }
                 for edge in graph.edges
             ],
-            width='stretch',
+            use_container_width=True,
         )
         st.write("### Related Capsules")
-        st.dataframe(scroll_all(COLLECTION_LINKED), width='stretch')
+        st.dataframe(scroll_all(COLLECTION_LINKED), use_container_width=True)
     else:
         st.info("No capsule graph found yet. Generate capsules first.")
 
 with telemetry_tab:
     st.subheader("Telemetry")
     if st.session_state.telemetry_log:
-        st.dataframe(st.session_state.telemetry_log, width='stretch')
+        st.dataframe(st.session_state.telemetry_log, use_container_width=True)
         if st.button("Clear Log"):
             st.session_state.telemetry_log = []
             st.rerun()
