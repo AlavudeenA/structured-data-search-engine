@@ -229,7 +229,7 @@ with generate_tab:
         if progress_rows:
             st.dataframe(progress_rows, width='stretch')
 
-    if col4.button("AI Rebuild Definitions", type="primary", width='stretch'):
+    if col4.button("Generate Capsule Definitions", type="primary", width='stretch'):
         from src.capsule_builder.definitions_generator import (
             generate_capsule_definitions_via_llm,
             save_generated_definitions,

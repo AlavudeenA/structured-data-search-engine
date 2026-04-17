@@ -201,7 +201,7 @@ Explain the planning choice."""
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Stage: Capsule Definition Regeneration (UI — "AI Rebuild Definitions" button)
+# Stage: Capsule Definition Regeneration (UI — "Generate Capsule Definitions" button)
 # When: user clicks the button in Generate Capsules tab
 # Job: given the live DB schema + FK relationships + two format examples,
 #      produce a full CAPSULE_DEFINITIONS list (35+ capsules, 8 categories)

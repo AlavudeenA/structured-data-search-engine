@@ -130,10 +130,10 @@ A **capsule** is a pre-computed unit of knowledge. Before you ask a question, th
 
 There are three types:
 
-| Type                      | What it is                                                     | Count (example) |
-| ------------------------- | -------------------------------------------------------------- | --------------- |
-| `analytical_capsules`     | Pre-run SQL results + signals for common business questions    | ~42             |
-| `schema_context_capsules` | Maps of the database structure — which tables join to what     | 5               |
+| Type                      | What it is                                                                       | Count (example) |
+| ------------------------- | -------------------------------------------------------------------------------- | --------------- |
+| `analytical_capsules`     | Pre-run SQL results + signals for common business questions                      | ~42             |
+| `schema_context_capsules` | Maps of the database structure — which tables join to what                       | 5               |
 | `linked_capsules`         | Auto-generated linked capsules — risk/anomaly alerts from capsule cross-analysis | ~17             |
 
 ### Two Pipelines
@@ -427,11 +427,11 @@ Every time a user asks a question, `context_searcher.py` runs a **vector search 
 
 `context_packager.py` then slots the results into a `ContextPackage`:
 
-| Slot               | Source                                               |
-| ------------------ | ---------------------------------------------------- |
-| `primary_capsule`  | Best single match from `analytical_capsules`         |
-| `linked_capsules`  | Graph neighbours of the primary capsule              |
-| `schema_capsules`  | Best matches from `schema_context_capsules`          |
+| Slot              | Source                                              |
+| ----------------- | --------------------------------------------------- |
+| `primary_capsule` | Best single match from `analytical_capsules`        |
+| `linked_capsules` | Graph neighbours of the primary capsule             |
+| `schema_capsules` | Best matches from `schema_context_capsules`         |
 | `linked_capsules` | Top matches from `linked_capsules` (anomaly alerts) |
 
 These slots are used differently depending on the answer route:
@@ -459,12 +459,12 @@ In both routes, linked capsules are the mechanism that lets a single question su
 
 ## Generate Capsules — Four Buttons
 
-| Button                     | What it does                                                                                                                                                                                                                                                                                                                                                                                             | When to use                                                                                                                    |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Generate All Capsules**  | Full rebuild — wipes Qdrant and regenerates everything from scratch                                                                                                                                                                                                                                                                                                                                      | First run, after changing `capsule_definitions.py`, or when something is broken                                                |
-| **Refresh Data**           | Re-runs only the analytical SQL queries; leaves schema and linked capsules untouched                                                                                                                                                                                                                                                                                                                    | Daily/routine refresh when DB data changed but structure hasn't                                                                |
-| **Schema Refresh**         | Detects whether the DB schema changed (via fingerprint) and rebuilds everything if it has                                                                                                                                                                                                                                                                                                                | After adding or removing columns/tables in SQL Server                                                                          |
-| **AI Rebuild Definitions** | Sends your live DB schema and FK relationships to Groq; the LLM regenerates the entire `CAPSULE_DEFINITIONS` list (all 37+ capsules, all 8 categories) with correct SQL Server syntax and compliance domain rules; output is validated with `ast.parse()` before being written to `capsule_definitions.py`, and the module is hot-reloaded so the next Generate picks up the new definitions immediately | When you want a fresh AI-generated set of capsule definitions — e.g., after major schema changes, or to bootstrap a new domain |
+| Button                           | What it does                                                                                                                                                                                                                                                                                                                                                                                             | When to use                                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Generate All Capsules**        | Full rebuild — wipes Qdrant and regenerates everything from scratch                                                                                                                                                                                                                                                                                                                                      | First run, after changing `capsule_definitions.py`, or when something is broken                                                |
+| **Refresh Data**                 | Re-runs only the analytical SQL queries; leaves schema and linked capsules untouched                                                                                                                                                                                                                                                                                                                     | Daily/routine refresh when DB data changed but structure hasn't                                                                |
+| **Schema Refresh**               | Detects whether the DB schema changed (via fingerprint) and rebuilds everything if it has                                                                                                                                                                                                                                                                                                                | After adding or removing columns/tables in SQL Server                                                                          |
+| **Generate Capsule Definitions** | Sends your live DB schema and FK relationships to Groq; the LLM regenerates the entire `CAPSULE_DEFINITIONS` list (all 37+ capsules, all 8 categories) with correct SQL Server syntax and compliance domain rules; output is validated with `ast.parse()` before being written to `capsule_definitions.py`, and the module is hot-reloaded so the next Generate picks up the new definitions immediately | When you want a fresh AI-generated set of capsule definitions — e.g., after major schema changes, or to bootstrap a new domain |
 
 ---
 
