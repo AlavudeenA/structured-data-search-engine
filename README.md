@@ -263,6 +263,7 @@ src/
   embedding.py              ← Text → vector via fastembed (bge-small-en-v1.5); manages fingerprint + plan files
   vector_store.py           ← Qdrant read/write: upsert, scroll, search, delete, reset
   data_fingerprint.py       ← Data change detection: COUNT + MAX(UpdatedAt) per table → SHA-256 hash
+  user_capsules.py          ← CRUD for user-created capsule definitions in data/user_capsules.json
 
   capsule_builder/          ← Pipeline 1 — runs offline to build the knowledge base
     store_manager.py        ← Master orchestrator: calls all generators, persists results, saves plan
@@ -286,7 +287,6 @@ src/
 
   business_schema/          ← Domain configuration — swap this folder to change database domains
     capsule_definitions.py  ← CAPSULE_DEFINITIONS list (SQL + metadata per capsule) + SCHEMA_DEFINITIONS
-    user_capsules.py        ← CRUD for user-created capsule definitions in data/user_capsules.json
     dbscript.sql            ← Full DDL + sample data (all tables include UpdatedAt column)
     Sample_Questions.md     ← Example questions that work well with this schema
 

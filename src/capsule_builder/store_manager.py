@@ -99,7 +99,7 @@ def _persist_linked(capsules: list[LinkedCapsule]) -> int:
 
 
 def _load_definitions(plan_capsule_ids: list[str] | None = None) -> list[CapsuleDefinition]:
-    from ..business_schema.user_capsules import load_user_capsule_defs
+    from ..user_capsules import load_user_capsule_defs
     user_defs = load_user_capsule_defs()
     all_defs = CAPSULE_DEFINITIONS + user_defs
     definitions = [CapsuleDefinition(**d) for d in all_defs]

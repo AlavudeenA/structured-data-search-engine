@@ -20,7 +20,7 @@ from src.capsule_builder.relationship_builder import load_graph
 from src.capsule_builder.store_manager import generate_all_capsule_collections, refresh_data_only, schema_refresh
 from src.capsule_builder.user_capsule_builder import build_single_capsule
 from src.data_fingerprint import check_schema_and_refresh_if_needed
-from src.business_schema.user_capsules import delete_user_capsule_def, load_user_capsule_defs, save_user_capsule_def
+from src.user_capsules import delete_user_capsule_def, load_user_capsule_defs, save_user_capsule_def
 from src.query_engine.orchestrator import handle_query
 from src.vector_store import clear_collection, collection_counts, delete_by_capsule_id, reset_all_collections, scroll_all
 from src.database_connection import execute_select
