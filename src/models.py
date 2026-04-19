@@ -133,6 +133,7 @@ class QueryResponse(BaseModel):
     answer_ms: int = 0
     sql_reason: str | None = None
     intent_payload: dict[str, Any] | None = None
+    data_refreshed: bool = False
 
 
 class RelationshipEdge(BaseModel):
@@ -187,3 +188,11 @@ class SchemaFingerprint(BaseModel):
     fingerprint: str
     tables: dict[str, list[dict[str, str]]]
     relationships: list[dict[str, str]]
+
+
+class DataFingerprint(BaseModel):
+    """Persisted data fingerprint: row counts and max timestamps per table."""
+
+    generated_at: str
+    fingerprint: str
+    table_stats: dict[str, dict[str, str]]

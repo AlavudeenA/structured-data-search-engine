@@ -99,11 +99,18 @@ def _persist_linked(capsules: list[LinkedCapsule]) -> int:
 
 
 def _load_definitions(plan_capsule_ids: list[str] | None = None) -> list[CapsuleDefinition]:
-    definitions = [CapsuleDefinition(**definition) for definition in CAPSULE_DEFINITIONS]
+    from ..business_schema.user_capsules import load_user_capsule_defs
+    user_defs = load_user_capsule_defs()
+    all_defs = CAPSULE_DEFINITIONS + user_defs
+    definitions = [CapsuleDefinition(**d) for d in all_defs]
     if plan_capsule_ids:
-        selected = {capsule_id for capsule_id in plan_capsule_ids}
-        definitions = [definition for definition in definitions if definition.capsule_id in selected]
+        # Always include user capsules even if not in the saved plan
+        # (they may have been created after the last full build)
+        user_ids = {d["capsule_id"] for d in user_defs}
+        selected = set(plan_capsule_ids) | user_ids
+        definitions = [d for d in definitions if d.capsule_id in selected]
     return definitions
+
 
 
 def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
@@ -145,6 +152,25 @@ def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
         statuses=statuses,
         schema_changed=None,
     )
+
+
+def refresh_targeted_capsules(analytical_ids: list[str], linked_ids: list[str]) -> int:
+    """Refresh only the specified analytical capsules and regenerate their linked capsules.
+    Uses upsert (not clear) so other capsules in the collection are untouched.
+    """
+    definitions = _load_definitions(analytical_ids)
+    if not definitions:
+        return 0
+    refreshed_analytical = generate_all_capsules(definitions)
+    _persist_analytical(refreshed_analytical)
+
+    if linked_ids and refreshed_analytical:
+        new_linked = generate_linked_capsules(refreshed_analytical)
+        relevant_linked = [lc for lc in new_linked if lc.capsule_id in set(linked_ids)]
+        if relevant_linked:
+            _persist_linked(relevant_linked)
+
+    return len(refreshed_analytical)
 
 
 def refresh_data_only(progress_callback=None) -> BuildSummary:

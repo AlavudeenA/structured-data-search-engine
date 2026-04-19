@@ -18,6 +18,7 @@ from ..app_constants import (
     INTENT_OPERATIONAL,
     INTENT_STRUCTURED,
 )
+from ..data_fingerprint import check_and_refresh_if_needed
 from ..models import ContextPackage, QueryResponse
 from .analytical_retriever import answer_from_capsules
 from .context_packager import build_context_package
@@ -38,6 +39,18 @@ def _capsules_used(context_package: ContextPackage) -> list[str]:
     capsule_ids.extend(capsule.get("capsule_id", "") for capsule in context_package.linked_capsules)
     capsule_ids.extend(capsule.get("capsule_id", "") for capsule in context_package.schema_capsules)
     return [capsule_id for capsule_id in capsule_ids if capsule_id]
+
+
+def _analytical_ids(context_package: ContextPackage) -> list[str]:
+    ids: list[str] = []
+    if context_package.primary_capsule:
+        ids.append(context_package.primary_capsule.get("capsule_id", ""))
+    ids.extend(c.get("capsule_id", "") for c in context_package.graph_capsules)
+    return [cid for cid in ids if cid]
+
+
+def _linked_ids(context_package: ContextPackage) -> list[str]:
+    return [c.get("capsule_id", "") for c in context_package.linked_capsules if c.get("capsule_id")]
 
 
 def _top_hit_is_schema_context(context_package: ContextPackage) -> bool:
@@ -92,11 +105,24 @@ def handle_query(question: str) -> QueryResponse:
     started_at = time.time()
     intent = detect_intent(question)
     intent_payload = intent.model_dump()
+
+    # Find relevant capsules for this query
     search_hits = search_all_collections(question)
     context_package = build_context_package(search_hits)
 
+    # Targeted data-change check — refresh only capsules this query uses
+    data_refreshed = check_and_refresh_if_needed(
+        analytical_ids=_analytical_ids(context_package),
+        linked_ids=_linked_ids(context_package),
+    )
+    if data_refreshed:
+        search_hits = search_all_collections(question)
+        context_package = build_context_package(search_hits)
+
     if intent.intent in {INTENT_STRUCTURED, INTENT_OPERATIONAL}:
-        return _run_sql_path(question, intent_payload, context_package, "text_to_sql", started_at)
+        response = _run_sql_path(question, intent_payload, context_package, "text_to_sql", started_at)
+        response.data_refreshed = data_refreshed
+        return response
 
     if intent.intent == INTENT_ANALYTICAL:
         if context_package.overall_confidence >= CONFIDENCE_THRESHOLD_CAPSULE_ANSWER and not _top_hit_is_schema_context(context_package):
@@ -109,17 +135,23 @@ def handle_query(question: str) -> QueryResponse:
                 context_package=context_package.model_dump(),
                 answer_ms=int((time.time() - started_at) * 1000),
                 intent_payload=intent_payload,
+                data_refreshed=data_refreshed,
             )
-        return _run_sql_path(question, intent_payload, context_package, "vector_retrieval_schema_context_llm", started_at)
+        response = _run_sql_path(question, intent_payload, context_package, "vector_retrieval_schema_context_llm", started_at)
+        response.data_refreshed = data_refreshed
+        return response
 
     if intent.intent == INTENT_HYBRID:
         capsule_answer = answer_from_capsules(question, context_package)
         sql_response = _run_sql_path(question, intent_payload, context_package, "hybrid_sql", started_at)
         sql_response.route_taken = "hybrid"
         sql_response.answer = f"Capsule view: {capsule_answer}\n\nSQL view: {sql_response.answer}"
+        sql_response.data_refreshed = data_refreshed
         return sql_response
 
-    return _run_sql_path(question, intent_payload, context_package, "text_to_sql", started_at)
+    response = _run_sql_path(question, intent_payload, context_package, "text_to_sql", started_at)
+    response.data_refreshed = data_refreshed
+    return response
 
 
 if __name__ == "__main__":

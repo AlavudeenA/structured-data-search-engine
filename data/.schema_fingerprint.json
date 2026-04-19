@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-17T21:44:54.516014+00:00",
-  "fingerprint": "735090e546fa4cbb906b410accc1fab774f9a81b93024ec57d716ef69889c131",
+  "generated_at": "2026-04-19T11:38:33.837481+00:00",
+  "fingerprint": "6ce37b8f395355be730c6a82cc1b662fb8756659b74216d48147e28613e28668",
   "tables": {
     "Account": [
       {
@@ -29,6 +29,10 @@
       },
       {
         "name": "Status",
+        "type": "TEXT"
+      },
+      {
+        "name": "UpdatedAt",
         "type": "TEXT"
       }
     ],
@@ -60,6 +64,10 @@
       {
         "name": "TurnaroundDays",
         "type": "INTEGER"
+      },
+      {
+        "name": "UpdatedAt",
+        "type": "TEXT"
       }
     ],
     "BrokerDealer": [
@@ -77,6 +85,10 @@
       },
       {
         "name": "RegistrationNumber",
+        "type": "TEXT"
+      },
+      {
+        "name": "UpdatedAt",
         "type": "TEXT"
       }
     ],
@@ -116,6 +128,10 @@
       {
         "name": "ResolvedDate",
         "type": "TEXT"
+      },
+      {
+        "name": "UpdatedAt",
+        "type": "TEXT"
       }
     ],
     "Employee": [
@@ -141,6 +157,10 @@
       },
       {
         "name": "Status",
+        "type": "TEXT"
+      },
+      {
+        "name": "UpdatedAt",
         "type": "TEXT"
       }
     ],
@@ -171,6 +191,10 @@
       },
       {
         "name": "AddedBy",
+        "type": "TEXT"
+      },
+      {
+        "name": "UpdatedAt",
         "type": "TEXT"
       }
     ],
@@ -205,6 +229,10 @@
       },
       {
         "name": "Status",
+        "type": "TEXT"
+      },
+      {
+        "name": "UpdatedAt",
         "type": "TEXT"
       }
     ]

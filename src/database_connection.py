@@ -24,15 +24,7 @@ def _db_path() -> str:
 
 def _initialize_db(conn: sqlite3.Connection) -> None:
     script = _SCRIPT_PATH.read_text(encoding="utf-8")
-    script = re.sub(r"--[^\n]*", "", script)
-    for stmt in script.split(";"):
-        stmt = stmt.strip()
-        if stmt:
-            try:
-                conn.execute(stmt)
-            except Exception as exc:
-                logger.debug("Init SQL skipped: %s | %.80s", exc, stmt)
-    conn.commit()
+    conn.executescript(script)
 
 
 def _ensure_initialized() -> None:

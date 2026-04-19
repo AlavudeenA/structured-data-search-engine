@@ -27,17 +27,19 @@ CREATE TABLE Employee (
     Department   TEXT,
     JobTitle     TEXT,
     HireDate     TEXT,
-    Status       TEXT    -- Active, Terminated
+    Status       TEXT,   -- Active, Terminated
+    UpdatedAt    TEXT    DEFAULT (datetime('now'))
 );
 
 -- =============================================
 -- 2. BROKERDEALER
 -- =============================================
 CREATE TABLE BrokerDealer (
-    BrokerDealerID   INTEGER NOT NULL PRIMARY KEY,
-    BrokerDealerName TEXT    NOT NULL,
-    Country          TEXT,
-    RegistrationNumber TEXT
+    BrokerDealerID     INTEGER NOT NULL PRIMARY KEY,
+    BrokerDealerName   TEXT    NOT NULL,
+    Country            TEXT,
+    RegistrationNumber TEXT,
+    UpdatedAt          TEXT    DEFAULT (datetime('now'))
 );
 
 -- =============================================
@@ -50,7 +52,8 @@ CREATE TABLE Account (
     AccountNumber  TEXT,
     AccountType    TEXT,
     OpenDate       TEXT,
-    Status         TEXT    -- Active, Closed
+    Status         TEXT,   -- Active, Closed
+    UpdatedAt      TEXT    DEFAULT (datetime('now'))
 );
 
 -- =============================================
@@ -63,7 +66,8 @@ CREATE TABLE RestrictedSecurity (
     StartDate       TEXT,
     EndDate         TEXT,   -- NULL = still active
     Reason          TEXT,
-    AddedBy         TEXT
+    AddedBy         TEXT,
+    UpdatedAt       TEXT    DEFAULT (datetime('now'))
 );
 
 -- =============================================
@@ -77,7 +81,8 @@ CREATE TABLE TradeRequest (
     SecuritySymbol TEXT,
     TradeType      TEXT,   -- BUY, SELL
     Quantity       INTEGER,
-    Status         TEXT    -- Pending, Approved, Rejected, Escalated
+    Status         TEXT,   -- Pending, Approved, Rejected, Escalated
+    UpdatedAt      TEXT    DEFAULT (datetime('now'))
 );
 
 -- =============================================
@@ -92,7 +97,8 @@ CREATE TABLE ComplianceAlert (
     Severity       TEXT,   -- Low, Medium, High, Critical
     Status         TEXT,   -- Open, Investigating, Closed, Escalated
     Description    TEXT,
-    ResolvedDate   TEXT
+    ResolvedDate   TEXT,
+    UpdatedAt      TEXT    DEFAULT (datetime('now'))
 );
 
 -- =============================================
@@ -105,7 +111,8 @@ CREATE TABLE ApprovalWorkflow (
     ReviewDate     TEXT,
     Decision       TEXT,   -- Approved, Rejected, Escalated, Pending
     Comments       TEXT,
-    TurnaroundDays INTEGER -- ReviewDate - RequestDate
+    TurnaroundDays INTEGER, -- ReviewDate - RequestDate
+    UpdatedAt      TEXT    DEFAULT (datetime('now'))
 );
 
 
@@ -116,7 +123,7 @@ CREATE TABLE ApprovalWorkflow (
 -- --------------------------------------------
 -- EMPLOYEE  (20 employees, mixed departments)
 -- --------------------------------------------
-INSERT INTO Employee VALUES
+INSERT INTO Employee (EmployeeID, EmployeeName, Department, JobTitle, HireDate, Status) VALUES
 (1,  'John Smith',      'Investment Banking', 'Analyst',           '2021-01-10', 'Active'),
 (2,  'Sarah Johnson',   'Compliance',         'Manager',           '2020-03-11', 'Active'),
 (3,  'David Lee',       'Technology',         'Engineer',          '2019-04-01', 'Active'),
@@ -141,7 +148,7 @@ INSERT INTO Employee VALUES
 -- --------------------------------------------
 -- BROKERDEALER
 -- --------------------------------------------
-INSERT INTO BrokerDealer VALUES
+INSERT INTO BrokerDealer (BrokerDealerID, BrokerDealerName, Country, RegistrationNumber) VALUES
 (1, 'Fidelity',       'USA', 'FD123'),
 (2, 'Charles Schwab', 'USA', 'CS456'),
 (3, 'Morgan Stanley', 'USA', 'MS789'),
@@ -151,7 +158,7 @@ INSERT INTO BrokerDealer VALUES
 -- --------------------------------------------
 -- ACCOUNT
 -- --------------------------------------------
-INSERT INTO Account VALUES
+INSERT INTO Account (AccountID, EmployeeID, BrokerDealerID, AccountNumber, AccountType, OpenDate, Status) VALUES
 (1,  1,  1, 'ACC1',  'Individual', '2022-01-01', 'Active'),
 (2,  2,  2, 'ACC2',  'Individual', '2022-01-01', 'Active'),
 (3,  3,  3, 'ACC3',  'Individual', '2022-01-01', 'Active'),
@@ -176,7 +183,7 @@ INSERT INTO Account VALUES
 -- --------------------------------------------
 -- RESTRICTEDSECURITY
 -- --------------------------------------------
-INSERT INTO RestrictedSecurity VALUES
+INSERT INTO RestrictedSecurity (RestrictionID, SecuritySymbol, RestrictionType, StartDate, EndDate, Reason, AddedBy) VALUES
 (1,  'AAPL', 'Insider List', '2025-10-01', NULL,         'Pending earnings announcement',    'Linda Thomas'),
 (2,  'MSFT', 'Blackout',     '2025-11-01', '2025-11-30', 'Quarterly blackout period',         'Linda Thomas'),
 (3,  'GOOG', 'Watch List',   '2025-09-15', NULL,         'Elevated insider activity detected','Mark Young'),
@@ -189,7 +196,7 @@ INSERT INTO RestrictedSecurity VALUES
 -- --------------------------------------------
 -- TRADEREQUEST
 -- --------------------------------------------
-INSERT INTO TradeRequest VALUES
+INSERT INTO TradeRequest (TradeRequestID, EmployeeID, BrokerDealerID, RequestDate, SecuritySymbol, TradeType, Quantity, Status) VALUES
 (1001, 1,  1, '2025-10-05', 'IBM',  'BUY',  100, 'Approved'),
 (1002, 2,  2, '2025-10-06', 'IBM',  'SELL',  50, 'Approved'),
 (1003, 3,  3, '2025-10-07', 'AMZN', 'BUY',   75, 'Approved'),
@@ -219,7 +226,7 @@ INSERT INTO TradeRequest VALUES
 -- --------------------------------------------
 -- COMPLIANCEALERT
 -- --------------------------------------------
-INSERT INTO ComplianceAlert VALUES
+INSERT INTO ComplianceAlert (AlertID, TradeRequestID, EmployeeID, AlertType, AlertDate, Severity, Status, Description, ResolvedDate) VALUES
 (1,  1006, 1,  'Restricted Security', '2025-10-10', 'High',     'Closed',        'Employee traded AAPL during insider list window',          '2025-10-15'),
 (2,  1007, 7,  'Restricted Security', '2025-11-05', 'High',     'Closed',        'MSFT trade attempted during blackout period',               '2025-11-10'),
 (3,  1008, 4,  'Insider Trading',     '2026-01-10', 'Critical', 'Investigating', 'Large TSLA sell during insider restriction - under review',  NULL),
@@ -239,7 +246,7 @@ INSERT INTO ComplianceAlert VALUES
 -- --------------------------------------------
 -- APPROVALWORKFLOW
 -- --------------------------------------------
-INSERT INTO ApprovalWorkflow VALUES
+INSERT INTO ApprovalWorkflow (WorkflowID, TradeRequestID, ReviewerID, ReviewDate, Decision, Comments, TurnaroundDays) VALUES
 (1,  1001, 2,  '2025-10-06', 'Approved',  'Standard request, no issues',                        1),
 (2,  1002, 6,  '2025-10-07', 'Approved',  'Verified employee clearance',                        1),
 (3,  1003, 10, '2025-10-08', 'Approved',  'Within policy limits',                               1),
@@ -271,14 +278,14 @@ INSERT INTO ApprovalWorkflow VALUES
 -- ADDITIONAL DATA
 -- =============================================
 
-INSERT INTO BrokerDealer VALUES
+INSERT INTO BrokerDealer (BrokerDealerID, BrokerDealerName, Country, RegistrationNumber) VALUES
 (6,  'Goldman Sachs',       'USA', 'GS333'),
 (7,  'TD Ameritrade',       'USA', 'TD444'),
 (8,  'Interactive Brokers', 'USA', 'IB555'),
 (9,  'Barclays',            'UK',  'BC666'),
 (10, 'Deutsche Bank',       'DE',  'DB777');
 
-INSERT INTO Employee VALUES
+INSERT INTO Employee (EmployeeID, EmployeeName, Department, JobTitle, HireDate, Status) VALUES
 (21, 'Carlos Rivera',   'Legal',              'Counsel',            '2020-08-01', 'Active'),
 (22, 'Megan Foster',    'Operations',         'Operations Analyst', '2021-11-15', 'Active'),
 (23, 'George Kim',      'Trading',            'Senior Trader',      '2016-05-01', 'Active'),
@@ -290,7 +297,7 @@ INSERT INTO Employee VALUES
 (29, 'Brian Cooper',    'Trading',            'Trader',             '2023-09-01', 'Active'),
 (30, 'Michelle Reed',   'Compliance',         'Analyst',            '2021-05-10', 'Terminated');
 
-INSERT INTO Account VALUES
+INSERT INTO Account (AccountID, EmployeeID, BrokerDealerID, AccountNumber, AccountType, OpenDate, Status) VALUES
 (21, 23, 6,  'ACC21', 'Individual', '2021-03-01', 'Active'),
 (22, 24, 7,  'ACC22', 'Individual', '2023-02-01', 'Active'),
 (23, 25, 8,  'ACC23', 'Individual', '2022-05-01', 'Active'),
@@ -302,7 +309,7 @@ INSERT INTO Account VALUES
 (29, 8,  6,  'ACC29', 'Joint',      '2022-08-01', 'Active'),
 (30, 11, 8,  'ACC30', 'Individual', '2023-05-01', 'Active');
 
-INSERT INTO TradeRequest VALUES
+INSERT INTO TradeRequest (TradeRequestID, EmployeeID, BrokerDealerID, RequestDate, SecuritySymbol, TradeType, Quantity, Status) VALUES
 (1026, 1,  1,  '2024-01-10', 'IBM',  'BUY',   120, 'Approved'),
 (1027, 5,  5,  '2024-01-20', 'AMZN', 'BUY',   200, 'Approved'),
 (1028, 8,  3,  '2024-02-05', 'GOOG', 'BUY',   600, 'Approved'),
@@ -354,7 +361,7 @@ INSERT INTO TradeRequest VALUES
 (1074, 1,  6,  '2026-04-01', 'IBM',  'BUY',   140, 'Pending'),
 (1075, 5,  5,  '2026-04-05', 'IBM',  'SELL',  110, 'Pending');
 
-INSERT INTO ComplianceAlert VALUES
+INSERT INTO ComplianceAlert (AlertID, TradeRequestID, EmployeeID, AlertType, AlertDate, Severity, Status, Description, ResolvedDate) VALUES
 (16, 1028, 8,  'Excessive Volume',    '2024-02-05', 'Medium',   'Closed',        'GOOG volume advisory — 600 units flagged for monitoring',                   '2024-02-10'),
 (17, 1033, 8,  'Excessive Volume',    '2024-04-15', 'High',     'Closed',        'GOOG volume escalating: 750 units, second alert in 10 weeks',               '2024-04-22'),
 (18, 1038, 8,  'Excessive Volume',    '2024-07-01', 'High',     'Closed',        'Third high-volume GOOG batch — 900 units — escalated to compliance review', '2024-07-15'),
@@ -376,7 +383,7 @@ INSERT INTO ComplianceAlert VALUES
 (34, NULL,  18, 'Insider Trading',    '2026-03-15', 'Medium',   'Investigating', 'Third-party tip received regarding Nancy Hall trading activity — referred to Legal', NULL),
 (35, NULL,  15, 'Insider Trading',    '2026-03-22', 'Medium',   'Open',          'Second META-related alert for Daniel Lewis within 30 days',                  NULL);
 
-INSERT INTO ApprovalWorkflow VALUES
+INSERT INTO ApprovalWorkflow (WorkflowID, TradeRequestID, ReviewerID, ReviewDate, Decision, Comments, TurnaroundDays) VALUES
 (26, 1026, 6,  '2024-01-11', 'Approved',  'Standard IBM trade — no issues',                                           1),
 (27, 1028, 2,  '2024-02-08', 'Approved',  'High volume noted — within 2024 threshold, advisory issued',               3),
 (28, 1033, 10, '2024-04-18', 'Approved',  'Volume elevated, approved with written warning',                           3),

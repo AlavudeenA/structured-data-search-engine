@@ -53,6 +53,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 ANALYTICAL_REFRESH_PLAN_FILE = DATA_DIR / ".analytical_refresh_plan.json"
 SCHEMA_FINGERPRINT_FILE = DATA_DIR / ".schema_fingerprint.json"
 CAPSULE_GRAPH_FILE = DATA_DIR / ".capsule_graph.json"
+DATA_FINGERPRINT_FILE = DATA_DIR / ".data_fingerprint.json"
 
 DB_MAX_RETRIES = 3
 DB_MAX_POOL = 10

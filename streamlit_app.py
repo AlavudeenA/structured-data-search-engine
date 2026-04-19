@@ -17,11 +17,13 @@ from src.app_constants import (
     UI_MAX_HISTORY,
 )
 from src.capsule_builder.relationship_builder import load_graph
-from src.capsule_builder.store_manager import collection_stats, generate_all_capsule_collections, refresh_data_only, schema_refresh
+from src.capsule_builder.store_manager import generate_all_capsule_collections, refresh_data_only, schema_refresh
+from src.capsule_builder.user_capsule_builder import build_single_capsule
+from src.data_fingerprint import check_schema_and_refresh_if_needed
+from src.business_schema.user_capsules import delete_user_capsule_def, load_user_capsule_defs, save_user_capsule_def
 from src.query_engine.orchestrator import handle_query
-from src.vector_store import clear_collection, collection_counts, delete_by_capsule_id, reset_all_collections, scroll_all, upsert_capsule
+from src.vector_store import clear_collection, collection_counts, delete_by_capsule_id, reset_all_collections, scroll_all
 from src.database_connection import execute_select
-from src.embedding import embed_single
 
 st.set_page_config(page_title="Analytical Search Engine", page_icon="", layout="wide")
 
@@ -39,6 +41,8 @@ def init_state() -> None:
         "telemetry_log": [],
         "last_result": None,
         "explorer_capsules": [],
+        "schema_checked": False,
+        "_uc_preview": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -46,6 +50,10 @@ def init_state() -> None:
 
 
 init_state()
+
+if not st.session_state.schema_checked:
+    check_schema_and_refresh_if_needed()
+    st.session_state.schema_checked = True
 
 
 _ROUTE_STYLE = {
@@ -142,6 +150,9 @@ with ask_tab:
         with col2:
             st.markdown("**Route taken**")
             render_route_badge(result.route_taken)
+
+        if result.data_refreshed:
+            st.info("Data changed since last query — capsules were automatically refreshed before answering.")
 
         st.markdown("### Answer")
         st.markdown(result.answer)
@@ -379,6 +390,7 @@ with explorer_tab:
                 delete_collection = COLLECTION_LINKED
             if st.button(f"Delete {selected_capsule}"):
                 delete_by_capsule_id(delete_collection, selected_capsule)
+                delete_user_capsule_def(selected_capsule)  # no-op if not a user capsule
                 st.success(f"Deleted {selected_capsule}")
                 st.session_state.explorer_capsules = []
                 st.rerun()
@@ -418,176 +430,115 @@ with telemetry_tab:
         st.info("No telemetry has been recorded in this session.")
 
 with insert_tab:
-    st.subheader("Insert Capsule")
-    capsule_id = st.text_input("Capsule ID*", placeholder="e.g. high_risk_broker_trades", help="Unique identifier in snake_case (e.g. high_risk_trades)")
-    
-    type_options = [
-        "aggregation", "anomaly", "concentration", "correlation",
-        "distribution", "escalation", "forecast", "outlier",
-        "pattern", "profiling", "risk_score", "sample", "summary",
-        "threshold_breach", "trend", "Custom..."
-    ]
-    selected_type = st.selectbox("Capsule Type*", type_options, index=0)
-    if selected_type == "Custom...":
-        capsule_type = st.text_input("Enter Custom Capsule Type", value="custom_type")
-    else:
-        capsule_type = selected_type
-        
-    max_return_rows = st.number_input("Max Rows to Return", min_value=1, max_value=1000, value=50, step=10)
-    sql_text = st.text_area(
-        "SQL*",
-        height=180,
-        placeholder=(
-            "e.g.  SELECT TOP 20\n"
-            "         tr.BrokerDealerID AS broker_id,\n"
-            "         COUNT(*) AS total_requests,\n"
-            "         SUM(CASE WHEN aw.Decision = 'Rejected' THEN 1 ELSE 0 END) AS rejected\n"
-            "       FROM TradeRequest tr\n"
-            "       JOIN ApprovalWorkflow aw ON tr.RequestID = aw.RequestID\n"
-            "       GROUP BY tr.BrokerDealerID\n"
-            "       ORDER BY rejected DESC"
-        ),
-    )
-    summary_text = st.text_area(
-        "Summary Text / Embed Text*",
-        height=120,
-        placeholder=(
-            "e.g.  This capsule tracks rejection rates by broker dealer. "
-            "Use it to identify which brokers have unusually high compliance rejections, "
-            "policy breaches, or escalation patterns. "
-            "Finding: {signal}"
-        ),
-    )
+    st.subheader("Create User Capsule")
 
-    with st.expander("Advanced Capsule Properties (Leave blank for LLM auto-generation)"):
-        c_priority = st.selectbox("Priority", ["", "P1", "P2", "P3", "P4"], help="Risk severity")
-        c_what = st.text_input("What", placeholder="e.g. Rejection rate per broker dealer over the last 90 days", help="Short description of the capsule")
-        c_how = st.text_input("How", placeholder="e.g. COUNT of rejected approvals divided by total requests, grouped by broker", help="1-sentence explanation of calculation")
-        c_signal_method = st.text_input("Signal Method", placeholder="e.g. rule_based  or  llm_summary", help="e.g. threshold_breach, latest_value")
-        c_ttl_hours = st.text_input("TTL Hours", placeholder="e.g. 24", help="Enter a number (e.g., 24)")
-        c_staleness = st.selectbox("Staleness Trigger", ["", "hourly", "daily", "weekly", "monthly", "manual"])
-        c_tags = st.text_input("Tags", placeholder="e.g. rejection, broker, compliance, risk", help="Comma-separated semantic tags")
-        c_tables = st.text_input("Tables Used", placeholder="e.g. TradeRequest, ApprovalWorkflow, BrokerDealer", help="Comma-separated table names")
-        c_keys = st.text_input("Key Columns", placeholder="e.g. broker_id, total_requests, rejected", help="Comma-separated key columns")
+    # ── Step 1: SQL form ──────────────────────────────────────────────────────
+    with st.form("capsule_form"):
+        c_name = st.text_input("Name*", placeholder="e.g. High Risk Broker Trades")
+        c_sql  = st.text_area(
+            "SQL*", height=180,
+            placeholder=(
+                "SELECT tr.BrokerDealerID AS broker_id,\n"
+                "       COUNT(*) AS total_requests,\n"
+                "       SUM(CASE WHEN aw.Decision = 'Rejected' THEN 1 ELSE 0 END) AS rejected\n"
+                "FROM TradeRequest tr\n"
+                "JOIN ApprovalWorkflow aw ON tr.TradeRequestID = aw.TradeRequestID\n"
+                "GROUP BY tr.BrokerDealerID\n"
+                "ORDER BY rejected DESC\n"
+                "LIMIT 50"
+            ),
+        )
+        c_what = st.text_input("What does this measure?*", placeholder="e.g. Rejection rate per broker over the last 90 days")
+        col_t, col_p = st.columns(2)
+        c_type = col_t.selectbox("Type", ["aggregation", "trend", "violation", "pattern", "risk", "operational", "distribution", "sample"])
+        c_priority = col_p.selectbox("Priority", ["P3", "P1", "P2", "P4"])
+        c_tags = st.text_input("Tags (comma-separated)", placeholder="e.g. broker, rejection, risk")
+        validated = st.form_submit_button("Validate SQL", type="primary")
 
-    if st.button("Insert Capsule", type="primary"):
-        if not capsule_id or not sql_text or not summary_text:
-            st.error("Capsule ID, Type, SQL, and Summary are required.")
+    if validated:
+        if not c_name or not c_sql or not c_what:
+            st.error("Name, SQL, and What are required.")
         else:
-            invalid_sql = False
-            rows = []
-            
-            with st.spinner("Validating SQL query..."):
+            with st.spinner("Validating SQL..."):
                 try:
-                    rows = execute_select(sql_text, max_rows=max_return_rows)
-                except Exception as e:
-                    invalid_sql = True
-                    st.error(f"❌ Invalid SQL Query: {str(e)}")
-            
-            if not invalid_sql:
-                with st.spinner("Determining metadata via LLM and saving..."):
-                    from src.llm_service import call_llm_json
-                    from src.capsule_builder.append_capsules import append_to_capsule_definitions_file
-                    
-                    sys_prompt = (
-                        "You are a smart data analytics engine. Given a capsule summary and SQL, return a JSON object containing "
-                        "ONLY the fields that are strictly missing from the user's manual inputs to complete the definition:\n"
-                        "- priority (string): P1, P2, P3, or P4.\n"
-                        "- what (string): Short descriptive title.\n"
-                        "- how (string): 1 sentence explaining the calculation.\n"
-                        "- signal_method (string): e.g., 'max_value', 'threshold_breach', 'count_distinct'.\n"
-                        "- ttl_hours (int): Number of hours.\n"
-                        "- staleness_trigger (string): 'hourly', 'daily', 'weekly', etc.\n"
-                        "- tables_used (list of strings).\n"
-                        "- key_columns (list of strings).\n"
-                        "- tags (list of strings).\n"
-                        "Output ONLY valid JSON."
-                    )
-                    
-                    req_fields = {}
-                    if not c_priority: req_fields['priority'] = "?"
-                    if not c_what: req_fields['what'] = "?"
-                    if not c_how: req_fields['how'] = "?"
-                    if not c_signal_method: req_fields['signal_method'] = "?"
-                    if not c_ttl_hours: req_fields['ttl_hours'] = "?"
-                    if not c_staleness: req_fields['staleness_trigger'] = "?"
-                    if not c_tags: req_fields['tags'] = "?"
-                    if not c_tables: req_fields['tables_used'] = "?"
-                    if not c_keys: req_fields['key_columns'] = "?"
-                    
-                    llm_meta = {}
-                    if req_fields:
-                        usr_prompt = f"Capsule ID: {capsule_id}\nType: {capsule_type}\nSummary: {summary_text}\nSQL: {sql_text}\n\nPlease generate these missing fields: {list(req_fields.keys())}"
-                        llm_meta = call_llm_json(sys_prompt, usr_prompt, model_slot="groq_intent_model") or {}
-                    
-                    def merge_str(user_val, llm_val, default):
-                        return user_val.strip() if user_val else str(llm_meta.get(llm_val, default))
-                        
-                    def merge_list(user_val, llm_val):
-                        if user_val:
-                            return [x.strip() for x in user_val.split(",") if x.strip()]
-                        return llm_meta.get(llm_val, [])
-                        
-                    def merge_int(user_val, llm_val, default):
-                        if user_val and user_val.isdigit():
-                            return int(user_val)
-                        return int(llm_meta.get(llm_val, default))
-
-                    final_priority = merge_str(c_priority, "priority", "P3")
-                    final_what = merge_str(c_what, "what", capsule_id.replace("_", " "))
-                    final_how = merge_str(c_how, "how", "Manual insert")
-                    final_sig_method = merge_str(c_signal_method, "signal_method", "manual")
-                    final_ttl = merge_int(c_ttl_hours, "ttl_hours", 24)
-                    final_stale = merge_str(c_staleness, "staleness_trigger", "manual")
-                    final_tags = ["manual", capsule_type] + merge_list(c_tags, "tags")
-                    final_tables = merge_list(c_tables, "tables_used")
-                    final_keys = merge_list(c_keys, "key_columns")
-
-                    # Construct exact definition equivalent
-                    capsule_def = {
-                        "capsule_id": capsule_id,
-                        "capsule_type": capsule_type,
-                        "priority": final_priority,
-                        "what": final_what,
-                        "how": final_how,
-                        "sql": sql_text.strip(),
-                        "signal_method": final_sig_method,
-                        "embed_text_template": summary_text,
-                        "ttl_hours": final_ttl,
-                        "tags": final_tags,
-                        "tables_used": final_tables,
-                        "key_columns": final_keys,
-                        "staleness_trigger": final_stale,
-                        "linked_capsule_ids": [],
-                        "relationship_types": []
+                    preview_rows = execute_select(c_sql, max_rows=50)
+                    st.session_state["_uc_preview"] = {
+                        "name": c_name, "sql": c_sql, "what": c_what,
+                        "type": c_type, "priority": c_priority, "tags": c_tags,
+                        "rows": preview_rows,
                     }
-                    
-                    # Augment with runtime execution payload
-                    payload = dict(capsule_def)
-                    payload["signal"] = f"Returned {len(rows)} rows."
-                    payload["embed_text"] = summary_text
-                    payload["generated_at"] = datetime.now(timezone.utc).isoformat()
-                    payload["expires_at"] = datetime.now(timezone.utc).isoformat()
-                    payload["is_stale"] = False
-                    payload["result_rows"] = rows
-                    payload["anomaly_score"] = 0.0
-                    payload["trend_direction"] = "flat"
-                    
-                    # Store vector internally
-                    upsert_capsule(COLLECTION_ANALYTICAL, capsule_id, embed_single(summary_text), payload)
-                    
-                    # Append strictly to source code definitions file
-                    file_saved = append_to_capsule_definitions_file(capsule_def)
-                    
-                st.success(f"✅ Query successful: Retrieved {len(rows)} rows.")
-                if file_saved:
-                    st.success(f"✅ Permanent Save: Successfully appended '{capsule_id}' directly to capsule_definitions.py!")
-                else:
-                    st.warning(f"⚠️ Inserted locally, but failed to write to capsule_definitions.py. Check app console.")
+                    st.success(f"SQL valid — {len(preview_rows)} rows returned.")
+                except Exception as exc:
+                    st.session_state.pop("_uc_preview", None)
+                    st.error(f"SQL error: {exc}")
+
+    # ── Step 2: Preview + Save ────────────────────────────────────────────────
+    preview = st.session_state.get("_uc_preview")
+    if preview:
+        st.markdown("**Preview (up to 50 rows)**")
+        st.dataframe(preview["rows"], use_container_width=True)
+
+        if st.button("Save & Build Capsule", type="primary"):
+            import re as _re
+            capsule_id = "user_" + _re.sub(r"[^a-z0-9]+", "_", preview["name"].lower()).strip("_")
+            tags = [t.strip() for t in preview["tags"].split(",") if t.strip()] + ["user_defined", preview["type"]]
+            tables = sorted({t for t in _re.findall(r"(?:FROM|JOIN)\s+([A-Za-z_]\w*)", preview["sql"], _re.IGNORECASE)})
+
+            capsule_def = {
+                "capsule_id":          capsule_id,
+                "capsule_type":        preview["type"],
+                "priority":            preview["priority"],
+                "what":                preview["what"],
+                "how":                 "User-defined SQL capsule",
+                "sql":                 preview["sql"].strip(),
+                "signal_method":       "rule_based",
+                "embed_text_template": preview["what"],
+                "ttl_hours":           24,
+                "tags":                tags,
+                "tables_used":         tables,
+                "key_columns":         list(preview["rows"][0].keys()) if preview["rows"] else [],
+                "staleness_trigger":   "data_change",
+                "linked_capsule_ids":  [],
+                "relationship_types":  [],
+            }
+
+            with st.spinner("Building capsule..."):
+                save_user_capsule_def(capsule_def)
+                ok = build_single_capsule(capsule_def)
+
+            if ok:
+                st.success(f"Capsule '{capsule_id}' saved and built successfully.")
+                st.session_state.pop("_uc_preview", None)
+                st.rerun()
+            else:
+                st.error("Build failed — capsule definition saved but not indexed. Check logs.")
+
+    # ── My Capsules (list + delete) ───────────────────────────────────────────
+    st.divider()
+    st.subheader("My Capsules")
+    user_caps = load_user_capsule_defs()
+    if not user_caps:
+        st.info("No user capsules created yet.")
+    else:
+        for uc in user_caps:
+            col_info, col_del = st.columns([5, 1])
+            col_info.markdown(f"**{uc['capsule_id']}** — {uc['what']} `{uc['capsule_type']}` `{uc['priority']}`")
+            if col_del.button("Delete", key=f"del_{uc['capsule_id']}"):
+                delete_user_capsule_def(uc["capsule_id"])
+                delete_by_capsule_id(COLLECTION_ANALYTICAL, uc["capsule_id"])
+                st.success(f"Deleted {uc['capsule_id']}")
+                st.rerun()
 
 with reset_tab:
     st.subheader("Reset")
-    st.warning("This clears all Qdrant collections.")
+    st.warning("This clears all Qdrant collections (analytical, schema, linked).")
+    user_caps_count = len(load_user_capsule_defs())
+    if user_caps_count:
+        st.info(
+            f"You have {user_caps_count} user-created capsule(s). Their definitions are stored in "
+            "`data/user_capsules.json` and will be preserved — but their vectors will be cleared. "
+            "Run **Generate All Capsules** or **Refresh Data** after reset to rebuild them."
+        )
     confirm = st.checkbox("I understand this action cannot be undone")
     if confirm and st.button("Reset Vector DB"):
         with st.spinner("Resetting vector store..."):
@@ -596,4 +547,4 @@ with reset_tab:
             with sidebar_collections.container():
                 st.markdown("### Collections")
                 st.json(collection_counts())
-        st.success("Vector store reset complete.")
+        st.success("Vector store reset complete. User capsule definitions preserved — rebuild to reindex them.")
