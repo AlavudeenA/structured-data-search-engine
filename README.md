@@ -1,53 +1,18 @@
-# Analytical Search Engine
+﻿# Analytical Search Engine
 
-## Why this exists — and why it is not just "text-to-SQL"
+## Context-Driven Intelligence — Beyond Query Generation
 
-The simplest version of this idea is: take a user's question, send it to an LLM with the database schema, get SQL back, run it, show the result. That works. For ad-hoc exploration by a single analyst, it is probably the right choice.
+The simplest approach to answering questions from a database is to take a user's question, send it to an AI with the table structure, generate SQL, run it, and show the result. For ad-hoc exploration by a single analyst, that is the right choice. This system is built for a different requirement — compliance teams needing consistent, fast, and auditable answers at scale.
 
-This system is built for a different set of requirements — and it is worth being honest about both what that buys you and what it costs.
+When 50 compliance officers ask similar questions throughout the day, a pure query-generation approach pays full AI cost and latency every single time. This system pre-computes answers to the most common analytical questions and serves them in milliseconds — no AI call needed for the majority of queries. Two identical questions asked on different days return the same verified answer, not whatever SQL the AI decides to write that day.
 
----
+Beyond speed and consistency, query generation alone cannot detect whether a metric is unusual without historical context. Anomaly detection here uses statistical Z-scores across the full result set. Trend directions are computed from moving averages over actual data. Neither requires the AI to guess. When a broker appears in three separate analytical results — elevated rejection rate, active restriction violation, and an escalation spike — that connection is invisible to a query tool unless someone thinks to ask exactly the right question. This system builds a relationship graph across all pre-computed results and surfaces those cross-signal risk patterns automatically.
 
-### What text-to-SQL alone does not solve
+For compliance specifically, change awareness is an audit requirement, not a convenience. The system tracks what the data looked like at each refresh cycle, detects when something shifted, and can show management a direct comparison between any two time periods.
 
-**Speed and cost at scale.**
-Every question hits the LLM cold. If 50 users ask similar compliance questions throughout the day, you pay in latency and token cost every single time. This system pre-computes answers to the most common analytical questions and serves them from a vector store in milliseconds — no LLM call needed for most queries.
+The honest framing is this: it is a pre-computed analytical knowledge base with a natural language interface — the difference between a data warehouse with pre-built intelligence versus an ad-hoc query editor. Both are valid. If the use case is one analyst occasionally exploring data, query generation is simpler and sufficient. If the use case is compliance teams needing consistent answers, anomaly alerts, cross-entity risk signals, and auditable change history — this architecture earns its design.
 
-**Consistency.**
-Text-to-SQL gives you whatever SQL the LLM decides to write today. Two identical questions on different days can produce different SQL, different joins, different numbers. Pre-computed capsules are deterministic — the signal was computed once from real data and is the same for every user who asks.
-
-**Anomaly detection and trend awareness.**
-You cannot ask a language model "is this metric unusual?" without giving it historical context it does not have. The anomaly scores here come from Z-score statistics across the full result set. The trend directions come from moving averages over actual data. Neither requires an LLM to guess.
-
-**Change awareness.**
-A plain text-to-SQL system has no memory of what the data looked like yesterday. This system fingerprints every table on every query, detects when something changed, refreshes only the affected capsules, and gives management a side-by-side comparison of what shifted between any two time periods. For a compliance use case, that is an audit feature, not a nice-to-have.
-
-**Cross-signal risk patterns.**
-Text-to-SQL answers one question at a time. When a broker appears in three different analytical results — high rejection rate, active restriction violation, and an escalation spike — that connection is invisible unless someone thinks to ask the right multi-part question. This system builds a relationship graph across all pre-computed results and surfaces those cross-signal patterns automatically.
-
----
-
-### Where the complexity is genuinely optional
-
-The LLM-driven capsule definition regeneration, the intent-to-SQL generation in the Insert Capsule tab, and the schema fingerprint-triggered full rebuild are all real complexity that a small team could reasonably skip. A hardcoded capsule definition file and a manual rebuild button would cover 90% of the same ground with far less moving parts.
-
-The two-pipeline architecture — a build pipeline that runs offline and an answer pipeline that runs on every question — is justified at production scale but is cognitive overhead for a team of one or two maintaining it.
-
----
-
-### The honest framing
-
-This is a **pre-computed analytical knowledge base with a natural language interface**, not a query tool. The closest analogy is the difference between a data warehouse with pre-built reports versus an ad-hoc SQL editor. Both are valid. They serve different needs.
-
-If your use case is one analyst occasionally exploring data, use text-to-SQL. It is simpler and it will work.
-
-If your use case is compliance officers needing **consistent, fast, auditable answers** — with anomaly alerts, cross-entity risk signals, and management-facing change reports — the architecture here earns its complexity.
-
----
-
-A **database-agnostic, schema-agnostic** analytical question-answering system. Connect it to any SQLite database and ask plain-English questions — the engine figures out the SQL, retrieves pre-computed insights, and delivers a natural-language answer.
-
-No changes to the core engine are needed when switching databases. You only swap out the configuration folder.
+The system connects to any SQL Server database with no changes to the core engine. Only the configuration folder changes per deployment.
 
 ---
 
@@ -55,11 +20,11 @@ No changes to the core engine are needed when switching databases. You only swap
 
 ### Prerequisites
 
-| Requirement         | Details                                                                                        |
-| ------------------- | ---------------------------------------------------------------------------------------------- |
-| **Python**          | 3.11 or 3.13 recommended                                                                       |
+| Requirement         | Details                                                                                                     |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Python**          | 3.11 or 3.13 recommended                                                                                    |
 | **LLM provider**    | **Groq** (default — set `GROQ_API_KEY` in `.env`) **or** VS Code with GitHub Copilot (set `USE_GROQ=False`) |
-| **fastembed_cache** | Pre-bundled in the repo — no internet download needed                                          |
+| **fastembed_cache** | Pre-bundled in the repo — no internet download needed                                                       |
 
 ### 1 — Clone the repo
 
@@ -84,15 +49,15 @@ py -3 -m pip install -r requirements.txt
 
 **What gets installed:**
 
-| Package                          | Purpose                                               |
-| -------------------------------- | ----------------------------------------------------- |
-| `streamlit`                      | Web UI                                                |
-| `qdrant-client`                  | Local vector database                                 |
-| `fastembed`                      | Embedding model (bge-small-en-v1.5, 384-dim, ~63 MB)  |
-| `pydantic` / `pydantic-settings` | Settings and data models                              |
-| `python-dotenv`                  | Reads `.env` file                                     |
-| `numpy` / `scipy`                | Anomaly scoring and statistics                        |
-| `groq`                           | Groq API client (used when `USE_GROQ=True`)           |
+| Package                          | Purpose                                              |
+| -------------------------------- | ---------------------------------------------------- |
+| `streamlit`                      | Web UI                                               |
+| `qdrant-client`                  | Local vector database                                |
+| `fastembed`                      | Embedding model (bge-small-en-v1.5, 384-dim, ~63 MB) |
+| `pydantic` / `pydantic-settings` | Settings and data models                             |
+| `python-dotenv`                  | Reads `.env` file                                    |
+| `numpy` / `scipy`                | Anomaly scoring and statistics                       |
+| `groq`                           | Groq API client (used when `USE_GROQ=True`)          |
 
 > **Note:** The embedding model (`BAAI/bge-small-en-v1.5`, 384-dim, ~63 MB) is pre-bundled in `fastembed_cache/` — no internet access or download required on first run.
 
@@ -141,11 +106,13 @@ Set `GROQ_API_KEY` in `.env`. No VS Code or extension required. Each LLM task us
 
 **Option B — VS Code LM API (`USE_GROQ=False`):**
 Install the companion extension:
+
 ```bash
 cd vscode-lm-extension
 npm install
 npm run compile
 ```
+
 Then press **F5** in VS Code to run the extension host, or install the `.vsix` file if packaged. Requires **GitHub Copilot** active in VS Code.
 
 ### 7 — Run the app
@@ -188,11 +155,11 @@ A **capsule** is a pre-computed unit of knowledge. Before you ask a question, th
 
 There are three types:
 
-| Type                      | What it is                                                                                                                              | Count (example) |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| `analytical_capsules`     | Pre-run SQL results + signals for common business questions (`aggregation`, `trend`, `violation`, `risk`, `pattern`, `operational`)     | ~39             |
-| `schema_context_capsules` | Maps of the database structure — which tables join to what                                                                              | 5               |
-| `linked_capsules`         | Auto-generated linked capsules — risk/anomaly alerts from capsule cross-analysis                                                        | ~17             |
+| Type                      | What it is                                                                                                                          | Count (example) |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `analytical_capsules`     | Pre-run SQL results + signals for common business questions (`aggregation`, `trend`, `violation`, `risk`, `pattern`, `operational`) | ~39             |
+| `schema_context_capsules` | Maps of the database structure — which tables join to what                                                                          | 5               |
+| `linked_capsules`         | Auto-generated linked capsules — risk/anomaly alerts from capsule cross-analysis                                                    | ~17             |
 
 ### Two Pipelines
 
@@ -231,15 +198,18 @@ This means adding a new column or table in `dbscript.sql` and re-running the app
 ### Capsule Snapshot History (Data Activity)
 
 Every time a targeted refresh runs successfully, the refreshed capsules are saved to:
+
 ```
 data/capsule_history/MM-DD-YYYY/{capsule_id}.json
 ```
+
 - **One folder per day** — only created when a change is detected. No empty folders.
 - **Same-day overwrites** — if data changes twice in a day, the later snapshot replaces the earlier one for the same capsule, keeping only the latest state of that day.
 - **Full capsule format** — consistent with the live Qdrant payload; no trimming.
 - **Auto-pruning** — folders older than `CAPSULE_HISTORY_RETENTION_DAYS` (default 30, set in `app_constants.py`) are deleted on each write.
 
 The **Data Activity** tab lets management compare any two date ranges:
+
 1. Pick a **Baseline Period** (from/to dates) — the engine loads all unique capsules from snapshots in that range, keeping the latest version per capsule
 2. Pick a **Comparison Period** (own from/to dates) — same independently
 3. Select any combination of capsules on both sides via checkboxes
@@ -259,16 +229,17 @@ You can also skip the intent box entirely and write the SQL directly.
 
 ### Step 1 — Fill in the four fields
 
-| Field        | Description                                                      |
-| ------------ | ---------------------------------------------------------------- |
-| **Name**     | A short display name for the capsule                             |
-| **SQL**      | The analytical SELECT query (pre-filled if intent was used)      |
+| Field        | Description                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| **Name**     | A short display name for the capsule                                                     |
+| **SQL**      | The analytical SELECT query (pre-filled if intent was used)                              |
 | **What**     | One sentence describing what this capsule measures (pre-filled from intent if generated) |
-| **Priority** | P1 (critical) / P2 (monitoring) / P3 (operational) / P4 (info)  |
+| **Priority** | P1 (critical) / P2 (monitoring) / P3 (operational) / P4 (info)                           |
 
 ### Step 2 — Validate & Enrich
 
 Click **Validate & Enrich** to:
+
 - Execute the SQL against the live database and preview up to 50 rows
 - Send the SQL + result rows to the LLM, which derives all remaining metadata:
   `capsule_type`, `how`, `tags`, `tables_used`, `key_columns`, `staleness_trigger`, `ttl_hours`, `signal_method`, `embed_text`
@@ -277,6 +248,7 @@ Click **Validate & Enrich** to:
 ### Step 3 — Save & Build
 
 Click **Save & Build Capsule**. The capsule is:
+
 - Saved permanently to `data/user_capsules.json`
 - Built immediately (SQL executed, signal generated, embedded, upserted into Qdrant)
 - **Auto-linked** to any related existing analytical capsules (see below)
@@ -286,14 +258,15 @@ Click **Save & Build Capsule**. The capsule is:
 
 After a user capsule is built, the engine scans all existing analytical capsules in Qdrant (O(n), payload-only) and infers relationships using the same logic as the full graph build:
 
-| Condition                                                     | Inferred relationship |
-| ------------------------------------------------------------- | --------------------- |
-| Same table set used + different capsule type                  | `same_entity`         |
-| New capsule tables ⊂ existing capsule tables                  | `drills_down`         |
-| Existing capsule tables ⊂ new capsule tables                  | `aggregates_up`       |
-| ≥ 2 shared tags or a shared entity value in result rows       | `corroborates`        |
+| Condition                                               | Inferred relationship |
+| ------------------------------------------------------- | --------------------- |
+| Same table set used + different capsule type            | `same_entity`         |
+| New capsule tables ⊂ existing capsule tables            | `drills_down`         |
+| Existing capsule tables ⊂ new capsule tables            | `aggregates_up`       |
+| ≥ 2 shared tags or a shared entity value in result rows | `corroborates`        |
 
 For each match:
+
 - The existing capsule's `linked_capsule_ids` is updated in Qdrant via `set_payload` (no re-embedding)
 - The new capsule's `linked_capsule_ids` is flushed once at the end
 - New edges are appended to `data/.capsule_graph.json`
@@ -304,6 +277,7 @@ For each match:
 The bottom of the Insert Capsule tab lists all user-created capsules with a delete button per capsule. Deleting removes both the JSON definition and the Qdrant point.
 
 User capsules are:
+
 - **Included in all refresh operations** — targeted refresh, full rebuild, and schema refresh all include user capsules
 - **Shown in the sidebar count** (`↳ N user-created of M analytical`)
 - **Checked by data fingerprint** — if the underlying data changes, affected user capsules are refreshed automatically
@@ -591,17 +565,18 @@ Linked capsules connect risk patterns across multiple data dimensions — a brok
 After all analytical capsules are generated, `build_graph()` creates a graph of how capsules relate:
 
 **Explicit edges** (declared in `capsule_definitions.py`):
+
 - `linked_capsule_ids` — capsule IDs this capsule is related to
 - `relationship_types` — `corroborates` / `drills_down` / `aggregates_up` / `same_entity`
 
 **Inferred edges** (computed at generation time):
 
-| Condition                                                         | Inferred relationship |
-| ----------------------------------------------------------------- | --------------------- |
-| Same table set used + different capsule type                      | `same_entity`         |
-| A's tables are a strict subset of B's tables                      | `drills_down`         |
-| B's tables are a strict subset of A's tables                      | `aggregates_up`       |
-| ≥ 2 shared tags or a shared entity value found in result rows     | `corroborates`        |
+| Condition                                                     | Inferred relationship |
+| ------------------------------------------------------------- | --------------------- |
+| Same table set used + different capsule type                  | `same_entity`         |
+| A's tables are a strict subset of B's tables                  | `drills_down`         |
+| B's tables are a strict subset of A's tables                  | `aggregates_up`       |
+| ≥ 2 shared tags or a shared entity value found in result rows | `corroborates`        |
 
 The full graph is saved to `data/.capsule_graph.json` and visualized in the **Capsule Graph** tab.
 
@@ -618,6 +593,7 @@ Any capsule with `anomaly_score > 0.0` triggers automatic creation of a linked c
 ### Phase 3 — User Capsule Bidirectional Linking (`link_user_capsule_to_existing`)
 
 When a user creates a capsule via the Insert Capsule tab, the same relationship inference runs against all existing analytical capsules. For each matched existing capsule:
+
 - Its `linked_capsule_ids` is updated in Qdrant via `set_payload` (no re-embedding, O(n) scan)
 - The new capsule's links are flushed once at the end
 - New edges are appended (not rebuilt) to `.capsule_graph.json`
@@ -626,27 +602,27 @@ When a user creates a capsule via the Insert Capsule tab, the same relationship 
 
 ## The UI Tabs
 
-| Tab                   | What it does                                                                             |
-| --------------------- | ---------------------------------------------------------------------------------------- |
-| **Ask Question**      | Type a plain-English question and get an answer; shows "Data refreshed" banner if capsules were auto-refreshed |
-| **Generate Capsules** | Build or refresh the engine's knowledge base                                             |
-| **Capsule Explorer**  | Browse all stored capsules with filters; delete user capsules; inspect SQL, signal, and metadata |
-| **Capsule Graph**     | Visual graph of how capsules relate to each other and any anomaly alerts                 |
-| **Telemetry**         | Log of all questions asked, routes taken, confidence scores, and timing                  |
-| **Insert Capsule**    | Type intent → Generate SQL → Validate → AI enriches metadata → Save & Build; sidebar shows user capsule count |
-| **Data Activity**     | Compare capsule snapshots across two time periods — Baseline vs Comparison — via LLM analysis |
-| **Reset**             | Wipe all Qdrant collections; user_capsules.json is preserved                             |
+| Tab                    | What it does                                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Ask Question**       | Type a plain-English question and get an answer; shows "Data refreshed" banner if capsules were auto-refreshed |
+| **Generate Capsules**  | Build or refresh the engine's knowledge base                                                                   |
+| **Insert Capsule**     | Type intent → Generate SQL → Validate → AI enriches metadata → Save & Build; sidebar shows user capsule count  |
+| **Data Activity**      | Compare capsule snapshots across two time periods — Baseline vs Comparison — via LLM analysis                  |
+| **Telemetry**          | Log of all questions asked, routes taken, confidence scores, and timing                                        |
+| **Capsule Explorer**   | Browse all stored capsules with filters; delete user capsules; inspect SQL, signal, and metadata               |
+| **Capsule Graph**      | Visual graph of how capsules relate to each other and any anomaly alerts                                       |
+| **Reset Capsules**     | Wipe all indexed capsules (analytical, schema, linked); all capsule definitions are preserved                   |
 
 ---
 
 ## Generate Capsules — Four Buttons
 
-| Button                    | What it does                                                                                      | When to use                                                               |
-| ------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| **Generate All Capsules** | Full rebuild — wipes Qdrant and regenerates everything from scratch (includes user capsules)      | First run, after changing `capsule_definitions.py`, or when something is broken |
-| **Refresh Data**          | Re-runs only the analytical SQL queries; leaves schema and linked capsules untouched              | Routine refresh when DB data changed but structure hasn't                 |
-| **Schema Refresh**        | Detects whether the DB schema changed (via fingerprint) and rebuilds everything if it has        | After adding or removing columns/tables in the DB                         |
-| **Generate Capsule Definitions** | Sends live DB schema + FK relationships to LLM; regenerates the entire `CAPSULE_DEFINITIONS` list; validated with `ast.parse()` before writing | Bootstrap a new domain or after major schema changes |
+| Button                           | What it does                                                                                                                                   | When to use                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Generate All Capsules**        | Full rebuild — wipes Qdrant and regenerates everything from scratch (includes user capsules)                                                   | First run, after changing `capsule_definitions.py`, or when something is broken |
+| **Refresh Data**                 | Re-runs only the analytical SQL queries; leaves schema and linked capsules untouched                                                           | Routine refresh when DB data changed but structure hasn't                       |
+| **Schema Refresh**               | Detects whether the DB schema changed (via fingerprint) and rebuilds everything if it has                                                      | After adding or removing columns/tables in the DB                               |
+| **Generate Capsule Definitions** | Sends live DB schema + FK relationships to LLM; regenerates the entire `CAPSULE_DEFINITIONS` list; validated with `ast.parse()` before writing | Bootstrap a new domain or after major schema changes                            |
 
 ---
 

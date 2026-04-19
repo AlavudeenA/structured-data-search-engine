@@ -351,8 +351,29 @@ with explorer_tab:
                 {
                     "capsule_id": capsule.get("capsule_id"),
                     "type": capsule.get("capsule_type", "schema_context"),
-                    "what": capsule.get("what") or capsule.get("summary", "-"),
-                    "how": capsule.get("how", "-"),
+                    "what": (
+                        capsule.get("what")
+                        or capsule.get("summary")
+                        or capsule.get("signal")
+                        or "-"
+                    ),
+                    "how": (
+                        capsule.get("how")
+                        or (
+                            f"Auto-generated {capsule.get('risk_level', '')} risk alert from "
+                            f"{capsule.get('entity_type', '')} capsule. "
+                            f"Linked from: {', '.join(capsule.get('linked_from') or [])}."
+                            if capsule.get("risk_level")
+                            else None
+                        )
+                        or (
+                            f"Join path across: {', '.join(capsule.get('tables') or [])}. "
+                            f"Key join columns: {', '.join(capsule.get('join_columns') or [])}."
+                            if capsule.get("tables")
+                            else None
+                        )
+                        or "-"
+                    ),
                     "priority": capsule.get("priority", "-"),
                     "signal_method": capsule.get("signal_method", "-"),
                     "tables_used": ", ".join(capsule.get("tables_used") or capsule.get("tables") or []),
