@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-04-19T11:38:02.409310+00:00",
+  "fingerprint": "357877b98ac6bb0940991d7f9c87cfb55faee81a3a61b06ec72b8d20cafe9668",
+  "table_stats": {
+    "Employee": {
+      "count": "30",
+      "latest": "2026-04-19 11:11:03"
+    },
+    "BrokerDealer": {
+      "count": "10",
+      "latest": "2026-04-19 11:11:03"
+    },
+    "Account": {
+      "count": "30",
+      "latest": "2026-04-19 11:11:03"
+    },
+    "RestrictedSecurity": {
+      "count": "8",
+      "latest": "2026-04-19 11:11:03"
+    },
+    "TradeRequest": {
+      "count": "75",
+      "latest": "2026-04-19 11:11:03"
+    },
+    "ComplianceAlert": {
+      "count": "35",
+      "latest": "2026-04-19 11:11:03"
+    },
+    "ApprovalWorkflow": {
+      "count": "55",
+      "latest": "2026-04-19 11:11:03"
+    }
+  }
+}

@@ -1,0 +1,262 @@
+{
+  "generated_at": "2026-04-16T19:47:18.670546+00:00",
+  "fingerprint": "2d6df15104d5da91b9d897970073be0acb8f871da3794b5c2d7bc41daa5b767f",
+  "tables": {
+    "Account": [
+      {
+        "name": "AccountID",
+        "type": "int"
+      },
+      {
+        "name": "EmployeeID",
+        "type": "int"
+      },
+      {
+        "name": "BrokerDealerID",
+        "type": "int"
+      },
+      {
+        "name": "AccountNumber",
+        "type": "varchar"
+      },
+      {
+        "name": "AccountType",
+        "type": "varchar"
+      },
+      {
+        "name": "OpenDate",
+        "type": "date"
+      },
+      {
+        "name": "Status",
+        "type": "varchar"
+      }
+    ],
+    "ApprovalWorkflow": [
+      {
+        "name": "WorkflowID",
+        "type": "int"
+      },
+      {
+        "name": "TradeRequestID",
+        "type": "int"
+      },
+      {
+        "name": "ReviewerID",
+        "type": "int"
+      },
+      {
+        "name": "ReviewDate",
+        "type": "date"
+      },
+      {
+        "name": "Decision",
+        "type": "varchar"
+      },
+      {
+        "name": "Comments",
+        "type": "varchar"
+      },
+      {
+        "name": "TurnaroundDays",
+        "type": "int"
+      }
+    ],
+    "BrokerDealer": [
+      {
+        "name": "BrokerDealerID",
+        "type": "int"
+      },
+      {
+        "name": "BrokerDealerName",
+        "type": "varchar"
+      },
+      {
+        "name": "Country",
+        "type": "varchar"
+      },
+      {
+        "name": "RegistrationNumber",
+        "type": "varchar"
+      }
+    ],
+    "ComplianceAlert": [
+      {
+        "name": "AlertID",
+        "type": "int"
+      },
+      {
+        "name": "TradeRequestID",
+        "type": "int"
+      },
+      {
+        "name": "EmployeeID",
+        "type": "int"
+      },
+      {
+        "name": "AlertType",
+        "type": "varchar"
+      },
+      {
+        "name": "AlertDate",
+        "type": "date"
+      },
+      {
+        "name": "Severity",
+        "type": "varchar"
+      },
+      {
+        "name": "Status",
+        "type": "varchar"
+      },
+      {
+        "name": "Description",
+        "type": "varchar"
+      },
+      {
+        "name": "ResolvedDate",
+        "type": "date"
+      }
+    ],
+    "Employee": [
+      {
+        "name": "EmployeeID",
+        "type": "int"
+      },
+      {
+        "name": "EmployeeName",
+        "type": "varchar"
+      },
+      {
+        "name": "Department",
+        "type": "varchar"
+      },
+      {
+        "name": "JobTitle",
+        "type": "varchar"
+      },
+      {
+        "name": "HireDate",
+        "type": "date"
+      },
+      {
+        "name": "Status",
+        "type": "varchar"
+      }
+    ],
+    "RestrictedSecurity": [
+      {
+        "name": "RestrictionID",
+        "type": "int"
+      },
+      {
+        "name": "SecuritySymbol",
+        "type": "varchar"
+      },
+      {
+        "name": "RestrictionType",
+        "type": "varchar"
+      },
+      {
+        "name": "StartDate",
+        "type": "date"
+      },
+      {
+        "name": "EndDate",
+        "type": "date"
+      },
+      {
+        "name": "Reason",
+        "type": "varchar"
+      },
+      {
+        "name": "AddedBy",
+        "type": "varchar"
+      }
+    ],
+    "TradeRequest": [
+      {
+        "name": "TradeRequestID",
+        "type": "int"
+      },
+      {
+        "name": "EmployeeID",
+        "type": "int"
+      },
+      {
+        "name": "BrokerDealerID",
+        "type": "int"
+      },
+      {
+        "name": "RequestDate",
+        "type": "date"
+      },
+      {
+        "name": "SecuritySymbol",
+        "type": "varchar"
+      },
+      {
+        "name": "TradeType",
+        "type": "varchar"
+      },
+      {
+        "name": "Quantity",
+        "type": "int"
+      },
+      {
+        "name": "Status",
+        "type": "varchar"
+      }
+    ]
+  },
+  "relationships": [
+    {
+      "parent_table": "Account",
+      "parent_column": "BrokerDealerID",
+      "ref_table": "BrokerDealer",
+      "ref_column": "BrokerDealerID"
+    },
+    {
+      "parent_table": "Account",
+      "parent_column": "EmployeeID",
+      "ref_table": "Employee",
+      "ref_column": "EmployeeID"
+    },
+    {
+      "parent_table": "ApprovalWorkflow",
+      "parent_column": "ReviewerID",
+      "ref_table": "Employee",
+      "ref_column": "EmployeeID"
+    },
+    {
+      "parent_table": "ApprovalWorkflow",
+      "parent_column": "TradeRequestID",
+      "ref_table": "TradeRequest",
+      "ref_column": "TradeRequestID"
+    },
+    {
+      "parent_table": "ComplianceAlert",
+      "parent_column": "EmployeeID",
+      "ref_table": "Employee",
+      "ref_column": "EmployeeID"
+    },
+    {
+      "parent_table": "ComplianceAlert",
+      "parent_column": "TradeRequestID",
+      "ref_table": "TradeRequest",
+      "ref_column": "TradeRequestID"
+    },
+    {
+      "parent_table": "TradeRequest",
+      "parent_column": "BrokerDealerID",
+      "ref_table": "BrokerDealer",
+      "ref_column": "BrokerDealerID"
+    },
+    {
+      "parent_table": "TradeRequest",
+      "parent_column": "EmployeeID",
+      "ref_table": "Employee",
+      "ref_column": "EmployeeID"
+    }
+  ]
+}

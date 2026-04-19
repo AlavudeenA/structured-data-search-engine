@@ -1,0 +1,182 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.activate = activate;
+exports.deactivate = deactivate;
+// src/extension.ts
+const vscode = __importStar(require("vscode"));
+const http = __importStar(require("http"));
+const url_1 = require("url");
+// Simple helper: read the whole async stream
+async function collectStreamText(asyncIterable) {
+    let out = "";
+    for await (const chunk of asyncIterable)
+        out += chunk;
+    return out;
+}
+// Cached at activate() — selectChatModels returns empty in HTTP handler context
+let cachedModel;
+function startLocalServer(context) {
+    // Choose a port or read from config
+    const config = vscode.workspace.getConfiguration("vscodeLmSample");
+    const port = config.get("localServerPort") ?? 50234;
+    const secret = config.get("localServerSecret") ?? "abc123"; // change before sharing
+    const server = http.createServer(async (req, res) => {
+        try {
+            // only accept POST /prompt
+            const parsed = new url_1.URL(req.url ?? "", `http://localhost`);
+            if (req.method !== "POST" || parsed.pathname !== "/prompt") {
+                res.writeHead(404, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "not-found" }));
+                return;
+            }
+            // parse JSON body
+            const body = await new Promise((resolve, reject) => {
+                let buf = "";
+                req.on("data", (chunk) => (buf += chunk));
+                req.on("end", () => resolve(buf));
+                req.on("error", (err) => reject(err));
+            });
+            let json;
+            try {
+                json = JSON.parse(body);
+            }
+            catch (e) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "invalid-json" }));
+                return;
+            }
+            // simple auth: match secret
+            if (!json.secret || json.secret !== secret) {
+                res.writeHead(401, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "unauthorized" }));
+                return;
+            }
+            const prompt = String(json.prompt ?? "");
+            if (!prompt) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "empty-prompt" }));
+                return;
+            }
+            // Optional system prompt — if caller provides one use it, else fall back to default
+            const systemText = json.system
+                ? String(json.system)
+                : "You are a helpful assistant. Be concise.";
+            const model = cachedModel;
+            if (!model) {
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "no-model" }));
+                return;
+            }
+            const messages = [
+                vscode.LanguageModelChatMessage.User(`${systemText}\n\n${prompt}`),
+            ];
+            // send the request and collect streamed text
+            let chatResponse;
+            try {
+                chatResponse = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+            }
+            catch (err) {
+                const errMsg = err instanceof Error ? err.message : String(err);
+                res.writeHead(500, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "lm-request-failed", message: errMsg }));
+                return;
+            }
+            // collect full response text
+            const text = await collectStreamText(chatResponse.text);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ text }));
+        }
+        catch (err) {
+            console.error("local-server-error", err);
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "server-error", message: String(err) }));
+        }
+    });
+    server.listen(port, "127.0.0.1", () => {
+        console.log(`vscode-lm-sample: local server listening on http://127.0.0.1:${port}`);
+        vscode.window.showInformationMessage(`vscode-lm-sample local API running on port ${port}`);
+    });
+    context.subscriptions.push({ dispose: () => server.close() });
+}
+function activate(context) {
+    // Cache the model at activation (user context — selectChatModels works here)
+    vscode.lm.selectChatModels({ vendor: "copilot", family: "gpt-5-mini" })
+        .then(models => { cachedModel = models[0]; });
+    // register the command declared in package.json
+    const disposable = vscode.commands.registerCommand("vscode-lm-sample.askModel", async () => {
+        try {
+            const prompt = await vscode.window.showInputBox({
+                prompt: "Ask the language model (brief):",
+            });
+            if (!prompt)
+                return;
+            const models = await vscode.lm.selectChatModels({
+                vendor: "copilot",
+                family: "gpt-5-mini",
+            });
+            if (!models || models.length === 0) {
+                vscode.window.showErrorMessage("No language model available");
+                return;
+            }
+            const model = models[0];
+            const messages = [
+                vscode.LanguageModelChatMessage.User("You are a helpful assistant. Be concise."),
+                vscode.LanguageModelChatMessage.User(prompt),
+            ];
+            let chatResponse;
+            try {
+                chatResponse = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+            }
+            catch (err) {
+                vscode.window.showErrorMessage("Model request failed: " + String(err));
+                return;
+            }
+            const text = await collectStreamText(chatResponse.text);
+            // show result in an information message (for longer output, consider an output channel)
+            const short = text.length > 1000 ? text.slice(0, 1000) + "…" : text;
+            vscode.window.showInformationMessage(short);
+        }
+        catch (err) {
+            vscode.window.showErrorMessage("askModel handler error: " + String(err));
+        }
+    });
+    context.subscriptions.push(disposable);
+    // start the local server (only for development/local use)
+    startLocalServer(context);
+}
+function deactivate() {
+    // server closed via subscriptions dispose
+}

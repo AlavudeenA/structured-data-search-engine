@@ -1,151 +1,151 @@
-# File: src/database_connection.py
-"""SQL Server database connection and query helpers."""
+"""Database access helpers using SQLite."""
 
 from __future__ import annotations
 
-import os
+import logging
+import re
+import sqlite3
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Iterator
 
-import pyodbc
+from .app_constants import DB_EXECUTE_MAX_ROWS
+from .config import get_settings
 
-from .app_constants import (
-    ALLOWED_TABLES,
-    DB_CONNECTION_TIMEOUT_SECONDS,
-    DB_DEFAULT_CONN_STR,
-    DB_EXECUTE_SELECT_MAX_ROWS,
-)
+logger = logging.getLogger(__name__)
+
+_SCRIPT_PATH = Path(__file__).parent / "business_schema" / "dbscript.sql"
+_initialized = False
 
 
-def get_connection_string() -> str:
-    """Return SQL Server connection string from env or defaults."""
-    return os.getenv("SQLSERVER_CONN_STR", DB_DEFAULT_CONN_STR)
+def _db_path() -> str:
+    return str(Path(get_settings().db_path).resolve())
+
+
+def _initialize_db(conn: sqlite3.Connection) -> None:
+    script = _SCRIPT_PATH.read_text(encoding="utf-8")
+    conn.executescript(script)
+
+
+def _ensure_initialized() -> None:
+    global _initialized
+    if _initialized:
+        return
+    db = _db_path()
+    conn = sqlite3.connect(db, check_same_thread=False)
+    try:
+        count = conn.execute(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchone()[0]
+        if count == 0:
+            logger.info("Initializing SQLite database at %s", db)
+            _initialize_db(conn)
+    finally:
+        conn.close()
+    _initialized = True
 
 
 @contextmanager
-def get_connection() -> Iterator[pyodbc.Connection]:
-    """Yield a SQL Server connection using Windows authentication."""
-    conn = pyodbc.connect(get_connection_string(), timeout=DB_CONNECTION_TIMEOUT_SECONDS)
+def get_connection() -> Iterator[sqlite3.Connection]:
+    """Yield a SQLite connection."""
+    _ensure_initialized()
+    conn = sqlite3.connect(_db_path(), check_same_thread=False)
+    conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
     finally:
         conn.close()
 
 
-def execute_select(
-    sql: str, params: tuple[Any, ...] | None = None, max_rows: int = DB_EXECUTE_SELECT_MAX_ROWS
-) -> dict[str, Any]:
-    """Execute a read-only SELECT query and return a structured result."""
+def execute_select(sql: str, max_rows: int = DB_EXECUTE_MAX_ROWS) -> list[dict[str, Any]]:
+    return execute_select_with_meta(sql, max_rows=max_rows)["rows"]
+
+
+def execute_select_with_meta(sql: str, max_rows: int = DB_EXECUTE_MAX_ROWS) -> dict[str, Any]:
+    """Execute a SELECT query and return columns, rows, row_count, and error."""
     normalized = sql.strip().lower()
-    allowed_prefixes = ("select", "with")
-    if not normalized.startswith(allowed_prefixes):
-        raise ValueError("Only SELECT queries are allowed.")
-    if normalized.count(";") > 1:
-        raise ValueError("Multiple SQL statements are not allowed.")
-
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(sql, params or ())
-        rows = cursor.fetchmany(max_rows)
-        columns = [col[0] for col in (cursor.description or [])]
-        result_rows = [dict(zip(columns, row)) for row in rows]
-
-    return {
-        "columns": columns,
-        "rows": result_rows,
-        "row_count": len(result_rows),
-        "truncated": len(result_rows) == max_rows,
-    }
+    if not (normalized.startswith("select") or normalized.startswith("with")):
+        return {"columns": [], "rows": [], "row_count": 0, "error": "Only SELECT or WITH queries are allowed."}
+    try:
+        with get_connection() as conn:
+            cursor = conn.execute(sql)
+            columns = [d[0] for d in (cursor.description or [])]
+            raw_rows = cursor.fetchmany(max_rows)
+            rows = [dict(zip(columns, row)) for row in raw_rows]
+            return {"columns": columns, "rows": rows, "row_count": len(rows), "error": None}
+    except Exception as exc:
+        logger.error("SQL execution failed: %s | SQL: %s", exc, sql[:400])
+        return {"columns": [], "rows": [], "row_count": 0, "error": str(exc)}
 
 
 def get_schema_metadata() -> dict[str, list[dict[str, str]]]:
-    """Load column metadata for allowed compliance tables."""
+    """Return schema metadata for all tables in the database."""
     schema: dict[str, list[dict[str, str]]] = {}
-    tables = _effective_allowed_tables()
-    if not tables:
-        return schema
-
-    placeholders = ",".join("?" for _ in tables)
-    sql = f"""
-    SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE
-    FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME IN ({placeholders})
-    ORDER BY TABLE_NAME, ORDINAL_POSITION
-    """
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(sql, tuple(tables))
-        for table_name, column_name, data_type in cursor.fetchall():
-            schema.setdefault(table_name, []).append(
-                {"name": str(column_name), "type": str(data_type)}
-            )
+    try:
+        with get_connection() as conn:
+            tables = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            ).fetchall()
+            for (table_name,) in tables:
+                cols = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+                schema[table_name] = [
+                    {"name": col[1], "type": col[2] or "TEXT"} for col in cols
+                ]
+    except Exception as exc:
+        logger.error("Failed to read schema metadata: %s", exc)
     return schema
 
 
-def get_foreign_keys() -> list[str]:
-    """Load foreign key relationships for allowed tables."""
-    fk_rows = get_foreign_key_metadata()
-    return [
-        f"{row['parent_table']}.{row['parent_column']} -> {row['ref_table']}.{row['ref_column']}"
-        for row in fk_rows
-    ]
-
-
-def get_foreign_key_metadata() -> list[dict[str, str]]:
-    """Load structured foreign key metadata for allowed tables."""
-    tables = _effective_allowed_tables()
-    if not tables:
-        return []
-
-    sql = """
-    SELECT
-        OBJECT_NAME(f.parent_object_id) AS parent_table,
-        COL_NAME(fc.parent_object_id, fc.parent_column_id) AS parent_column,
-        OBJECT_NAME(f.referenced_object_id) AS ref_table,
-        COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS ref_column
-    FROM sys.foreign_keys f
-    JOIN sys.foreign_key_columns fc
-        ON f.object_id = fc.constraint_object_id
-    ORDER BY parent_table, parent_column
-    """
+def get_fk_relationships() -> list[dict[str, str]]:
+    """Return foreign-key relationships between tables."""
     relationships: list[dict[str, str]] = []
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        for parent_table, parent_column, ref_table, ref_column in cursor.fetchall():
-            p_table = str(parent_table)
-            r_table = str(ref_table)
-            if p_table not in tables or r_table not in tables:
-                continue
-            relationships.append(
-                {
-                    "parent_table": p_table,
-                    "parent_column": str(parent_column),
-                    "ref_table": r_table,
-                    "ref_column": str(ref_column),
-                }
-            )
+    try:
+        with get_connection() as conn:
+            tables = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+            for (table_name,) in tables:
+                fks = conn.execute(f"PRAGMA foreign_key_list('{table_name}')").fetchall()
+                for fk in fks:
+                    # fk: (id, seq, ref_table, from_col, to_col, ...)
+                    relationships.append({
+                        "parent_table": table_name,
+                        "parent_column": fk[3],
+                        "ref_table": fk[2],
+                        "ref_column": fk[4],
+                    })
+    except Exception as exc:
+        logger.error("Failed to read foreign keys: %s", exc)
     return relationships
 
 
-def discover_tables() -> set[str]:
-    """Discover base table names from the current SQL Server database."""
-    sql = """
-    SELECT TABLE_NAME
-    FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_TYPE = 'BASE TABLE'
-    """
-    tables: set[str] = set()
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        for (table_name,) in cursor.fetchall():
-            tables.add(str(table_name))
-    return tables
+def get_join_paths() -> list[dict[str, str]]:
+    """Return normalized join paths derived from FK relationships."""
+    return [
+        {
+            "left_table": rel["parent_table"],
+            "left_column": rel["parent_column"],
+            "right_table": rel["ref_table"],
+            "right_column": rel["ref_column"],
+            "join_sql": (
+                f"{rel['parent_table']}.{rel['parent_column']} = "
+                f"{rel['ref_table']}.{rel['ref_column']}"
+            ),
+        }
+        for rel in get_fk_relationships()
+    ]
 
 
-def _effective_allowed_tables() -> set[str]:
-    """Use explicit allowed tables if provided; otherwise auto-discover."""
-    if ALLOWED_TABLES:
-        return set(ALLOWED_TABLES)
-    return discover_tables()
+def schema_to_text(schema: dict[str, list[dict[str, str]]]) -> str:
+    lines: list[str] = []
+    for table_name, columns in sorted(schema.items()):
+        rendered = ", ".join(f"{col['name']} ({col['type']})" for col in columns)
+        lines.append(f"{table_name}: {rendered}")
+    return "\n".join(lines)
+
+
+def fk_to_text(relationships: list[dict[str, str]]) -> str:
+    return "\n".join(
+        f"{rel['parent_table']}.{rel['parent_column']} -> {rel['ref_table']}.{rel['ref_column']}"
+        for rel in relationships
+    )

@@ -1,0 +1,2227 @@
+"""
+Domain-specific capsule definitions for the Compliance database.
+Every capsule is fully specified — no placeholders.
+Import CAPSULE_DEFINITIONS and iterate to generate all capsules.
+"""
+
+from __future__ import annotations
+
+SCHEMA_DEFINITIONS: list[dict] = [
+    {
+        "capsule_id": "schema_context_trade_request_backbone",
+        "summary": "TradeRequest is the operational backbone for ranking, volume, broker, employee, and security analysis. Use it as the fact table and join to Employee and BrokerDealer first.",
+        "tables": ["TradeRequest", "Employee", "BrokerDealer"],
+        "relevant_columns": ["EmployeeName", "Department", "BrokerDealerName", "Country"],
+        "join_columns": ["EmployeeID", "BrokerDealerID"],
+        "sql_template": (
+            "SELECT bd.BrokerDealerName AS broker_dealer, COUNT(tr.TradeRequestID) AS request_count "
+            "FROM TradeRequest tr "
+            "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
+            "GROUP BY bd.BrokerDealerName "
+            "ORDER BY request_count DESC"
+        ),
+        "tags": ["schema", "trade_request", "broker", "employee", "aggregation"]
+    },
+    {
+        "capsule_id": "schema_context_restriction_overlap",
+        "summary": "Use RestrictedSecurity with TradeRequest on SecuritySymbol plus date overlap when asking about violations, active restrictions, or restricted trading attempts. EndDate NULL means the restriction is still active.",
+        "tables": ["TradeRequest", "RestrictedSecurity", "Employee", "BrokerDealer"],
+        "relevant_columns": ["SecuritySymbol", "RestrictionType", "StartDate", "EndDate", "RequestDate", "EmployeeID", "BrokerDealerID"],
+        "join_columns": ["SecuritySymbol", "EmployeeID", "BrokerDealerID"],
+        "sql_template": (
+            "SELECT tr.TradeRequestID AS trade_request_id, e.EmployeeName AS employee_name, tr.SecuritySymbol AS security_symbol, "
+            "rs.RestrictionType AS restriction_type, tr.RequestDate AS request_date "
+            "FROM TradeRequest tr "
+            "JOIN RestrictedSecurity rs ON tr.SecuritySymbol = rs.SecuritySymbol "
+            "AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31') "
+            "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
+            "ORDER BY tr.RequestDate DESC"
+        ),
+        "tags": ["schema", "restriction", "violation", "date_overlap", "active_restriction"]
+    },
+    {
+        "capsule_id": "schema_context_alerts_and_reviews",
+        "summary": "ComplianceAlert plus ApprovalWorkflow answers escalation, alert severity, reviewer performance, and unresolved issue questions. ReviewerID points back to Employee as the reviewer, not the requester.",
+        "tables": ["ComplianceAlert", "TradeRequest", "ApprovalWorkflow", "Employee"],
+        "relevant_columns": ["AlertType", "AlertDate", "Severity", "Status", "Description", "ResolvedDate", "Decision", "TurnaroundDays", "ReviewerID"],
+        "join_columns": ["TradeRequestID", "EmployeeID", "ReviewerID"],
+        "sql_template": (
+            "SELECT ca.AlertType AS alert_type, ca.Severity AS severity, aw.Decision AS decision, aw.TurnaroundDays AS turnaround_days "
+            "FROM ComplianceAlert ca "
+            "LEFT JOIN ApprovalWorkflow aw ON ca.TradeRequestID = aw.TradeRequestID "
+            "ORDER BY ca.AlertDate DESC"
+        ),
+        "tags": ["schema", "alerts", "workflow", "reviewer", "operational", "risk"]
+    },
+    {
+        "capsule_id": "schema_context_employee_account_broker_path",
+        "summary": "Use Account when the question is about employee brokerage registration, account coverage, or broker registration by country. This is a metadata path that complements TradeRequest-based analysis.",
+        "tables": ["Employee", "Account", "BrokerDealer"],
+        "relevant_columns": ["EmployeeID", "EmployeeName", "Department", "AccountID", "AccountType", "AccountNumber", "BrokerDealerName", "Country", "RegistrationNumber"],
+        "join_columns": ["EmployeeID", "BrokerDealerID"],
+        "sql_template": (
+            "SELECT bd.BrokerDealerName AS broker_dealer_name, bd.Country AS country, COUNT(a.AccountID) AS account_count "
+            "FROM Account a "
+            "JOIN BrokerDealer bd ON a.BrokerDealerID = bd.BrokerDealerID "
+            "GROUP BY bd.BrokerDealerName, bd.Country "
+            "ORDER BY account_count DESC"
+        ),
+        "tags": ["schema", "account", "broker_registration", "country", "employee_path"]
+    },
+    {
+        "capsule_id": "schema_context_trend_patterns",
+        "summary": "For trend questions, prefer TradeRequest.RequestDate, ComplianceAlert.AlertDate, and ApprovalWorkflow.ReviewDate. Group using strftime('%Y-%m', date_col) for monthly trends or strftime('%Y-W%W', date_col) for weekly views.",
+        "tables": ["TradeRequest", "ComplianceAlert", "ApprovalWorkflow", "BrokerDealer", "Employee"],
+        "relevant_columns": ["RequestDate", "AlertDate", "ReviewDate", "Status", "Severity", "Department", "BrokerDealerName"],
+        "join_columns": ["BrokerDealerID", "EmployeeID", "TradeRequestID", "ReviewerID"],
+        "sql_template": (
+            "SELECT strftime('%Y-%m', tr.RequestDate) AS month_key, bd.BrokerDealerName AS broker_dealer, COUNT(tr.TradeRequestID) AS request_count "
+            "FROM TradeRequest tr "
+            "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
+            "WHERE tr.RequestDate >= date('now', '-6 months') "
+            "GROUP BY strftime('%Y-%m', tr.RequestDate), bd.BrokerDealerName "
+            "ORDER BY month_key ASC, request_count DESC"
+        ),
+        "tags": ["schema", "trend", "time_series", "broker", "department"]
+    }
+]
+
+CAPSULE_DEFINITIONS: list[dict] = [
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 1 — VOLUME & ACTIVITY
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "trade_requests_by_broker_dealer",
+        "capsule_type": "aggregation",
+        "priority": "P2",
+        "what": "Measures trading activity and compliance outcomes per broker dealer — who submits the most requests, and which brokers have elevated rejection or escalation rates that signal systemic counterparty risk",
+        "how": "Groups all TradeRequests by BrokerDealer using LEFT JOIN so zero-activity brokers still appear. Counts total, approved, rejected, escalated, and pending statuses. Computes rejection_rate_pct as CAST(100.0 * rejected / NULLIF(total, 0) AS REAL) to avoid division by zero",
+        "sql": """
+SELECT
+    bd.BrokerDealerName          AS broker_dealer,
+    bd.Country                   AS country,
+    COUNT(tr.TradeRequestID)     AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
+    SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
+    SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,
+    SUM(CASE WHEN tr.Status = 'Pending'   THEN 1 ELSE 0 END) AS pending_count,
+    CAST(
+        100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END)
+        / NULLIF(COUNT(tr.TradeRequestID), 0)
+    AS REAL) AS rejection_rate_pct
+FROM BrokerDealer bd
+LEFT JOIN TradeRequest tr ON tr.BrokerDealerID = bd.BrokerDealerID
+GROUP BY bd.BrokerDealerID, bd.BrokerDealerName, bd.Country
+ORDER BY total_requests DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Trade request volume and approval outcomes broken down by broker dealer partner. "
+            "This capsule answers: which broker dealers submit the most trade requests, "
+            "and what are their approval, rejection, and escalation rates? "
+            "Compliance officers use this to identify broker dealers with unusual rejection patterns "
+            "or high escalation rates that may signal systemic risk or policy non-compliance. "
+            "Related questions: broker dealer activity levels, which broker has most rejections, "
+            "broker dealer compliance performance, rejection rate by counterparty. "
+            "Finding: {signal} "
+            "Tables: BrokerDealer, TradeRequest. "
+            "Key columns: BrokerDealerName, Country, total_requests, rejected_count, escalated_count, rejection_rate_pct."
+        ),
+        "ttl_hours": 24,
+        "tags": ["broker_dealer", "volume", "aggregation", "rejection_rate", "escalation"],
+        "tables_used": ["BrokerDealer", "TradeRequest"],
+        "key_columns": ["BrokerDealerName", "total_requests", "rejected_count", "escalated_count", "rejection_rate_pct"],
+        "staleness_trigger": "new TradeRequest row inserted",
+        "linked_capsule_ids": ["violations_by_broker_dealer", "broker_dealers_high_rejection_and_alerts"],
+        "relationship_types": ["corroborates", "aggregates_up"],
+    },
+
+    {
+        "capsule_id": "trade_requests_by_department",
+        "capsule_type": "aggregation",
+        "priority": "P2",
+        "what": "Measures compliance friction per business unit — which departments generate the most trading volume and which face the most rejections or escalations, indicating where training or oversight is most needed",
+        "how": "Groups TradeRequests by Employee.Department using LEFT JOIN to include departments with zero requests. Counts status breakdown and computes non_approval_rate_pct combining both Rejected and Escalated as 'not straightforwardly approved'",
+        "sql": """
+SELECT
+    e.Department                 AS department,
+    COUNT(tr.TradeRequestID)     AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
+    SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
+    SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,
+    COUNT(DISTINCT tr.EmployeeID) AS active_employees,
+    CAST(
+        100.0 * SUM(CASE WHEN tr.Status IN ('Rejected','Escalated') THEN 1 ELSE 0 END)
+        / NULLIF(COUNT(tr.TradeRequestID), 0)
+    AS REAL) AS non_approval_rate_pct
+FROM Employee e
+LEFT JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
+GROUP BY e.Department
+ORDER BY total_requests DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Trade request activity by organizational department, showing which business units "
+            "generate the highest trading volumes and which face the most compliance friction. "
+            "This capsule answers: which departments submit most trade requests, "
+            "what is each department's rejection rate, which team has the highest escalation frequency. "
+            "Useful for: department-level compliance risk profiling, identifying teams that need "
+            "additional training, understanding trading behaviour by business unit. "
+            "Synonyms: business unit activity, division trading volume, team-level compliance outcomes. "
+            "Finding: {signal} "
+            "Tables: Employee, TradeRequest. "
+            "Key columns: Department, total_requests, rejected_count, escalated_count, non_approval_rate_pct."
+        ),
+        "ttl_hours": 24,
+        "tags": ["department", "volume", "aggregation", "rejection_rate"],
+        "tables_used": ["Employee", "TradeRequest"],
+        "key_columns": ["Department", "total_requests", "rejected_count", "non_approval_rate_pct"],
+        "staleness_trigger": "new TradeRequest or Employee row",
+        "linked_capsule_ids": ["violations_by_department", "escalation_trend_by_department", "department_compliance_scorecard"],
+        "relationship_types": ["corroborates", "corroborates", "aggregates_up"],
+    },
+
+    {
+        "capsule_id": "trade_requests_by_security_symbol",
+        "capsule_type": "aggregation",
+        "priority": "P2",
+        "what": "Identifies the top 10 most frequently traded securities and flags which of them carry restriction history — the highest-risk combination of high volume plus policy exposure that warrants enhanced monitoring",
+        "how": "Groups TradeRequests by SecuritySymbol summing quantities and splitting into buy vs sell. LEFT JOIN to RestrictedSecurity sets has_restriction_history = 1 if the symbol has ever appeared on any restriction list. Ordered by request_count DESC, limited to top 10",
+        "sql": """
+SELECT  tr.SecuritySymbol                AS security_symbol,
+    COUNT(tr.TradeRequestID)         AS request_count,
+    SUM(tr.Quantity)                 AS total_quantity,
+    SUM(CASE WHEN tr.TradeType = 'BUY'  THEN tr.Quantity ELSE 0 END) AS buy_quantity,
+    SUM(CASE WHEN tr.TradeType = 'SELL' THEN tr.Quantity ELSE 0 END) AS sell_quantity,
+    SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
+    MAX(CASE WHEN rs.RestrictionID IS NOT NULL THEN 1 ELSE 0 END) AS has_restriction_history
+FROM TradeRequest tr
+LEFT JOIN RestrictedSecurity rs ON rs.SecuritySymbol = tr.SecuritySymbol
+GROUP BY tr.SecuritySymbol
+ORDER BY request_count DESC LIMIT 10
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Top securities by trade request volume showing which ticker symbols are most actively "
+            "traded by employees. This capsule answers: which securities are traded most frequently, "
+            "what is the buy vs sell split per symbol, which high-volume securities also appear on "
+            "restriction lists creating potential violation risk. "
+            "Compliance relevance: securities with high volume plus restriction history are the "
+            "highest priority for review — combining popularity with policy breach exposure. "
+            "Related terms: most active securities, ticker symbol activity, top traded stocks, "
+            "security volume analysis, restricted security trading. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, RestrictedSecurity. "
+            "Key columns: SecuritySymbol, request_count, total_quantity, has_restriction_history."
+        ),
+        "ttl_hours": 24,
+        "tags": ["security_symbol", "volume", "aggregation", "restriction"],
+        "tables_used": ["TradeRequest", "RestrictedSecurity"],
+        "key_columns": ["SecuritySymbol", "request_count", "total_quantity", "rejected_count", "has_restriction_history"],
+        "staleness_trigger": "new TradeRequest or RestrictedSecurity row",
+        "linked_capsule_ids": ["currently_active_restrictions", "securities_in_restrictions_and_alerts"],
+        "relationship_types": ["corroborates", "drills_down"],
+    },
+
+    {
+        "capsule_id": "trade_requests_by_trade_type",
+        "capsule_type": "aggregation",
+        "priority": "P3",
+        "what": "Shows the overall BUY vs SELL balance across all employees — an unusual skew toward sells with high rejection rates may indicate pre-restriction dumping behaviour or coordinated selling that warrants investigation",
+        "how": "Groups TradeRequests by TradeType, computing pct_of_total using a correlated subquery for the total denominator. Counts approved vs rejected per direction to show whether one trade direction faces more compliance friction than the other",
+        "sql": """
+SELECT
+    tr.TradeType                             AS trade_type,
+    COUNT(tr.TradeRequestID)                 AS request_count,
+    SUM(tr.Quantity)                         AS total_quantity,
+    CAST(
+        100.0 * COUNT(tr.TradeRequestID)
+        / NULLIF((SELECT COUNT(*) FROM TradeRequest), 0)
+    AS REAL)                         AS pct_of_total,
+    SUM(CASE WHEN tr.Status = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
+    SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count
+FROM TradeRequest tr
+GROUP BY tr.TradeType
+ORDER BY request_count DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Overall split of trade requests between buy orders and sell orders across the compliance database. "
+            "This capsule answers: what proportion of all trade requests are buys versus sells, "
+            "how do approval and rejection rates differ between buy and sell trade types. "
+            "An unusual skew toward sells with high rejection rates may indicate insider trading "
+            "concerns or pre-restriction dumping behaviour. "
+            "Related terms: buy sell ratio, trade direction distribution, long short activity. "
+            "Finding: {signal} "
+            "Tables: TradeRequest. "
+            "Key columns: TradeType, request_count, total_quantity, pct_of_total, rejected_count."
+        ),
+        "ttl_hours": 48,
+        "tags": ["trade_type", "aggregation", "buy_sell", "distribution"],
+        "tables_used": ["TradeRequest"],
+        "key_columns": ["TradeType", "request_count", "total_quantity", "pct_of_total"],
+        "staleness_trigger": "new TradeRequest row",
+        "linked_capsule_ids": ["trade_requests_by_security_symbol"],
+        "relationship_types": ["corroborates"],
+    },
+
+    {
+        "capsule_id": "monthly_request_volume",
+        "capsule_type": "aggregation",
+        "priority": "P2",
+        "what": "Tracks whether employee trading activity is growing, shrinking, or stable month-by-month over 6 months — a combined rise in total requests and rejections is the key signal of increasing compliance pressure",
+        "how": "Groups TradeRequests by strftime('%Y-%m', RequestDate) for the last 6 months, counting each status separately per month. Rows ordered ascending so trends read left-to-right chronologically",
+        "sql": """
+SELECT
+    strftime('%Y-%m', tr.RequestDate)        AS request_month,
+    COUNT(tr.TradeRequestID)                 AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
+    SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
+    SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,
+    SUM(CASE WHEN tr.Status = 'Pending'   THEN 1 ELSE 0 END) AS pending_count
+FROM TradeRequest tr
+WHERE tr.RequestDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', tr.RequestDate)
+ORDER BY request_month ASC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Month-by-month trade request volume for the last 6 months showing activity trends "
+            "and outcome distributions across time. "
+            "This capsule answers: is trade request volume growing or declining, "
+            "which months had the most rejections or escalations, is there a seasonal compliance pattern. "
+            "A rising trend in total requests combined with rising rejections signals increasing "
+            "compliance pressure. A spike in escalations in a specific month warrants investigation. "
+            "Related terms: monthly volume trend, request activity over time, trading frequency history. "
+            "Finding: {signal} "
+            "Tables: TradeRequest. "
+            "Key columns: request_month, total_requests, rejected_count, escalated_count."
+        ),
+        "ttl_hours": 12,
+        "tags": ["monthly", "trend", "volume", "aggregation"],
+        "tables_used": ["TradeRequest"],
+        "key_columns": ["request_month", "total_requests", "rejected_count", "escalated_count"],
+        "staleness_trigger": "daily",
+        "linked_capsule_ids": ["monthly_alert_volume_trend", "weekly_trade_request_volume"],
+        "relationship_types": ["corroborates", "same_entity"],
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 2 — VIOLATIONS (P1)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "violations_on_restricted_securities",
+        "capsule_type": "violation",
+        "priority": "P1",
+        "what": "The most critical compliance capsule — every trade request where an employee submitted during an active restriction window, constituting a direct policy breach. Each row here requires individual compliance officer review",
+        "how": "INNER JOIN between TradeRequest and RestrictedSecurity on SecuritySymbol plus date-overlap: RequestDate BETWEEN StartDate AND COALESCE(EndDate, '9999-12-31'). The overlap condition IS the restriction violation test — only trades submitted within the active restriction window match",
+        "sql": """
+SELECT
+    tr.TradeRequestID                    AS trade_request_id,
+    e.EmployeeName                       AS employee_name,
+    e.Department                         AS department,
+    bd.BrokerDealerName                  AS broker_dealer,
+    tr.SecuritySymbol                    AS security_symbol,
+    tr.TradeType                         AS trade_type,
+    tr.Quantity                          AS quantity,
+    tr.RequestDate                       AS request_date,
+    tr.Status                            AS request_status,
+    rs.RestrictionType                   AS restriction_type,
+    rs.StartDate                         AS restriction_start,
+    rs.EndDate                           AS restriction_end,
+    rs.Reason                            AS restriction_reason
+FROM TradeRequest tr
+-- date overlap: request falls within restriction window
+JOIN RestrictedSecurity rs
+    ON tr.SecuritySymbol = rs.SecuritySymbol
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
+ORDER BY tr.RequestDate DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Policy violations where employees submitted trade requests for securities that were "
+            "on an active restriction list at the time of the request. "
+            "This is the most critical compliance breach capsule. "
+            "Answers: which employees breached trading restrictions, which securities were traded "
+            "in violation of policy, which broker dealers facilitated non-compliant trades, "
+            "what restriction types were breached most frequently. "
+            "Also known as: trading violations, restriction breaches, blackout violations, "
+            "insider list breaches, policy non-compliance, prohibited security trading. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, RestrictedSecurity, Employee, BrokerDealer. "
+            "Key columns: employee_name, security_symbol, restriction_type, request_date, request_status."
+        ),
+        "ttl_hours": 6,
+        "tags": ["violation", "restriction", "breach", "P1", "critical"],
+        "tables_used": ["TradeRequest", "RestrictedSecurity", "Employee", "BrokerDealer"],
+        "key_columns": ["employee_name", "security_symbol", "restriction_type", "request_date", "request_status"],
+        "staleness_trigger": "any new TradeRequest or RestrictedSecurity change",
+        "linked_capsule_ids": ["violations_by_restriction_type", "violations_by_broker_dealer", "violations_by_department", "repeat_violators"],
+        "relationship_types": ["drills_down", "aggregates_up", "aggregates_up", "corroborates"],
+    },
+
+    {
+        "capsule_id": "violations_by_restriction_type",
+        "capsule_type": "violation",
+        "priority": "P1",
+        "what": "Tells you which category of trading ban is being violated most — Blackout (earnings period trading ban), Insider List (material non-public information risk), or Watch List (elevated monitoring). Each type carries different regulatory implications and remediation steps",
+        "how": "Counts restriction-overlapping TradeRequests (same date-overlap JOIN as the parent violation capsule) grouped by RestrictedSecurity.RestrictionType. Counts distinct employees, securities, and broker dealers per category to show breadth of each violation type",
+        "sql": """
+SELECT
+    rs.RestrictionType                   AS restriction_type,
+    COUNT(tr.TradeRequestID)             AS violation_count,
+    COUNT(DISTINCT tr.EmployeeID)        AS unique_employees,
+    COUNT(DISTINCT tr.SecuritySymbol)    AS unique_securities,
+    COUNT(DISTINCT tr.BrokerDealerID)    AS unique_broker_dealers
+FROM TradeRequest tr
+JOIN RestrictedSecurity rs
+    ON tr.SecuritySymbol = rs.SecuritySymbol
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
+GROUP BY rs.RestrictionType
+ORDER BY violation_count DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Compliance violations broken down by restriction category — Blackout, Insider List, "
+            "and Watch List. "
+            "This capsule answers: which restriction type has the most violations, "
+            "how many unique employees and securities are involved in each category, "
+            "which type of trading ban is being ignored most frequently. "
+            "Blackout violations are the most serious as they relate to earnings period trading bans. "
+            "Insider List breaches involve material non-public information risk. "
+            "Watch List infractions indicate insufficient monitoring controls. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, RestrictedSecurity. "
+            "Key columns: restriction_type, violation_count, unique_employees, unique_securities."
+        ),
+        "ttl_hours": 12,
+        "tags": ["violation", "restriction_type", "blackout", "insider_list", "watch_list"],
+        "tables_used": ["TradeRequest", "RestrictedSecurity"],
+        "key_columns": ["restriction_type", "violation_count", "unique_employees", "unique_securities"],
+        "staleness_trigger": "new violation or restriction change",
+        "linked_capsule_ids": ["violations_on_restricted_securities", "currently_active_restrictions"],
+        "relationship_types": ["aggregates_up", "corroborates"],
+    },
+
+    {
+        "capsule_id": "violations_by_broker_dealer",
+        "capsule_type": "violation",
+        "priority": "P1",
+        "what": "Identifies which broker dealers are repeatedly facilitating non-compliant trades — a broker with many violations may require enhanced due diligence, reduced trading permissions, or regulatory reporting as a counterparty compliance risk",
+        "how": "Counts restriction-overlapping TradeRequests (same date-overlap JOIN) grouped by BrokerDealer. Counts distinct employees and securities involved per broker. Uses same violation detection logic as the parent capsule, just aggregated at the counterparty level",
+        "sql": """
+SELECT
+    bd.BrokerDealerName                  AS broker_dealer,
+    bd.Country                           AS country,
+    COUNT(tr.TradeRequestID)             AS violation_count,
+    COUNT(DISTINCT tr.EmployeeID)        AS unique_employees,
+    COUNT(DISTINCT tr.SecuritySymbol)    AS unique_securities
+FROM TradeRequest tr
+JOIN RestrictedSecurity rs
+    ON tr.SecuritySymbol = rs.SecuritySymbol
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
+JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
+GROUP BY bd.BrokerDealerID, bd.BrokerDealerName, bd.Country
+ORDER BY violation_count DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Trading policy violations attributed to each broker dealer counterparty. "
+            "This capsule reveals which broker dealers are most frequently involved in non-compliant "
+            "trades where the security was on an active restriction list. "
+            "Answers: which brokers facilitated the most violations, which brokers pose the highest "
+            "counterparty compliance risk, how many employees used each broker in violation transactions. "
+            "A broker dealer with repeated violation involvement may require enhanced due diligence, "
+            "restriction of trading permissions, or regulatory reporting. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, RestrictedSecurity, BrokerDealer. "
+            "Key columns: broker_dealer, country, violation_count, unique_employees."
+        ),
+        "ttl_hours": 12,
+        "tags": ["violation", "broker_dealer", "counterparty_risk"],
+        "tables_used": ["TradeRequest", "RestrictedSecurity", "BrokerDealer"],
+        "key_columns": ["broker_dealer", "country", "violation_count", "unique_employees"],
+        "staleness_trigger": "new violation detected",
+        "linked_capsule_ids": ["trade_requests_by_broker_dealer", "broker_dealers_high_rejection_and_alerts"],
+        "relationship_types": ["same_entity", "corroborates"],
+    },
+
+    {
+        "capsule_id": "violations_by_department",
+        "capsule_type": "violation",
+        "priority": "P1",
+        "what": "Shows which business units have the worst trading policy adherence — a department concentrated with violations may have a specific knowledge gap, inadequate compliance training, or elevated access to sensitive securities without proper controls",
+        "how": "Counts restriction-overlapping trades grouped by Employee.Department. Counts unique violating employees, unique securities, and distinct restriction types hit per department. High restriction_types_hit in one department indicates broad, not narrow, non-compliance across multiple rule categories",
+        "sql": """
+SELECT
+    e.Department                         AS department,
+    COUNT(tr.TradeRequestID)             AS violation_count,
+    COUNT(DISTINCT tr.EmployeeID)        AS unique_violators,
+    COUNT(DISTINCT tr.SecuritySymbol)    AS unique_securities,
+    COUNT(DISTINCT rs.RestrictionType)   AS restriction_types_hit
+FROM TradeRequest tr
+JOIN RestrictedSecurity rs
+    ON tr.SecuritySymbol = rs.SecuritySymbol
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+GROUP BY e.Department
+ORDER BY violation_count DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Compliance violations aggregated by organizational department showing which business units "
+            "have the worst trading policy adherence. "
+            "This capsule answers: which department has the most restriction breaches, "
+            "how many unique employees in each department committed violations, "
+            "which departments hit the broadest range of restriction types. "
+            "High violation counts in a specific department may indicate inadequate compliance "
+            "training, culture issues, or a department with elevated access to sensitive securities. "
+            "Related terms: department violations, business unit breaches, team non-compliance. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, RestrictedSecurity, Employee. "
+            "Key columns: department, violation_count, unique_violators, restriction_types_hit."
+        ),
+        "ttl_hours": 12,
+        "tags": ["violation", "department", "business_unit"],
+        "tables_used": ["TradeRequest", "RestrictedSecurity", "Employee"],
+        "key_columns": ["department", "violation_count", "unique_violators", "restriction_types_hit"],
+        "staleness_trigger": "new violation detected",
+        "linked_capsule_ids": ["trade_requests_by_department", "department_compliance_scorecard"],
+        "relationship_types": ["same_entity", "drills_down"],
+    },
+
+    {
+        "capsule_id": "repeat_violators",
+        "capsule_type": "violation",
+        "priority": "P1",
+        "what": "Employees who have been flagged more than once — the strongest individual risk signal. A repeat offender has not changed behaviour after being alerted and may require trading suspension, disciplinary action, or mandatory compliance retraining",
+        "how": "Joins Employee to ComplianceAlert, groups by employee, applies HAVING COUNT(AlertID) >= 2. Also counts distinct_alert_types (breadth of non-compliance) and open_alerts (current urgency). Ordered by alert_count DESC to surface worst cases first",
+        "sql": """
+SELECT
+    e.EmployeeID                         AS employee_id,
+    e.EmployeeName                       AS employee_name,
+    e.Department                         AS department,
+    e.JobTitle                           AS job_title,
+    COUNT(ca.AlertID)                    AS alert_count,
+    COUNT(DISTINCT ca.AlertType)         AS distinct_alert_types,
+    MAX(ca.Severity)                     AS max_severity,
+    SUM(CASE WHEN ca.Status IN ('Open','Investigating') THEN 1 ELSE 0 END) AS open_alerts
+FROM Employee e
+JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
+GROUP BY e.EmployeeID, e.EmployeeName, e.Department, e.JobTitle
+HAVING COUNT(ca.AlertID) >= 2
+ORDER BY alert_count DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Employees with a history of multiple compliance alerts, flagged as repeat violators "
+            "or habitual non-compliant traders. "
+            "This capsule answers: which employees have been alerted more than once, "
+            "how many distinct types of alerts do repeat offenders accumulate, "
+            "which repeat violators still have open or investigating alerts requiring action. "
+            "Repeat violators represent the highest individual employee risk — they have demonstrated "
+            "inability or unwillingness to follow trading compliance rules after initial alerts. "
+            "Also known as: habitual offenders, multi-alert employees, high-risk employees. "
+            "Finding: {signal} "
+            "Tables: Employee, ComplianceAlert. "
+            "Key columns: employee_name, department, alert_count, distinct_alert_types, open_alerts."
+        ),
+        "ttl_hours": 8,
+        "tags": ["violation", "repeat_violator", "employee_risk", "P1"],
+        "tables_used": ["Employee", "ComplianceAlert"],
+        "key_columns": ["employee_name", "department", "alert_count", "open_alerts"],
+        "staleness_trigger": "new ComplianceAlert row",
+        "linked_capsule_ids": ["violations_on_restricted_securities", "employees_multiple_alert_types"],
+        "relationship_types": ["corroborates", "same_entity"],
+    },
+
+    {
+        "capsule_id": "active_restrictions_recent_trade_attempts",
+        "capsule_type": "violation",
+        "priority": "P1",
+        "what": "The real-time violation early-warning signal — securities under an active restriction that employees have still attempted to trade in the last 30 days. Every record here requires same-day compliance officer action",
+        "how": "Filters RestrictedSecurity to currently active (EndDate IS NULL OR EndDate >= today), then JOINs TradeRequest on the same SecuritySymbol AND RequestDate within the last 30 days. This is NOT the full date-overlap join — it specifically targets recent attempts on live, still-active restrictions",
+        "sql": """
+SELECT
+    rs.SecuritySymbol                    AS security_symbol,
+    rs.RestrictionType                   AS restriction_type,
+    rs.StartDate                         AS restriction_start,
+    rs.Reason                            AS restriction_reason,
+    rs.AddedBy                           AS added_by,
+    COUNT(tr.TradeRequestID)             AS recent_trade_attempts,
+    COUNT(DISTINCT tr.EmployeeID)        AS unique_employees,
+    MAX(tr.RequestDate)                  AS latest_attempt_date
+FROM RestrictedSecurity rs
+-- active restriction: EndDate is NULL (no end set) or in the future
+JOIN TradeRequest tr
+    ON tr.SecuritySymbol = rs.SecuritySymbol
+    AND tr.RequestDate >= date('now', '-30 days')
+WHERE rs.EndDate IS NULL OR rs.EndDate >= date('now')
+GROUP BY rs.RestrictionID, rs.SecuritySymbol, rs.RestrictionType,
+         rs.StartDate, rs.Reason, rs.AddedBy
+ORDER BY recent_trade_attempts DESC
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "Currently active trading restrictions that have seen actual trade attempts within the "
+            "last 30 days — the most time-critical violation signal in the compliance system. "
+            "This capsule answers: which actively restricted securities are employees still attempting "
+            "to trade, how many employees are attempting restricted trades right now, "
+            "which active restrictions are being ignored most frequently. "
+            "This is an immediate action capsule — any security on an active restriction with recent "
+            "trade attempts requires same-day compliance officer review. "
+            "Also known as: live violations, real-time restriction breaches, current policy breaches. "
+            "Finding: {signal} "
+            "Tables: RestrictedSecurity, TradeRequest. "
+            "Key columns: security_symbol, restriction_type, recent_trade_attempts, unique_employees, latest_attempt_date."
+        ),
+        "ttl_hours": 6,
+        "tags": ["violation", "active_restriction", "real_time", "P1", "urgent"],
+        "tables_used": ["RestrictedSecurity", "TradeRequest"],
+        "key_columns": ["security_symbol", "restriction_type", "recent_trade_attempts", "unique_employees", "latest_attempt_date"],
+        "staleness_trigger": "any TradeRequest or RestrictedSecurity change",
+        "linked_capsule_ids": ["currently_active_restrictions", "violations_on_restricted_securities"],
+        "relationship_types": ["drills_down", "corroborates"],
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 3 — TRENDS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "monthly_alert_volume_trend",
+        "capsule_type": "trend",
+        "priority": "P2",
+        "what": "Shows whether compliance incidents are increasing or decreasing over 6 months, broken down by severity — a rising Critical alert count is the most urgent management signal in the system and may indicate deteriorating compliance culture or a specific risk event",
+        "how": "Groups ComplianceAlert by strftime('%Y-%m', AlertDate) for the last 6 months, counting total alerts and splitting by severity level. Also counts open_count per month — a widening gap between total and closed indicates a growing unresolved backlog",
+        "sql": """
+SELECT
+    strftime('%Y-%m', ca.AlertDate)          AS alert_month,
+    COUNT(ca.AlertID)                        AS total_alerts,
+    SUM(CASE WHEN ca.Severity = 'Critical' THEN 1 ELSE 0 END) AS critical_count,
+    SUM(CASE WHEN ca.Severity = 'High'     THEN 1 ELSE 0 END) AS high_count,
+    SUM(CASE WHEN ca.Severity = 'Medium'   THEN 1 ELSE 0 END) AS medium_count,
+    SUM(CASE WHEN ca.Severity = 'Low'      THEN 1 ELSE 0 END) AS low_count,
+    SUM(CASE WHEN ca.Status IN ('Open','Investigating') THEN 1 ELSE 0 END) AS open_count
+FROM ComplianceAlert ca
+WHERE ca.AlertDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', ca.AlertDate)
+ORDER BY alert_month ASC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Month-by-month trend of compliance alerts showing whether the firm's risk exposure "
+            "is improving or deteriorating over the last 6 months. "
+            "This capsule answers: is the number of compliance alerts increasing or decreasing, "
+            "which months had the most critical or high severity alerts, "
+            "is there a seasonal or event-driven spike in alerts. "
+            "A rising alert trend combined with growing critical counts is the most concerning signal — "
+            "it indicates deteriorating compliance culture or a specific risk event driving alerts. "
+            "Related terms: alert volume trend, compliance incident trend, risk escalation over time. "
+            "Finding: {signal} "
+            "Tables: ComplianceAlert. "
+            "Key columns: alert_month, total_alerts, critical_count, high_count, open_count."
+        ),
+        "ttl_hours": 12,
+        "tags": ["trend", "alert", "monthly", "severity"],
+        "tables_used": ["ComplianceAlert"],
+        "key_columns": ["alert_month", "total_alerts", "critical_count", "high_count", "open_count"],
+        "staleness_trigger": "daily",
+        "linked_capsule_ids": ["monthly_request_volume", "alert_severity_trend"],
+        "relationship_types": ["corroborates", "same_entity"],
+    },
+
+    {
+        "capsule_id": "weekly_trade_request_volume",
+        "capsule_type": "trend",
+        "priority": "P2",
+        "what": "Provides finer visibility than monthly trends — detects short spikes in rejections or escalations within a specific week that monthly aggregation would smooth over, such as violations clustered around a pre-earnings blackout period",
+        "how": "Groups TradeRequests by strftime('%Y-W%W', RequestDate) for the last 8 weeks with status breakdown. ISO week format ensures consistent 7-day windows across month boundaries. Ordered ascending so trends read left-to-right",
+        "sql": """
+SELECT
+    strftime('%Y-W%W', tr.RequestDate)        AS request_week,
+    COUNT(tr.TradeRequestID)                 AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
+    SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
+    SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count
+FROM TradeRequest tr
+WHERE tr.RequestDate >= date('now', '-8 weeks')
+GROUP BY strftime('%Y-W%W', tr.RequestDate)
+ORDER BY request_week ASC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Week-by-week trade request activity for the last 8 weeks showing short-term trading "
+            "volume patterns and compliance outcomes. "
+            "This capsule answers: is weekly trading volume increasing or decreasing recently, "
+            "which specific weeks had unusual spikes in rejections or escalations, "
+            "is there a day-of-week or week-of-month pattern to trading compliance breaches. "
+            "Weekly granularity catches intra-quarter events that monthly data misses, "
+            "such as pre-earnings blackout period violations or sudden volume spikes. "
+            "Finding: {signal} "
+            "Tables: TradeRequest. "
+            "Key columns: request_week, total_requests, rejected_count, escalated_count."
+        ),
+        "ttl_hours": 8,
+        "tags": ["trend", "weekly", "volume"],
+        "tables_used": ["TradeRequest"],
+        "key_columns": ["request_week", "total_requests", "rejected_count", "escalated_count"],
+        "staleness_trigger": "daily",
+        "linked_capsule_ids": ["monthly_request_volume"],
+        "relationship_types": ["drills_down"],
+    },
+
+    {
+        "capsule_id": "monthly_rejection_rate_by_broker_dealer",
+        "capsule_type": "trend",
+        "priority": "P2",
+        "what": "Reveals whether any specific broker dealer's rejection rate is trending upward over time — three consecutive months of increase is a systemic risk indicator that triggers relationship review or trading restrictions on that counterparty",
+        "how": "Groups TradeRequests by month AND BrokerDealer, computing rejection_rate_pct per broker per month for 6 months. Two GROUP BY dimensions (month + broker) create a trend matrix. Ordered ascending by month so the trend direction is visible in result order",
+        "sql": """
+SELECT
+    strftime('%Y-%m', tr.RequestDate)        AS request_month,
+    bd.BrokerDealerName                      AS broker_dealer,
+    COUNT(tr.TradeRequestID)                 AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_count,
+    CAST(
+        100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END)
+        / NULLIF(COUNT(tr.TradeRequestID), 0)
+    AS REAL) AS rejection_rate_pct
+FROM TradeRequest tr
+JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
+WHERE tr.RequestDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', tr.RequestDate), bd.BrokerDealerID, bd.BrokerDealerName
+ORDER BY request_month ASC, rejection_rate_pct DESC
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "Trend of rejection rates per broker dealer over the last 6 months, revealing whether "
+            "specific brokers are experiencing a worsening or improving compliance profile. "
+            "This capsule answers: is any broker dealer's rejection rate trending upward, "
+            "which broker dealer went from low to high rejection rate suddenly, "
+            "do rejection rate spikes correlate with specific months or events. "
+            "A broker dealer whose rejection rate increases month-over-month for 3+ consecutive months "
+            "is a systemic risk indicator requiring relationship review. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, BrokerDealer. "
+            "Key columns: request_month, broker_dealer, rejection_rate_pct."
+        ),
+        "ttl_hours": 12,
+        "tags": ["trend", "broker_dealer", "rejection_rate", "monthly"],
+        "tables_used": ["TradeRequest", "BrokerDealer"],
+        "key_columns": ["request_month", "broker_dealer", "rejection_rate_pct"],
+        "staleness_trigger": "monthly",
+        "linked_capsule_ids": ["trade_requests_by_broker_dealer"],
+        "relationship_types": ["drills_down"],
+    },
+
+    {
+        "capsule_id": "escalation_trend_by_department",
+        "capsule_type": "trend",
+        "priority": "P2",
+        "what": "Tracks whether any department's escalation rate is rising month-over-month — a rising trend signals either systemic compliance failures in that unit or a category of trade types that consistently requires senior compliance involvement to resolve",
+        "how": "Groups TradeRequests by month AND Employee.Department for the last 6 months, computing escalation_rate_pct (escalated / total) per month-department cell. LLM signal identifies which departments show worsening trend directions",
+        "sql": """
+SELECT
+    strftime('%Y-%m', tr.RequestDate)        AS request_month,
+    e.Department                             AS department,
+    COUNT(tr.TradeRequestID)                 AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,
+    CAST(
+        100.0 * SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END)
+        / NULLIF(COUNT(tr.TradeRequestID), 0)
+    AS REAL) AS escalation_rate_pct
+FROM TradeRequest tr
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+WHERE tr.RequestDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', tr.RequestDate), e.Department
+ORDER BY request_month ASC, escalated_count DESC
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "Month-by-month escalation rate per organizational department over the last 6 months. "
+            "This capsule answers: which departments show a worsening escalation trend, "
+            "is any department's escalation rate accelerating, "
+            "which month saw the highest escalation rate for a specific department. "
+            "Rising escalation rates in a department indicate either systemic compliance failures "
+            "or a category of trade types that require senior compliance officer involvement. "
+            "Related terms: department escalation history, team escalation trend, business unit risk trend. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, Employee. "
+            "Key columns: request_month, department, escalated_count, escalation_rate_pct."
+        ),
+        "ttl_hours": 12,
+        "tags": ["trend", "department", "escalation", "monthly"],
+        "tables_used": ["TradeRequest", "Employee"],
+        "key_columns": ["request_month", "department", "escalated_count", "escalation_rate_pct"],
+        "staleness_trigger": "monthly",
+        "linked_capsule_ids": ["trade_requests_by_department"],
+        "relationship_types": ["drills_down"],
+    },
+
+    {
+        "capsule_id": "alert_severity_trend",
+        "capsule_type": "trend",
+        "priority": "P2",
+        "what": "Tracks whether the proportion of Critical and High severity alerts is growing relative to total alerts — a rising critical share indicates deteriorating compliance risk that may require escalation to the board or regulators",
+        "how": "Groups ComplianceAlert by month AND Severity for 6 months, counting total, open, closed, and escalated within each severity-month cell. A severity × month matrix — two GROUP BY dimensions — lets you compare severity mix shifts over time",
+        "sql": """
+SELECT
+    strftime('%Y-%m', ca.AlertDate)          AS alert_month,
+    ca.Severity                              AS severity,
+    COUNT(ca.AlertID)                        AS alert_count,
+    SUM(CASE WHEN ca.Status = 'Open' THEN 1 ELSE 0 END)         AS open_count,
+    SUM(CASE WHEN ca.Status = 'Closed' THEN 1 ELSE 0 END)       AS closed_count,
+    SUM(CASE WHEN ca.Status = 'Escalated' THEN 1 ELSE 0 END)    AS escalated_count
+FROM ComplianceAlert ca
+WHERE ca.AlertDate >= date('now', '-6 months')
+GROUP BY strftime('%Y-%m', ca.AlertDate), ca.Severity
+ORDER BY alert_month ASC, ca.Severity ASC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Trend of compliance alert severity over time — showing whether critical and high severity "
+            "alerts are growing, shrinking, or stable. "
+            "This capsule answers: is the proportion of critical alerts increasing, "
+            "are high severity alerts resolving (moving to closed) or accumulating as open, "
+            "which months show the worst severity profile. "
+            "An increasing share of Critical severity alerts in recent months indicates worsening "
+            "compliance risk that may require escalation to the board or regulators. "
+            "Related terms: alert severity trend, risk severity distribution, compliance risk profile. "
+            "Finding: {signal} "
+            "Tables: ComplianceAlert. "
+            "Key columns: alert_month, severity, alert_count, open_count, escalated_count."
+        ),
+        "ttl_hours": 12,
+        "tags": ["trend", "alert", "severity", "monthly"],
+        "tables_used": ["ComplianceAlert"],
+        "key_columns": ["alert_month", "severity", "alert_count", "open_count"],
+        "staleness_trigger": "daily",
+        "linked_capsule_ids": ["monthly_alert_volume_trend", "high_severity_open_alerts"],
+        "relationship_types": ["drills_down", "corroborates"],
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 4 — RISK PATTERNS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "employees_multiple_alert_types",
+        "capsule_type": "pattern",
+        "priority": "P1",
+        "what": "Identifies employees flagged across multiple distinct compliance categories — not just a repeat offender within one rule, but someone with both restriction violations AND approval workflow issues AND other alert types. Broadest individual risk profile in the system",
+        "how": "Joins Employee to ComplianceAlert, groups by employee, applies HAVING COUNT(DISTINCT AlertType) >= 2. A subquery concatenates the actual alert type names for human-readable output. Ordered by distinct_alert_types DESC so the broadest risk profiles surface first",
+        "sql": """
+SELECT
+    e.EmployeeID                             AS employee_id,
+    e.EmployeeName                           AS employee_name,
+    e.Department                             AS department,
+    e.JobTitle                               AS job_title,
+    COUNT(ca.AlertID)                        AS total_alerts,
+    COUNT(DISTINCT ca.AlertType)             AS distinct_alert_types,
+    (SELECT REPLACE(GROUP_CONCAT(DISTINCT ca2.AlertType), ',', ', ') FROM ComplianceAlert ca2 WHERE ca2.EmployeeID = e.EmployeeID) AS alert_types_list,
+    MAX(ca.Severity)                         AS max_severity,
+    SUM(CASE WHEN ca.Status IN ('Open','Investigating') THEN 1 ELSE 0 END) AS unresolved_alerts
+FROM Employee e
+JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
+GROUP BY e.EmployeeID, e.EmployeeName, e.Department, e.JobTitle
+HAVING COUNT(DISTINCT ca.AlertType) >= 2
+ORDER BY distinct_alert_types DESC, total_alerts DESC
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "High-risk employees who have been flagged for multiple distinct types of compliance alerts, "
+            "indicating a broad pattern of non-compliance rather than a single incident. "
+            "This capsule answers: which employees have both restriction violations AND other alert types, "
+            "which employees show the most diverse compliance failure profile, "
+            "who are the broadest risk individuals requiring comprehensive investigation. "
+            "An employee with 3+ distinct alert types across multiple categories represents "
+            "a systemic compliance risk requiring HR and legal involvement alongside remediation. "
+            "Related terms: multi-type violations, broad compliance failures, high-risk employee profile. "
+            "Finding: {signal} "
+            "Tables: Employee, ComplianceAlert. "
+            "Key columns: employee_name, department, distinct_alert_types, alert_types_list, unresolved_alerts."
+        ),
+        "ttl_hours": 8,
+        "tags": ["pattern", "employee_risk", "multi_alert", "P1"],
+        "tables_used": ["Employee", "ComplianceAlert"],
+        "key_columns": ["employee_name", "department", "distinct_alert_types", "alert_types_list", "unresolved_alerts"],
+        "staleness_trigger": "new ComplianceAlert row",
+        "linked_capsule_ids": ["repeat_violators", "high_severity_open_alerts"],
+        "relationship_types": ["corroborates", "corroborates"],
+    },
+
+    {
+        "capsule_id": "high_severity_open_alerts",
+        "capsule_type": "risk",
+        "priority": "P1",
+        "what": "The live action queue for compliance officers — every Critical or High severity alert still Open or Investigating today, showing how long each has been unresolved. Alerts unresolved beyond 48 hours may require regulatory notification",
+        "how": "Filters ComplianceAlert for Severity IN ('Critical', 'High') AND Status IN ('Open', 'Investigating'). Computes days_open as julianday(today) - julianday(AlertDate). LEFT JOINs TradeRequest and BrokerDealer for full context. Ordered by severity DESC then days_open DESC to prioritise oldest critical cases",
+        "sql": """
+SELECT
+    ca.AlertID                               AS alert_id,
+    e.EmployeeName                           AS employee_name,
+    e.Department                             AS department,
+    ca.AlertType                             AS alert_type,
+    ca.Severity                              AS severity,
+    ca.AlertDate                             AS alert_date,
+    ca.Status                                AS status,
+    ca.Description                           AS description,
+    CAST(julianday(date('now')) - julianday(ca.AlertDate) AS INTEGER)   AS days_open,
+    tr.SecuritySymbol                        AS security_symbol,
+    bd.BrokerDealerName                      AS broker_dealer
+FROM ComplianceAlert ca
+JOIN Employee e ON e.EmployeeID = ca.EmployeeID
+LEFT JOIN TradeRequest tr ON tr.TradeRequestID = ca.TradeRequestID
+LEFT JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
+WHERE ca.Severity IN ('Critical', 'High')
+  AND ca.Status IN ('Open', 'Investigating')
+ORDER BY ca.Severity DESC, days_open DESC
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "All unresolved Critical and High severity compliance alerts — the immediate action queue "
+            "for compliance officers. "
+            "This capsule answers: which high-severity alerts are still open and awaiting resolution, "
+            "how many days have these critical alerts been unresolved, "
+            "which employees and departments have active high-severity compliance issues. "
+            "Alerts in Investigating status for more than 5 days warrant escalation to senior management. "
+            "Critical alerts with no ResolvedDate after 48 hours may require regulatory notification. "
+            "Related terms: open critical alerts, unresolved high risk, compliance backlog, urgent alerts. "
+            "Finding: {signal} "
+            "Tables: ComplianceAlert, Employee, TradeRequest, BrokerDealer. "
+            "Key columns: employee_name, severity, alert_date, status, days_open, description."
+        ),
+        "ttl_hours": 4,
+        "tags": ["risk", "open_alert", "critical", "high_severity", "urgent", "P1"],
+        "tables_used": ["ComplianceAlert", "Employee", "TradeRequest", "BrokerDealer"],
+        "key_columns": ["employee_name", "severity", "alert_date", "status", "days_open", "description"],
+        "staleness_trigger": "any ComplianceAlert status change",
+        "linked_capsule_ids": ["repeat_violators", "alert_severity_trend"],
+        "relationship_types": ["corroborates", "drills_down"],
+    },
+
+    {
+        "capsule_id": "broker_dealers_high_rejection_and_alerts",
+        "capsule_type": "risk",
+        "priority": "P1",
+        "what": "Surfaces broker dealers with a dual-risk profile — both a high trade rejection rate AND multiple compliance alerts. The combined signal is the strongest counterparty risk indicator for relationship review, trading restriction, or regulatory reporting",
+        "how": "Joins BrokerDealer to TradeRequest and ComplianceAlert via TradeRequest, computing rejection_rate_pct and counting total and high_severity alerts per broker. HAVING filters to brokers with at least one request. Ordered by rejection_rate_pct DESC then alert count to surface worst dual-risk cases",
+        "sql": """
+SELECT
+    bd.BrokerDealerName                      AS broker_dealer,
+    bd.Country                               AS country,
+    COUNT(DISTINCT tr.TradeRequestID)        AS total_requests,
+    CAST(
+        100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END)
+        / NULLIF(COUNT(tr.TradeRequestID), 0)
+    AS REAL) AS rejection_rate_pct,
+    COUNT(DISTINCT ca.AlertID)               AS total_alerts,
+    SUM(CASE WHEN ca.Severity IN ('Critical','High') THEN 1 ELSE 0 END) AS high_severity_alerts
+FROM BrokerDealer bd
+LEFT JOIN TradeRequest tr ON tr.BrokerDealerID = bd.BrokerDealerID
+LEFT JOIN ComplianceAlert ca
+    ON ca.TradeRequestID = tr.TradeRequestID
+GROUP BY bd.BrokerDealerID, bd.BrokerDealerName, bd.Country
+HAVING COUNT(DISTINCT tr.TradeRequestID) > 0
+ORDER BY rejection_rate_pct DESC, total_alerts DESC
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "Broker dealers showing both elevated rejection rates and high compliance alert counts — "
+            "the combined risk profile that signals systemic broker-level problems. "
+            "This capsule answers: which broker dealers have both poor approval rates and a high "
+            "number of compliance alerts, identifying those that represent dual-dimension risk. "
+            "A broker dealer with >30% rejection rate AND multiple high-severity alerts is a "
+            "candidate for enhanced monitoring, reduced trading permissions, or relationship termination. "
+            "Related terms: systemic broker risk, dual-metric high-risk broker, counterparty risk profile. "
+            "Finding: {signal} "
+            "Tables: BrokerDealer, TradeRequest, ComplianceAlert. "
+            "Key columns: broker_dealer, rejection_rate_pct, total_alerts, high_severity_alerts."
+        ),
+        "ttl_hours": 12,
+        "tags": ["risk", "broker_dealer", "systemic_risk", "dual_metric", "P1"],
+        "tables_used": ["BrokerDealer", "TradeRequest", "ComplianceAlert"],
+        "key_columns": ["broker_dealer", "rejection_rate_pct", "total_alerts", "high_severity_alerts"],
+        "staleness_trigger": "new TradeRequest or ComplianceAlert row",
+        "linked_capsule_ids": ["trade_requests_by_broker_dealer", "violations_by_broker_dealer"],
+        "relationship_types": ["same_entity", "corroborates"],
+    },
+
+    {
+        "capsule_id": "escalation_patterns",
+        "capsule_type": "pattern",
+        "priority": "P2",
+        "what": "Reveals which combinations of department, trade type, and broker country most reliably predict escalation versus outright rejection — used to pre-identify which types of pending trades will likely require senior compliance review before they are submitted",
+        "how": "Groups TradeRequests by Status, Department, TradeType, and BrokerDealer.Country, computing avg quantity and avg turnaround per combination. LEFT JOINs ComplianceAlert to show whether escalated trades correlate with compliance flags. LLM signal identifies the most predictive dimensions",
+        "sql": """
+SELECT
+    tr.Status                                AS request_status,
+    e.Department                             AS department,
+    tr.TradeType                             AS trade_type,
+    bd.Country                               AS broker_country,
+    COUNT(tr.TradeRequestID)                 AS request_count,
+    AVG(CAST(tr.Quantity AS FLOAT))          AS avg_quantity,
+    AVG(CAST(aw.TurnaroundDays AS FLOAT))    AS avg_turnaround_days,
+    SUM(CASE WHEN ca.AlertID IS NOT NULL THEN 1 ELSE 0 END) AS had_compliance_alert
+FROM TradeRequest tr
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
+LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID
+LEFT JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID
+WHERE tr.Status IN ('Escalated', 'Rejected', 'Approved')
+GROUP BY tr.Status, e.Department, tr.TradeType, bd.Country
+ORDER BY tr.Status, request_count DESC
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "Pattern analysis of what differentiates escalated trade requests from rejections and approvals. "
+            "This capsule answers: which departments, trade types, and broker countries are most likely "
+            "to lead to escalation versus outright rejection, what is the average quantity profile for "
+            "escalated trades compared to rejected ones, do escalated trades consistently have compliance alerts. "
+            "Understanding escalation patterns helps predict which pending trades will require "
+            "senior compliance review before they are submitted. "
+            "Related terms: escalation drivers, what causes escalations, escalation risk factors. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, Employee, BrokerDealer, ApprovalWorkflow, ComplianceAlert. "
+            "Key columns: request_status, department, trade_type, request_count, avg_turnaround_days."
+        ),
+        "ttl_hours": 24,
+        "tags": ["pattern", "escalation", "workflow", "risk_factor"],
+        "tables_used": ["TradeRequest", "Employee", "BrokerDealer", "ApprovalWorkflow", "ComplianceAlert"],
+        "key_columns": ["request_status", "department", "trade_type", "request_count", "avg_turnaround_days"],
+        "staleness_trigger": "weekly",
+        "linked_capsule_ids": ["escalation_trend_by_department", "reviewer_decision_distribution"],
+        "relationship_types": ["corroborates", "corroborates"],
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 5 — APPROVAL WORKFLOW
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "reviewer_decision_distribution",
+        "capsule_type": "operational",
+        "priority": "P2",
+        "what": "Profiles each compliance reviewer's decision-making pattern — approval rate, escalation tendency, and turnaround speed. Reviewers with abnormally high approval rates may be rubber-stamping; very high escalation rates may indicate lack of decision authority or an unusually complex caseload",
+        "how": "Joins ApprovalWorkflow to Employee on ReviewerID — note ReviewerID references a compliance employee, NOT the trade requester. Groups by reviewer, computing percentages for each decision outcome and AVG(TurnaroundDays). Ordered by total_reviews DESC to show most active reviewers first",
+        "sql": """
+SELECT
+    reviewer.EmployeeName                    AS reviewer_name,
+    reviewer.Department                      AS reviewer_department,
+    reviewer.JobTitle                        AS reviewer_job_title,
+    COUNT(aw.WorkflowID)                     AS total_reviews,
+    SUM(CASE WHEN aw.Decision = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
+    SUM(CASE WHEN aw.Decision = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
+    SUM(CASE WHEN aw.Decision = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,
+    SUM(CASE WHEN aw.Decision = 'Pending'   THEN 1 ELSE 0 END) AS pending_count,
+    CAST(
+        100.0 * SUM(CASE WHEN aw.Decision = 'Approved' THEN 1 ELSE 0 END)
+        / NULLIF(COUNT(aw.WorkflowID), 0)
+    AS REAL) AS approval_rate_pct,
+    AVG(CAST(aw.TurnaroundDays AS FLOAT))    AS avg_turnaround_days
+FROM ApprovalWorkflow aw
+-- ReviewerID references Employee (reviewer is a compliance/risk employee)
+JOIN Employee reviewer ON reviewer.EmployeeID = aw.ReviewerID
+GROUP BY aw.ReviewerID, reviewer.EmployeeName, reviewer.Department, reviewer.JobTitle
+ORDER BY total_reviews DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Approval workflow decision distribution per compliance reviewer — who approves, "
+            "rejects, and escalates trade requests and at what rate. "
+            "This capsule answers: which reviewers approve the highest proportion of requests, "
+            "which reviewers are most likely to escalate rather than decide directly, "
+            "what is each reviewer's average turnaround time. "
+            "Reviewers with abnormally high approval rates may be rubber-stamping requests. "
+            "Reviewers with very high escalation rates may lack decision authority or face complex cases. "
+            "Related terms: reviewer performance, approval bias, who approves most trades. "
+            "Finding: {signal} "
+            "Tables: ApprovalWorkflow, Employee. "
+            "Key columns: reviewer_name, total_reviews, approved_count, rejected_count, approval_rate_pct, avg_turnaround_days."
+        ),
+        "ttl_hours": 24,
+        "tags": ["operational", "workflow", "reviewer", "approval_rate"],
+        "tables_used": ["ApprovalWorkflow", "Employee"],
+        "key_columns": ["reviewer_name", "total_reviews", "approval_rate_pct", "avg_turnaround_days"],
+        "staleness_trigger": "new ApprovalWorkflow row",
+        "linked_capsule_ids": ["avg_turnaround_by_reviewer", "reviewer_coverage_gaps"],
+        "relationship_types": ["same_entity", "corroborates"],
+    },
+
+    {
+        "capsule_id": "avg_turnaround_by_department",
+        "capsule_type": "operational",
+        "priority": "P3",
+        "what": "Measures how long trade requests from each department wait for a compliance decision — departments with slow average turnaround indicate insufficient reviewer capacity, overly complex trade profiles, or systematic compliance delays. SLA breach = any review taking more than 3 days",
+        "how": "Joins ApprovalWorkflow through TradeRequest to Employee.Department, averaging the stored TurnaroundDays (not recalculated) per department. Counts slow_reviews_over_3_days as a direct SLA breach count. Ordered by avg_turnaround_days DESC to surface the slowest departments first",
+        "sql": """
+SELECT
+    e.Department                             AS department,
+    COUNT(aw.WorkflowID)                     AS reviewed_requests,
+    AVG(CAST(aw.TurnaroundDays AS FLOAT))    AS avg_turnaround_days,
+    MIN(aw.TurnaroundDays)                   AS min_turnaround_days,
+    MAX(aw.TurnaroundDays)                   AS max_turnaround_days,
+    SUM(CASE WHEN aw.TurnaroundDays > 3 THEN 1 ELSE 0 END) AS slow_reviews_over_3_days
+FROM ApprovalWorkflow aw
+JOIN TradeRequest tr ON tr.TradeRequestID = aw.TradeRequestID
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+GROUP BY e.Department
+ORDER BY avg_turnaround_days DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Average trade request approval turnaround time broken down by requesting department. "
+            "This capsule answers: which departments wait the longest for trade approvals, "
+            "which departments have reviewers who process requests most quickly, "
+            "how many department requests take more than 3 days to review. "
+            "Long average turnaround for a department can indicate insufficient reviewer capacity, "
+            "overly complex trade requests, or systematic compliance issues causing delays. "
+            "SLA violation: requests older than 3 days without a decision are SLA breaches. "
+            "Related terms: approval speed by department, review latency, workflow efficiency. "
+            "Finding: {signal} "
+            "Tables: ApprovalWorkflow, TradeRequest, Employee. "
+            "Key columns: department, avg_turnaround_days, slow_reviews_over_3_days."
+        ),
+        "ttl_hours": 24,
+        "tags": ["operational", "workflow", "turnaround", "department", "sla"],
+        "tables_used": ["ApprovalWorkflow", "TradeRequest", "Employee"],
+        "key_columns": ["department", "avg_turnaround_days", "slow_reviews_over_3_days"],
+        "staleness_trigger": "new ApprovalWorkflow row",
+        "linked_capsule_ids": ["avg_turnaround_by_reviewer", "pending_requests_no_review"],
+        "relationship_types": ["corroborates", "corroborates"],
+    },
+
+    {
+        "capsule_id": "avg_turnaround_by_reviewer",
+        "capsule_type": "operational",
+        "priority": "P3",
+        "what": "Ranks individual compliance reviewers by how long they take to reach a decision — identifies who needs workload rebalancing or capacity support, and who has the most SLA breaches (individual decisions taking longer than 3 days)",
+        "how": "Joins ApprovalWorkflow to Employee on ReviewerID, averaging stored TurnaroundDays per reviewer. Also reports max_turnaround_days (worst single case) and sla_breaches (count of decisions > 3 days). Ordered by avg_turnaround_days DESC",
+        "sql": """
+SELECT
+    reviewer.EmployeeName                    AS reviewer_name,
+    reviewer.Department                      AS reviewer_department,
+    reviewer.JobTitle                        AS reviewer_title,
+    COUNT(aw.WorkflowID)                     AS total_reviews,
+    AVG(CAST(aw.TurnaroundDays AS FLOAT))    AS avg_turnaround_days,
+    MAX(aw.TurnaroundDays)                   AS max_turnaround_days,
+    SUM(CASE WHEN aw.TurnaroundDays > 3 THEN 1 ELSE 0 END) AS sla_breaches
+FROM ApprovalWorkflow aw
+JOIN Employee reviewer ON reviewer.EmployeeID = aw.ReviewerID
+GROUP BY aw.ReviewerID, reviewer.EmployeeName, reviewer.Department, reviewer.JobTitle
+ORDER BY avg_turnaround_days DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Individual reviewer turnaround time analysis for the compliance approval workflow. "
+            "This capsule answers: which reviewers process requests the slowest on average, "
+            "which reviewers have the most SLA breaches (decisions taking longer than 3 days), "
+            "which reviewer has the highest single review delay (max turnaround). "
+            "Reviewers with consistently high turnaround times may need capacity support, "
+            "training, or workload rebalancing. SLA breaches above a threshold warrant management attention. "
+            "Related terms: reviewer speed, reviewer efficiency, compliance review SLA, individual reviewer metrics. "
+            "Finding: {signal} "
+            "Tables: ApprovalWorkflow, Employee. "
+            "Key columns: reviewer_name, avg_turnaround_days, sla_breaches."
+        ),
+        "ttl_hours": 24,
+        "tags": ["operational", "workflow", "reviewer", "turnaround", "sla"],
+        "tables_used": ["ApprovalWorkflow", "Employee"],
+        "key_columns": ["reviewer_name", "avg_turnaround_days", "sla_breaches"],
+        "staleness_trigger": "new ApprovalWorkflow row",
+        "linked_capsule_ids": ["reviewer_decision_distribution"],
+        "relationship_types": ["same_entity"],
+    },
+
+    {
+        "capsule_id": "pending_requests_no_review",
+        "capsule_type": "operational",
+        "priority": "P1",
+        "what": "The most operationally urgent capsule — trade requests stuck in Pending status with no compliance workflow entry at all, meaning no reviewer has been assigned or started the process. Every record here is an active SLA breach requiring immediate triage",
+        "how": "LEFT JOINs TradeRequest to ApprovalWorkflow and filters WHERE WorkflowID IS NULL AND Status = 'Pending'. Computes days_waiting = julianday(today) - julianday(RequestDate). Ordered by days_waiting DESC to surface the longest-waiting orphaned requests first",
+        "sql": """
+SELECT
+    tr.TradeRequestID                        AS trade_request_id,
+    e.EmployeeName                           AS employee_name,
+    e.Department                             AS department,
+    bd.BrokerDealerName                      AS broker_dealer,
+    tr.SecuritySymbol                        AS security_symbol,
+    tr.TradeType                             AS trade_type,
+    tr.Quantity                              AS quantity,
+    tr.RequestDate                           AS request_date,
+    CAST(julianday(date('now')) - julianday(tr.RequestDate) AS INTEGER) AS days_waiting
+FROM TradeRequest tr
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
+-- no workflow entry exists for this request
+LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID
+WHERE tr.Status = 'Pending'
+  AND aw.WorkflowID IS NULL
+ORDER BY days_waiting DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Trade requests in Pending status that have no ApprovalWorkflow entry — meaning no "
+            "reviewer has been assigned or started the review process. "
+            "This is the most operationally urgent capsule — these requests are in a dead queue. "
+            "This capsule answers: which pending requests have been completely ignored by the review system, "
+            "how many days have unreviewed pending requests been waiting, "
+            "which departments and broker dealers have the most orphaned pending requests. "
+            "Any pending request older than 1 day with no workflow is an SLA breach requiring immediate triage. "
+            "Related terms: unreviewed requests, orphan queue, pending without review, stuck requests. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, Employee, BrokerDealer, ApprovalWorkflow. "
+            "Key columns: employee_name, department, security_symbol, request_date, days_waiting."
+        ),
+        "ttl_hours": 2,
+        "tags": ["operational", "pending", "no_review", "urgent", "P1"],
+        "tables_used": ["TradeRequest", "Employee", "BrokerDealer", "ApprovalWorkflow"],
+        "key_columns": ["employee_name", "department", "security_symbol", "request_date", "days_waiting"],
+        "staleness_trigger": "any TradeRequest or ApprovalWorkflow change",
+        "linked_capsule_ids": ["requests_pending_over_3_days", "reviewer_coverage_gaps"],
+        "relationship_types": ["same_entity", "corroborates"],
+    },
+
+    {
+        "capsule_id": "requests_pending_over_3_days",
+        "capsule_type": "operational",
+        "priority": "P2",
+        "what": "Trade requests that have exceeded the 3-day compliance review SLA — delays expose the firm to risk because employees may act on unreviewed requests or restrictions may change during the review window, making the trade retroactively non-compliant",
+        "how": "Filters TradeRequest for Status = 'Pending' AND RequestDate < date('now', '-3 days'). LEFT JOINs ApprovalWorkflow and the reviewer Employee to show who (if anyone) is assigned to the delayed case. Ordered by days_waiting DESC",
+        "sql": """
+SELECT
+    tr.TradeRequestID                        AS trade_request_id,
+    e.EmployeeName                           AS employee_name,
+    e.Department                             AS department,
+    bd.BrokerDealerName                      AS broker_dealer,
+    tr.SecuritySymbol                        AS security_symbol,
+    tr.TradeType                             AS trade_type,
+    tr.RequestDate                           AS request_date,
+    CAST(julianday(date('now')) - julianday(tr.RequestDate) AS INTEGER) AS days_waiting,
+    aw.Decision                              AS current_decision,
+    reviewer.EmployeeName                    AS reviewer_name
+FROM TradeRequest tr
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
+LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID
+LEFT JOIN Employee reviewer ON reviewer.EmployeeID = aw.ReviewerID
+WHERE tr.Status = 'Pending'
+  AND tr.RequestDate < date('now', '-3 days')
+ORDER BY days_waiting DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Trade requests that have been pending for more than 3 days, representing SLA violations "
+            "in the compliance approval workflow. "
+            "This capsule answers: which specific requests have breached the 3-day review SLA, "
+            "which reviewers are assigned to these delayed cases, "
+            "which departments have the most SLA-breaching pending requests. "
+            "SLA breaches represent compliance workflow failures — delays expose the firm to risk "
+            "because employees may act on unreviewed requests or restrictions may change during delays. "
+            "Related terms: overdue reviews, SLA breach, late approvals, delayed compliance review. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, Employee, BrokerDealer, ApprovalWorkflow. "
+            "Key columns: employee_name, department, request_date, days_waiting, reviewer_name."
+        ),
+        "ttl_hours": 4,
+        "tags": ["operational", "pending", "sla_breach", "overdue"],
+        "tables_used": ["TradeRequest", "Employee", "BrokerDealer", "ApprovalWorkflow"],
+        "key_columns": ["employee_name", "department", "request_date", "days_waiting", "reviewer_name"],
+        "staleness_trigger": "daily",
+        "linked_capsule_ids": ["pending_requests_no_review"],
+        "relationship_types": ["same_entity"],
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 6 — SECURITY ANALYSIS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "most_traded_securities_by_volume",
+        "capsule_type": "distribution",
+        "priority": "P2",
+        "what": "Ranks the top 20 securities by total trade quantity — identifies which ticker symbols carry the highest concentration of trading activity, and whether high-volume securities also have restriction history creating compounded compliance risk",
+        "how": "Groups TradeRequests by SecuritySymbol, summing Quantity and splitting into buy_quantity vs sell_quantity. Counts unique employees and brokers trading each symbol. Ordered by total_quantity DESC, LIMIT 20",
+        "sql": """
+SELECT  tr.SecuritySymbol                        AS security_symbol,
+    COUNT(tr.TradeRequestID)                 AS request_count,
+    SUM(tr.Quantity)                         AS total_quantity,
+    SUM(CASE WHEN tr.TradeType = 'BUY'  THEN tr.Quantity ELSE 0 END) AS buy_quantity,
+    SUM(CASE WHEN tr.TradeType = 'SELL' THEN tr.Quantity ELSE 0 END) AS sell_quantity,
+    COUNT(DISTINCT tr.EmployeeID)            AS unique_employees,
+    COUNT(DISTINCT tr.BrokerDealerID)        AS unique_brokers
+FROM TradeRequest tr
+GROUP BY tr.SecuritySymbol
+ORDER BY total_quantity DESC LIMIT 20
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Top 20 securities by total trade quantity — showing which ticker symbols represent "
+            "the largest volume of trading activity in the compliance system. "
+            "This capsule answers: which securities are traded in the highest quantities, "
+            "how many unique employees trade each high-volume security, "
+            "what is the buy vs sell quantity split for the most active securities. "
+            "High-volume securities warrant enhanced monitoring especially if they also appear "
+            "on any restriction list or have a history of compliance alerts. "
+            "Related terms: most traded securities, highest volume stocks, top positions by quantity. "
+            "Finding: {signal} "
+            "Tables: TradeRequest. "
+            "Key columns: security_symbol, total_quantity, buy_quantity, sell_quantity, unique_employees."
+        ),
+        "ttl_hours": 24,
+        "tags": ["distribution", "security_symbol", "volume", "quantity"],
+        "tables_used": ["TradeRequest"],
+        "key_columns": ["security_symbol", "total_quantity", "request_count", "unique_employees"],
+        "staleness_trigger": "new TradeRequest row",
+        "linked_capsule_ids": ["trade_requests_by_security_symbol", "securities_with_restriction_history"],
+        "relationship_types": ["same_entity", "corroborates"],
+    },
+
+    {
+        "capsule_id": "securities_with_restriction_history",
+        "capsule_type": "distribution",
+        "priority": "P2",
+        "what": "Maps which securities have a restriction history and how extensive it is — securities that have been restricted multiple times across different restriction types are chronically sensitive instruments that may warrant permanent enhanced monitoring",
+        "how": "Groups RestrictedSecurity by SecuritySymbol, counting total restriction entries, distinct restriction types applied, earliest and latest restriction start dates, and how many current active restrictions (EndDate IS NULL) remain open today",
+        "sql": """
+SELECT
+    rs.SecuritySymbol                        AS security_symbol,
+    COUNT(rs.RestrictionID)                  AS restriction_count,
+    COUNT(DISTINCT rs.RestrictionType)       AS distinct_restriction_types,
+    MIN(rs.StartDate)                        AS earliest_restriction,
+    MAX(rs.StartDate)                        AS latest_restriction,
+    SUM(CASE WHEN rs.EndDate IS NULL THEN 1 ELSE 0 END) AS currently_active_restrictions
+FROM RestrictedSecurity rs
+GROUP BY rs.SecuritySymbol
+ORDER BY restriction_count DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Securities that have historically appeared on restriction lists — showing their restriction "
+            "frequency, types of restrictions applied, and current active status. "
+            "This capsule answers: which securities have the most restriction history, "
+            "which securities have been placed under multiple different restriction types, "
+            "which historically restricted securities are still under active restriction today. "
+            "Securities with multiple restriction types across their history may represent "
+            "chronically sensitive instruments requiring permanent enhanced monitoring. "
+            "Related terms: restriction history, securities with compliance records, repeat restricted tickers. "
+            "Finding: {signal} "
+            "Tables: RestrictedSecurity. "
+            "Key columns: security_symbol, restriction_count, distinct_restriction_types, currently_active_restrictions."
+        ),
+        "ttl_hours": 24,
+        "tags": ["distribution", "security_symbol", "restriction_history"],
+        "tables_used": ["RestrictedSecurity"],
+        "key_columns": ["security_symbol", "restriction_count", "distinct_restriction_types", "currently_active_restrictions"],
+        "staleness_trigger": "new RestrictedSecurity row",
+        "linked_capsule_ids": ["currently_active_restrictions"],
+        "relationship_types": ["aggregates_up"],
+    },
+
+    {
+        "capsule_id": "currently_active_restrictions",
+        "capsule_type": "distribution",
+        "priority": "P1",
+        "what": "The definitive real-time list of all trading restrictions currently in force — any trade request for a symbol appearing here requires immediate compliance review. This is the pre-trade compliance reference capsule",
+        "how": "Filters RestrictedSecurity for EndDate IS NULL (no end set = permanent or indefinite) OR EndDate >= date('now') (future-dated end). Computes days_active = julianday(today) - julianday(StartDate) to show how long each restriction has been running. Ordered by RestrictionType then StartDate",
+        "sql": """
+SELECT
+    rs.RestrictionID                         AS restriction_id,
+    rs.SecuritySymbol                        AS security_symbol,
+    rs.RestrictionType                       AS restriction_type,
+    rs.StartDate                             AS start_date,
+    rs.EndDate                               AS end_date,
+    rs.Reason                                AS reason,
+    rs.AddedBy                               AS added_by,
+    CAST(julianday(date('now')) - julianday(rs.StartDate) AS INTEGER)   AS days_active
+FROM RestrictedSecurity rs
+WHERE rs.EndDate IS NULL OR rs.EndDate >= date('now')
+ORDER BY rs.RestrictionType ASC, rs.StartDate DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Complete list of trading restrictions currently in force — securities where "
+            "EndDate is NULL (permanent/indefinite) or set to a future date. "
+            "This capsule answers: how many securities are on active trading restrictions right now, "
+            "which restriction types are most common among current restrictions, "
+            "which restrictions have been active the longest without an end date. "
+            "This is the definitive reference for pre-trade compliance checking. "
+            "Any trade request for a symbol in this capsule requires immediate compliance review. "
+            "Related terms: active restrictions, current blacklist, live trading ban, active blackout, "
+            "current insider list, current watch list. "
+            "Finding: {signal} "
+            "Tables: RestrictedSecurity. "
+            "Key columns: security_symbol, restriction_type, start_date, end_date, days_active."
+        ),
+        "ttl_hours": 4,
+        "tags": ["distribution", "active_restriction", "current", "urgent", "P1"],
+        "tables_used": ["RestrictedSecurity"],
+        "key_columns": ["security_symbol", "restriction_type", "start_date", "end_date", "days_active"],
+        "staleness_trigger": "any RestrictedSecurity change",
+        "linked_capsule_ids": ["active_restrictions_recent_trade_attempts", "securities_with_restriction_history"],
+        "relationship_types": ["drills_down", "drills_down"],
+    },
+
+    {
+        "capsule_id": "securities_in_restrictions_and_alerts",
+        "capsule_type": "distribution",
+        "priority": "P1",
+        "what": "Identifies the highest-risk securities — those that appear in both the restriction registry AND have generated compliance alerts, meaning employees have actively been caught attempting or completing trades on restricted securities",
+        "how": "JOINs RestrictedSecurity to TradeRequest on SecuritySymbol, then INNER JOINs ComplianceAlert on TradeRequestID. Groups by security, counting distinct restriction entries and alert records. INNER JOIN to alerts means only securities with at least one confirmed alert appear",
+        "sql": """
+SELECT
+    rs.SecuritySymbol                        AS security_symbol,
+    COUNT(DISTINCT rs.RestrictionID)         AS restriction_entries,
+    COUNT(DISTINCT ca.AlertID)               AS alert_count,
+    MAX(ca.Severity)                         AS max_alert_severity,
+    COUNT(DISTINCT ca.EmployeeID)            AS unique_alerted_employees,
+    SUM(CASE WHEN rs.EndDate IS NULL THEN 1 ELSE 0 END) AS active_restrictions
+FROM RestrictedSecurity rs
+JOIN TradeRequest tr ON tr.SecuritySymbol = rs.SecuritySymbol
+JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID
+GROUP BY rs.SecuritySymbol
+ORDER BY alert_count DESC, restriction_entries DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Securities at the intersection of trading restrictions and compliance alerts — "
+            "those that have both been officially restricted and have triggered compliance alerts. "
+            "This capsule answers: which securities appear in both the restriction registry and the alert system, "
+            "how many alerts were raised for trades in restricted securities, "
+            "which securities represent the combined worst-case scenario of active restriction plus alert history. "
+            "These dual-flagged securities require the most intensive ongoing monitoring and "
+            "any new trade attempt should trigger immediate escalation. "
+            "Finding: {signal} "
+            "Tables: RestrictedSecurity, TradeRequest, ComplianceAlert. "
+            "Key columns: security_symbol, restriction_entries, alert_count, max_alert_severity."
+        ),
+        "ttl_hours": 8,
+        "tags": ["distribution", "security_symbol", "dual_flag", "restriction", "alert"],
+        "tables_used": ["RestrictedSecurity", "TradeRequest", "ComplianceAlert"],
+        "key_columns": ["security_symbol", "restriction_entries", "alert_count", "max_alert_severity"],
+        "staleness_trigger": "new alert or restriction",
+        "linked_capsule_ids": ["currently_active_restrictions", "violations_on_restricted_securities"],
+        "relationship_types": ["corroborates", "corroborates"],
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 7 — DEPARTMENT & EMPLOYEE HEALTH
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "department_compliance_scorecard",
+        "capsule_type": "aggregation",
+        "priority": "P2",
+        "what": "A single combined compliance health view per department — headcount, total requests, rejection rate, escalation rate, total alerts, and high-severity alert count in one row. Designed for management reporting, board presentations, and regulatory review of organizational risk distribution",
+        "how": "LEFT JOINs Employee to TradeRequest and ComplianceAlert so departments with zero requests or alerts still appear in the scorecard. Computes non_approval_rate_pct combining Rejected and Escalated (both represent non-straightforward outcomes). Ordered by high_severity_alerts DESC then non_approval_rate_pct DESC",
+        "sql": """
+SELECT
+    e.Department                             AS department,
+    COUNT(DISTINCT e.EmployeeID)             AS headcount,
+    COUNT(DISTINCT tr.TradeRequestID)        AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
+    SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,
+    COUNT(DISTINCT ca.AlertID)               AS total_alerts,
+    SUM(CASE WHEN ca.Severity IN ('Critical','High') THEN 1 ELSE 0 END) AS high_severity_alerts,
+    CAST(
+        100.0 * SUM(CASE WHEN tr.Status IN ('Rejected','Escalated') THEN 1 ELSE 0 END)
+        / NULLIF(COUNT(DISTINCT tr.TradeRequestID), 0)
+    AS REAL) AS non_approval_rate_pct
+FROM Employee e
+LEFT JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
+LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
+GROUP BY e.Department
+ORDER BY high_severity_alerts DESC, non_approval_rate_pct DESC
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "Comprehensive compliance scorecard for each department combining all key metrics: "
+            "headcount, trade request volume, rejection rate, escalation rate, total alerts, "
+            "and high severity alert count. "
+            "This capsule answers: which department has the worst overall compliance profile, "
+            "how does each department compare across all compliance dimensions simultaneously, "
+            "which departments are clean vs problematic across the full scorecard. "
+            "The scorecard is the primary tool for department-level compliance review presentations "
+            "and regulatory reporting on organizational risk distribution. "
+            "Related terms: department health, business unit scorecard, division compliance rating. "
+            "Finding: {signal} "
+            "Tables: Employee, TradeRequest, ComplianceAlert. "
+            "Key columns: department, headcount, non_approval_rate_pct, total_alerts, high_severity_alerts."
+        ),
+        "ttl_hours": 24,
+        "tags": ["aggregation", "department", "scorecard", "health_metric"],
+        "tables_used": ["Employee", "TradeRequest", "ComplianceAlert"],
+        "key_columns": ["department", "headcount", "non_approval_rate_pct", "total_alerts", "high_severity_alerts"],
+        "staleness_trigger": "new TradeRequest or ComplianceAlert",
+        "linked_capsule_ids": ["trade_requests_by_department", "violations_by_department"],
+        "relationship_types": ["aggregates_up", "aggregates_up"],
+    },
+
+    {
+        "capsule_id": "employees_zero_alerts",
+        "capsule_type": "aggregation",
+        "priority": "P4",
+        "what": "Lists active employees with a completely clean compliance record — a positive signal for assessing compliance culture. Departments with a high proportion of zero-alert employees despite active trading activity are models for others",
+        "how": "LEFT JOINs Employee to ComplianceAlert, filters WHERE AlertID IS NULL (no alert record exists at all). Also filters for Active status only. Counts total_requests and years_of_service to distinguish genuinely compliant active traders from simply inactive employees",
+        "sql": """
+SELECT
+    e.EmployeeID                             AS employee_id,
+    e.EmployeeName                           AS employee_name,
+    e.Department                             AS department,
+    e.JobTitle                               AS job_title,
+    e.HireDate                               AS hire_date,
+    COUNT(tr.TradeRequestID)                 AS total_requests,
+    (CAST(strftime('%Y', date('now')) AS INTEGER) - CAST(strftime('%Y', e.HireDate) AS INTEGER))    AS years_of_service
+FROM Employee e
+LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
+LEFT JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
+WHERE ca.AlertID IS NULL
+  AND e.Status = 'Active'
+GROUP BY e.EmployeeID, e.EmployeeName, e.Department, e.JobTitle, e.HireDate
+ORDER BY years_of_service DESC, total_requests DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Active employees with a completely clean compliance record — no alerts of any kind. "
+            "This capsule answers: how many active employees have never received a compliance alert, "
+            "which departments have the highest proportion of clean-record employees, "
+            "how many years of service do compliant employees average. "
+            "This positive signal helps assess overall compliance culture and identifies departments "
+            "with strong trading discipline that could serve as models for others. "
+            "Related terms: clean record employees, no violations, compliant employees, zero alerts. "
+            "Finding: {signal} "
+            "Tables: Employee, ComplianceAlert, TradeRequest. "
+            "Key columns: employee_name, department, total_requests, years_of_service."
+        ),
+        "ttl_hours": 48,
+        "tags": ["aggregation", "employee", "clean_record", "positive_indicator"],
+        "tables_used": ["Employee", "ComplianceAlert", "TradeRequest"],
+        "key_columns": ["employee_name", "department", "total_requests", "years_of_service"],
+        "staleness_trigger": "new ComplianceAlert row",
+        "linked_capsule_ids": ["department_compliance_scorecard"],
+        "relationship_types": ["corroborates"],
+    },
+
+    {
+        "capsule_id": "alert_rate_by_job_title",
+        "capsule_type": "aggregation",
+        "priority": "P3",
+        "what": "Compares compliance alert rates across job titles to identify whether certain roles (Director, Analyst, Trader) produce disproportionately more alerts per person — indicating role-specific training gaps or elevated access risk associated with a particular position",
+        "how": "LEFT JOINs Employee to ComplianceAlert, groups by JobTitle, computes alerts_per_employee = total_alerts / unique_employee_count using NULLIF to avoid division by zero. Also counts high_severity_alerts per title. Ordered by alerts_per_employee DESC",
+        "sql": """
+SELECT
+    e.JobTitle                               AS job_title,
+    COUNT(DISTINCT e.EmployeeID)             AS employee_count,
+    COUNT(DISTINCT ca.AlertID)               AS total_alerts,
+    CAST(
+        1.0 * COUNT(DISTINCT ca.AlertID)
+        / NULLIF(COUNT(DISTINCT e.EmployeeID), 0)
+    AS REAL) AS alerts_per_employee,
+    SUM(CASE WHEN ca.Severity IN ('Critical','High') THEN 1 ELSE 0 END) AS high_severity_alerts
+FROM Employee e
+LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
+GROUP BY e.JobTitle
+ORDER BY alerts_per_employee DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Compliance alert rate broken down by employee job title — identifying which roles "
+            "produce the most compliance risk per employee. "
+            "This capsule answers: which job titles have the highest compliance alert rates, "
+            "are senior roles (directors, VPs) or junior roles (analysts, associates) "
+            "generating more alerts per person, which specific job title has the worst compliance record. "
+            "High-alert roles may need role-specific compliance training or trading restrictions. "
+            "Related terms: role-based risk, job title compliance profile, position risk analysis. "
+            "Finding: {signal} "
+            "Tables: Employee, ComplianceAlert. "
+            "Key columns: job_title, employee_count, alerts_per_employee, high_severity_alerts."
+        ),
+        "ttl_hours": 48,
+        "tags": ["aggregation", "job_title", "alert_rate", "role_risk"],
+        "tables_used": ["Employee", "ComplianceAlert"],
+        "key_columns": ["job_title", "employee_count", "alerts_per_employee", "high_severity_alerts"],
+        "staleness_trigger": "new ComplianceAlert row",
+        "linked_capsule_ids": ["department_compliance_scorecard"],
+        "relationship_types": ["drills_down"],
+    },
+
+    {
+        "capsule_id": "new_employee_compliance",
+        "capsule_type": "aggregation",
+        "priority": "P3",
+        "what": "Measures how quickly new employees accumulate compliance alerts — early alerts in the first 2 years indicate onboarding training gaps, insufficient supervision during the probationary period, or roles with high risk exposure given to under-trained staff",
+        "how": "Filters Employee for HireDate >= date('now', '-2 years') AND Status = 'Active'. Computes months_of_service as the actual calendar month difference between HireDate and today. LEFT JOINs TradeRequest and ComplianceAlert to count activity and alerts. Ordered by total_alerts DESC",
+        "sql": """
+SELECT
+    e.EmployeeID                             AS employee_id,
+    e.EmployeeName                           AS employee_name,
+    e.Department                             AS department,
+    e.JobTitle                               AS job_title,
+    e.HireDate                               AS hire_date,
+    (CAST(strftime('%Y', date('now')) AS INTEGER) - CAST(strftime('%Y', e.HireDate) AS INTEGER)) * 12 + CAST(strftime('%m', date('now')) AS INTEGER) - CAST(strftime('%m', e.HireDate) AS INTEGER)   AS months_of_service,
+    COUNT(DISTINCT tr.TradeRequestID)        AS total_requests,
+    COUNT(DISTINCT ca.AlertID)               AS total_alerts,
+    MAX(ca.Severity)                         AS max_severity
+FROM Employee e
+LEFT JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
+LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
+WHERE e.HireDate >= date('now', '-2 years')
+  AND e.Status = 'Active'
+GROUP BY e.EmployeeID, e.EmployeeName, e.Department, e.JobTitle, e.HireDate
+ORDER BY total_alerts DESC, months_of_service ASC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Compliance alert profile for employees who joined in the last 2 years — "
+            "a key metric for assessing onboarding compliance effectiveness. "
+            "This capsule answers: how many new employees already have compliance alerts, "
+            "which departments have the most non-compliant new hires, "
+            "are recently hired employees generating more alerts per month than their tenure suggests. "
+            "New employees with alerts early in their tenure indicate onboarding compliance training gaps. "
+            "Related terms: new hire compliance, recent employee alerts, onboarding risk, junior employee violations. "
+            "Finding: {signal} "
+            "Tables: Employee, TradeRequest, ComplianceAlert. "
+            "Key columns: employee_name, department, months_of_service, total_alerts, max_severity."
+        ),
+        "ttl_hours": 48,
+        "tags": ["aggregation", "new_employee", "onboarding", "compliance_profile"],
+        "tables_used": ["Employee", "TradeRequest", "ComplianceAlert"],
+        "key_columns": ["employee_name", "department", "months_of_service", "total_alerts"],
+        "staleness_trigger": "new ComplianceAlert or Employee row",
+        "linked_capsule_ids": ["department_compliance_scorecard"],
+        "relationship_types": ["drills_down"],
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 8 — CROSS-ENTITY RISK
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "employee_broker_dealer_combination_risk",
+        "capsule_type": "risk",
+        "priority": "P1",
+        "what": "Flags employees whose compliance violations span multiple broker dealers — using multiple brokers to conduct non-compliant trades may indicate deliberate circumvention of monitoring controls, requiring immediate investigation and possible trading suspension",
+        "how": "Joins Employee to ComplianceAlert to TradeRequest to BrokerDealer, groups by employee, applies HAVING COUNT(DISTINCT BrokerDealerID) >= 2. A subquery concatenates the actual broker dealer names for readable output. Ordered by broker_dealers_involved DESC then total_alerts DESC",
+        "sql": """
+SELECT
+    e.EmployeeID                             AS employee_id,
+    e.EmployeeName                           AS employee_name,
+    e.Department                             AS department,
+    e.JobTitle                               AS job_title,
+    COUNT(DISTINCT tr.BrokerDealerID)        AS broker_dealers_involved,
+    COUNT(DISTINCT ca.AlertID)               AS total_alerts,
+    COUNT(DISTINCT ca.AlertType)             AS distinct_alert_types,
+    (SELECT REPLACE(GROUP_CONCAT(DISTINCT bd2.BrokerDealerName), ',', ' | ') FROM Account a2 JOIN BrokerDealer bd2 ON a2.BrokerDealerID = bd2.BrokerDealerID WHERE a2.EmployeeID = e.EmployeeID) AS broker_dealer_names,
+    MAX(ca.Severity)                         AS max_severity
+FROM Employee e
+JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
+JOIN TradeRequest tr ON tr.TradeRequestID = ca.TradeRequestID
+JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
+GROUP BY e.EmployeeID, e.EmployeeName, e.Department, e.JobTitle
+HAVING COUNT(DISTINCT tr.BrokerDealerID) >= 2
+ORDER BY broker_dealers_involved DESC, total_alerts DESC
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "Employees whose compliance alerts span multiple broker dealer counterparties — "
+            "the highest individual risk profile combining personal violation history with "
+            "cross-counterparty exposure. "
+            "This capsule answers: which employees have compliance issues with more than one broker dealer, "
+            "are any employees using multiple brokers to circumvent monitoring, "
+            "which employees have the broadest broker dealer violation footprint. "
+            "An employee with alerts at 3+ broker dealers represents a potential deliberate circumvention "
+            "pattern requiring immediate investigation and possible trading suspension. "
+            "Related terms: multi-broker violations, cross-counterparty risk, employee broker risk. "
+            "Finding: {signal} "
+            "Tables: Employee, ComplianceAlert, TradeRequest, BrokerDealer. "
+            "Key columns: employee_name, department, broker_dealers_involved, total_alerts, broker_dealer_names."
+        ),
+        "ttl_hours": 8,
+        "tags": ["risk", "employee_risk", "broker_dealer", "cross_entity", "P1"],
+        "tables_used": ["Employee", "ComplianceAlert", "TradeRequest", "BrokerDealer"],
+        "key_columns": ["employee_name", "department", "broker_dealers_involved", "total_alerts", "broker_dealer_names"],
+        "staleness_trigger": "new ComplianceAlert row",
+        "linked_capsule_ids": ["repeat_violators", "broker_dealers_high_rejection_and_alerts"],
+        "relationship_types": ["corroborates", "corroborates"],
+    },
+
+    {
+        "capsule_id": "department_restriction_type_concentration",
+        "capsule_type": "risk",
+        "priority": "P2",
+        "what": "Reveals whether violations in a department concentrate around one specific restriction type — a department that repeatedly violates only Blackout restrictions has a specific knowledge gap with that rule, different from a department with broad violations across all restriction types",
+        "how": "Counts restriction-overlapping trades grouped by BOTH Employee.Department AND RestrictedSecurity.RestrictionType, creating a department × restriction_type matrix. Ordered by violation_count DESC to surface the most concentrated problem combinations first",
+        "sql": """
+SELECT
+    e.Department                             AS department,
+    rs.RestrictionType                       AS restriction_type,
+    COUNT(tr.TradeRequestID)                 AS violation_count,
+    COUNT(DISTINCT tr.EmployeeID)            AS unique_employees,
+    COUNT(DISTINCT tr.SecuritySymbol)        AS unique_securities,
+    MAX(tr.RequestDate)                      AS latest_violation_date
+FROM TradeRequest tr
+JOIN RestrictedSecurity rs
+    ON tr.SecuritySymbol = rs.SecuritySymbol
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+GROUP BY e.Department, rs.RestrictionType
+ORDER BY violation_count DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Concentration analysis of which departments repeatedly violate the same restriction type — "
+            "revealing structural compliance gaps specific to certain business units and rule categories. "
+            "This capsule answers: which department-restriction type combination is most frequently violated, "
+            "does a particular department consistently ignore Blackout restrictions while another hits Insider List, "
+            "which departments have a single dominant restriction type that explains most of their violations. "
+            "Concentrated violations of a single restriction type in one department suggest a specific "
+            "knowledge gap or cultural problem with that particular compliance rule. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, RestrictedSecurity, Employee. "
+            "Key columns: department, restriction_type, violation_count, unique_employees."
+        ),
+        "ttl_hours": 24,
+        "tags": ["risk", "department", "restriction_type", "concentration", "cross_entity"],
+        "tables_used": ["TradeRequest", "RestrictedSecurity", "Employee"],
+        "key_columns": ["department", "restriction_type", "violation_count", "unique_employees"],
+        "staleness_trigger": "new violation",
+        "linked_capsule_ids": ["violations_by_department", "violations_by_restriction_type"],
+        "relationship_types": ["drills_down", "drills_down"],
+    },
+
+    {
+        "capsule_id": "reviewer_coverage_gaps",
+        "capsule_type": "risk",
+        "priority": "P2",
+        "what": "Identifies departments whose trade requests are not receiving compliance review — showing which business units lack adequate reviewer coverage. A department with high unreviewed_rate_pct has employees trading without proper oversight, exposing the firm to undetected violations",
+        "how": "LEFT JOINs TradeRequest to ApprovalWorkflow per department, computing unreviewed_count (WorkflowID IS NULL) and unreviewed_rate_pct. Also counts distinct_reviewers assigned to each department to show whether the gap is zero coverage or understaffing. Ordered by unreviewed_rate_pct DESC",
+        "sql": """
+SELECT
+    e.Department                             AS department,
+    COUNT(DISTINCT tr.TradeRequestID)        AS total_requests,
+    SUM(CASE WHEN aw.WorkflowID IS NULL THEN 1 ELSE 0 END) AS unreviewed_count,
+    CAST(
+        100.0 * SUM(CASE WHEN aw.WorkflowID IS NULL THEN 1 ELSE 0 END)
+        / NULLIF(COUNT(DISTINCT tr.TradeRequestID), 0)
+    AS REAL) AS unreviewed_rate_pct,
+    COUNT(DISTINCT aw.ReviewerID)            AS distinct_reviewers
+FROM TradeRequest tr
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID
+GROUP BY e.Department
+ORDER BY unreviewed_rate_pct DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Reviewer coverage analysis showing which departments have trade requests that are not "
+            "receiving timely compliance review — exposing systemic workflow gaps. "
+            "This capsule answers: which departments have the highest proportion of unreviewed requests, "
+            "are any departments entirely without reviewer coverage, "
+            "how many distinct reviewers service each department's compliance queue. "
+            "A department with >20% unreviewed requests represents a critical workflow gap — "
+            "employees may be trading without proper compliance oversight. "
+            "Related terms: review coverage, unreviewed departments, compliance oversight gaps, reviewer assignment. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, Employee, ApprovalWorkflow. "
+            "Key columns: department, unreviewed_count, unreviewed_rate_pct, distinct_reviewers."
+        ),
+        "ttl_hours": 8,
+        "tags": ["risk", "workflow", "coverage_gap", "reviewer", "department"],
+        "tables_used": ["TradeRequest", "Employee", "ApprovalWorkflow"],
+        "key_columns": ["department", "unreviewed_count", "unreviewed_rate_pct", "distinct_reviewers"],
+        "staleness_trigger": "new TradeRequest or ApprovalWorkflow change",
+        "linked_capsule_ids": ["pending_requests_no_review", "reviewer_decision_distribution"],
+        "relationship_types": ["corroborates", "corroborates"],
+    },
+
+    {
+        "capsule_id": "full_risk_profile_join",
+        "capsule_type": "risk",
+        "priority": "P1",
+        "what": "The complete audit view for worst-case compliance records — trades that simultaneously have a confirmed restriction violation, a compliance alert, and an approval workflow decision. Used for regulatory investigations, breach incident reports, and full audit trail reconstruction",
+        "how": "INNER JOINs TradeRequest to ComplianceAlert (requires an alert) AND to RestrictedSecurity via date-overlap (requires a restriction violation). LEFT JOINs ApprovalWorkflow for reviewer decision context. Ordered by alert severity DESC then RequestDate DESC — surfaces the most critical and most recent incidents. LIMIT 50",
+        "sql": """
+SELECT  e.EmployeeName                           AS employee_name,
+    e.Department                             AS department,
+    e.JobTitle                               AS job_title,
+    tr.TradeRequestID                        AS trade_request_id,
+    tr.SecuritySymbol                        AS security_symbol,
+    tr.TradeType                             AS trade_type,
+    tr.Quantity                              AS quantity,
+    tr.RequestDate                           AS request_date,
+    tr.Status                               AS request_status,
+    bd.BrokerDealerName                      AS broker_dealer,
+    ca.AlertType                             AS alert_type,
+    ca.Severity                              AS alert_severity,
+    ca.Status                                AS alert_status,
+    aw.Decision                              AS reviewer_decision,
+    aw.TurnaroundDays                        AS turnaround_days,
+    rs.RestrictionType                       AS restriction_type,
+    rs.Reason                                AS restriction_reason
+FROM TradeRequest tr
+JOIN Employee e ON e.EmployeeID = tr.EmployeeID
+JOIN BrokerDealer bd ON bd.BrokerDealerID = tr.BrokerDealerID
+JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID
+-- Only include trades that also hit a restriction
+JOIN RestrictedSecurity rs
+    ON tr.SecuritySymbol = rs.SecuritySymbol
+    AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
+LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID
+ORDER BY ca.Severity DESC, tr.RequestDate DESC LIMIT 50
+""".strip(),
+        "signal_method": "llm_summary",
+        "embed_text_template": (
+            "Full five-table risk profile joining every key compliance entity — Employee, TradeRequest, "
+            "ComplianceAlert, ApprovalWorkflow, and RestrictedSecurity — for the highest risk trade instances. "
+            "This capsule answers: which specific trades have the worst combined risk profile, "
+            "which employees have trades with BOTH a restriction violation AND a compliance alert, "
+            "what was the reviewer decision and turnaround on the most critical violation trades. "
+            "This is the most comprehensive cross-entity risk view in the compliance system. "
+            "Use this capsule for detailed regulatory investigations, breach incident reports, "
+            "or when the full audit trail for a specific risk event is needed. "
+            "Related terms: full audit, cross-entity risk, compliance incident details, violation audit trail. "
+            "Finding: {signal} "
+            "Tables: TradeRequest, Employee, BrokerDealer, ComplianceAlert, ApprovalWorkflow, RestrictedSecurity. "
+            "Key columns: employee_name, security_symbol, alert_severity, restriction_type, reviewer_decision."
+        ),
+        "ttl_hours": 8,
+        "tags": ["risk", "cross_entity", "full_join", "audit", "P1"],
+        "tables_used": ["TradeRequest", "Employee", "BrokerDealer", "ComplianceAlert", "ApprovalWorkflow", "RestrictedSecurity"],
+        "key_columns": ["employee_name", "security_symbol", "alert_severity", "restriction_type", "reviewer_decision"],
+        "staleness_trigger": "any data change",
+        "linked_capsule_ids": ["violations_on_restricted_securities", "high_severity_open_alerts"],
+        "relationship_types": ["aggregates_up", "corroborates"],
+    },
+
+    {
+        "capsule_id": "trade_requests_by_employee",
+        "capsule_type": "aggregation",
+        "priority": "P2",
+        "what": "Ranks individual employees by total trading request volume and rejection rate — identifies staff with unusually high personal trading frequency or high individual rejection rates that warrant individual-level compliance review beyond the department aggregate",
+        "how": "Groups TradeRequests by EmployeeID joining to Employee for name and role context. Counts status breakdown per employee and computes individual rejection_rate_pct. Ordered by total_requests DESC to surface the most active traders first",
+        "sql": """
+SELECT
+    e.EmployeeName                       AS employee_name,
+    e.Department                         AS department,
+    e.JobTitle                           AS job_title,
+    COUNT(tr.TradeRequestID)             AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Approved' THEN 1 ELSE 0 END) AS approved_count,
+    SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_count,
+    SUM(CASE WHEN tr.Status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_count,
+    CAST(
+        100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END)
+        / NULLIF(COUNT(tr.TradeRequestID), 0)
+    AS REAL) AS rejection_rate_pct
+FROM Employee e
+JOIN TradeRequest tr ON tr.EmployeeID = e.EmployeeID
+GROUP BY e.EmployeeID, e.EmployeeName, e.Department, e.JobTitle
+ORDER BY total_requests DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Trade request activity by individual employee, showing staff with the highest trading volume. "
+            "This capsule answers: which individuals appear repeatedly in trade request activity across the dataset, "
+            "which staff members seem unusually active in personal trading, and what their approval/rejection rates are. "
+            "Finding: {signal} "
+            "Tables: Employee, TradeRequest."
+        ),
+        "ttl_hours": 24,
+        "tags": ["employee", "volume", "aggregation"],
+        "tables_used": ["Employee", "TradeRequest"],
+        "key_columns": ["employee_name", "total_requests", "rejected_count"],
+        "staleness_trigger": "new TradeRequest",
+        "linked_capsule_ids": ["trade_requests_by_department"],
+        "relationship_types": ["aggregates_up"],
+    },
+
+    {
+        "capsule_id": "daily_trading_concentration_by_security",
+        "capsule_type": "pattern",
+        "priority": "P2",
+        "what": "Detects coordinated or herd-trading behaviour — days where a single security attracts multiple employees trading it simultaneously. This pattern can indicate insider information leakage, coordinated market activity, or a compliance event driving reactive trading",
+        "how": "Groups TradeRequests by RequestDate AND SecuritySymbol. HAVING filter surfaces only combinations with either 3+ distinct employees trading the same security on the same day OR 5+ total requests — thresholds to filter out normal low-volume activity. LIMIT 20 by request count",
+        "sql": """
+SELECT  tr.RequestDate                       AS request_date,
+    tr.SecuritySymbol                    AS security_symbol,
+    COUNT(tr.TradeRequestID)             AS distinct_requests,
+    COUNT(DISTINCT tr.EmployeeID)        AS unique_employees,
+    SUM(tr.Quantity)                     AS total_quantity
+FROM TradeRequest tr
+GROUP BY tr.RequestDate, tr.SecuritySymbol
+HAVING COUNT(DISTINCT tr.EmployeeID) >= 3 OR COUNT(tr.TradeRequestID) >= 5
+ORDER BY distinct_requests DESC, total_quantity DESC LIMIT 20
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Detects when one security dominates trading on a given day revealing unusual herd behavior. "
+            "Answers: Which security shows unusually high trading concentration on a given day? "
+            "Finding: {signal} "
+            "Tables: TradeRequest."
+        ),
+        "ttl_hours": 24,
+        "tags": ["security", "concentration", "pattern", "daily"],
+        "tables_used": ["TradeRequest"],
+        "key_columns": ["request_date", "security_symbol", "distinct_requests"],
+        "staleness_trigger": "daily",
+        "linked_capsule_ids": [],
+        "relationship_types": [],
+    },
+
+    {
+        "capsule_id": "broker_dealers_dual_risk_via_account",
+        "capsule_type": "risk",
+        "priority": "P2",
+        "what": "Surfaces broker dealers with a dual-risk profile — both a high trade rejection rate AND multiple compliance alerts linked through their employee accounts. Complements the direct TradeRequest-based version by routing through the Account table, which reveals broker risk attributable to individual employee behaviour rather than aggregate trade outcomes",
+        "how": "Joins BrokerDealer through Account to Employee, then LEFT JOINs TradeRequest and ComplianceAlert per employee. Groups by broker dealer. HAVING requires both at least one alert AND at least one rejection. The Account bridge means risk is attributed to the broker via their employee relationships, not just the trade-level BrokerDealerID — capturing cases where an employee's alerts aren't directly tagged to a trade",
+        "sql": """
+SELECT
+    bd.BrokerDealerName                  AS broker_dealer,
+    COUNT(DISTINCT tr.TradeRequestID)    AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_requests,
+    COUNT(DISTINCT ca.AlertID)           AS total_alerts,
+    CAST(100.0 * SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT tr.TradeRequestID), 0) AS REAL) as rejection_rate_pct
+FROM BrokerDealer bd
+JOIN Account a ON a.BrokerDealerID = bd.BrokerDealerID
+LEFT JOIN TradeRequest tr ON tr.EmployeeID = a.EmployeeID
+LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = a.EmployeeID
+GROUP BY bd.BrokerDealerID, bd.BrokerDealerName
+HAVING COUNT(DISTINCT ca.AlertID) > 0 AND SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) > 0
+ORDER BY rejection_rate_pct DESC, total_alerts DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Identifies broker dealers that look riskiest because they combine high rejection rates and high alert counts. "
+            "Finding: {signal} "
+            "Tables: BrokerDealer, Account, TradeRequest, ComplianceAlert."
+        ),
+        "ttl_hours": 24,
+        "tags": ["broker_dealer", "risk", "rejection", "alert"],
+        "tables_used": ["BrokerDealer", "TradeRequest", "ComplianceAlert", "Account"],
+        "key_columns": ["broker_dealer", "rejection_rate_pct", "total_alerts"],
+        "staleness_trigger": "weekly",
+        "linked_capsule_ids": [],
+        "relationship_types": [],
+    },
+
+    {
+        "capsule_id": "alert_rate_by_job_title_simple",
+        "capsule_type": "aggregation",
+        "priority": "P3",
+        "what": "Compares compliance alert rates across job titles to identify whether certain roles produce disproportionately more alerts per person. A lightweight version focused purely on alert rate without high-severity breakdown — useful for quick role-level screening before drilling into severity distribution",
+        "how": "LEFT JOINs Employee to ComplianceAlert, groups by JobTitle, computes alerts_per_employee = total alerts / unique employee count using CAST and NULLIF to guard against zero division. Uses COUNT(ca.AlertID) rather than COUNT(DISTINCT) to count all alert rows including duplicates. Ordered by alerts_per_employee DESC",
+        "sql": """
+SELECT
+    e.JobTitle                           AS job_title,
+    COUNT(DISTINCT e.EmployeeID)         AS total_employees,
+    COUNT(ca.AlertID)                    AS total_alerts,
+    CAST(COUNT(ca.AlertID) * 1.0 / NULLIF(COUNT(DISTINCT e.EmployeeID), 0) AS REAL) AS alerts_per_employee
+FROM Employee e
+LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = e.EmployeeID
+GROUP BY e.JobTitle
+ORDER BY alerts_per_employee DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Compliance issues distributed across different job titles. "
+            "Answers: Which job titles appear to have the highest alert rate? "
+            "Finding: {signal} "
+            "Tables: Employee, ComplianceAlert."
+        ),
+        "ttl_hours": 48,
+        "tags": ["job_title", "alert", "aggregation"],
+        "tables_used": ["Employee", "ComplianceAlert"],
+        "key_columns": ["job_title", "total_alerts", "alerts_per_employee"],
+        "staleness_trigger": "weekly",
+        "linked_capsule_ids": [],
+        "relationship_types": [],
+    },
+
+    {
+        "capsule_id": "high_risk_employee_broker_combinations",
+        "capsule_type": "risk",
+        "priority": "P2",
+        "what": "Identifies specific employee-broker dealer pairings with the worst combined rejection and alert profile — targeting cases where an individual's non-compliance consistently routes through a particular counterparty, which may indicate a deliberate relationship or an unmonitored channel",
+        "how": "Joins Account to Employee and BrokerDealer, then LEFT JOINs TradeRequest filtered to Rejected status only and ComplianceAlert per employee. Groups by employee × broker combination. HAVING requires either rejected_requests > 0 OR alerts > 0. LIMIT 50 ordered by rejections DESC",
+        "sql": """
+SELECT  e.EmployeeName                       AS employee_name,
+    bd.BrokerDealerName                  AS broker_dealer,
+    COUNT(DISTINCT tr.TradeRequestID)    AS total_requests,
+    SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_requests,
+    COUNT(DISTINCT ca.AlertID)           AS total_alerts
+FROM Account a
+JOIN Employee e ON e.EmployeeID = a.EmployeeID
+JOIN BrokerDealer bd ON bd.BrokerDealerID = a.BrokerDealerID
+LEFT JOIN TradeRequest tr ON tr.EmployeeID = a.EmployeeID AND tr.Status = 'Rejected'
+LEFT JOIN ComplianceAlert ca ON ca.EmployeeID = a.EmployeeID
+GROUP BY e.EmployeeID, e.EmployeeName, bd.BrokerDealerID, bd.BrokerDealerName
+HAVING SUM(CASE WHEN tr.Status = 'Rejected' THEN 1 ELSE 0 END) > 0 OR COUNT(DISTINCT ca.AlertID) > 0
+ORDER BY rejected_requests DESC, total_alerts DESC LIMIT 50
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Highlights which employee and broker dealer combinations look riskiest based on rejected trades and alerts. "
+            "Finding: {signal} "
+            "Tables: Employee, BrokerDealer, Account, TradeRequest, ComplianceAlert."
+        ),
+        "ttl_hours": 24,
+        "tags": ["employee", "broker_dealer", "risk"],
+        "tables_used": ["Employee", "BrokerDealer", "Account", "TradeRequest", "ComplianceAlert"],
+        "key_columns": ["employee_name", "broker_dealer", "rejected_requests", "total_alerts"],
+        "staleness_trigger": "weekly",
+        "linked_capsule_ids": [],
+        "relationship_types": [],
+    },
+
+    {
+        "capsule_id": "restricted_securities_confirmed_by_alerts",
+        "capsule_type": "pattern",
+        "priority": "P2",
+        "what": "Identifies securities at the intersection of restriction records and compliance alerts — confirming that employees have actively attempted or completed trades on restricted securities, generating the strongest dual-evidence risk signal per ticker. Adds a concatenated restriction_types column absent from the primary version, making it useful for audit reports that need to name the specific restriction category",
+        "how": "JOINs RestrictedSecurity to TradeRequest on SecuritySymbol, then JOINs ComplianceAlert on TradeRequestID. A correlated subquery using GROUP_CONCAT concatenates all distinct restriction types per symbol into one readable string. HAVING COUNT(DISTINCT AlertID) > 0 ensures only securities with confirmed alerts appear. Differs from the P1 version: uses LEFT JOIN + HAVING instead of INNER JOIN, and adds restriction_types via subquery",
+        "sql": """
+SELECT
+    rs.SecuritySymbol                    AS security_symbol,
+    COUNT(DISTINCT rs.RestrictionID)     AS restriction_count,
+    COUNT(DISTINCT ca.AlertID)           AS alert_count,
+    (SELECT REPLACE(GROUP_CONCAT(DISTINCT rs2.RestrictionType), ',', ', ') FROM RestrictedSecurity rs2 WHERE rs2.SecuritySymbol = rs.SecuritySymbol) AS restriction_types
+FROM RestrictedSecurity rs
+JOIN TradeRequest tr ON tr.SecuritySymbol = rs.SecuritySymbol
+JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID
+GROUP BY rs.SecuritySymbol
+HAVING COUNT(DISTINCT ca.AlertID) > 0
+ORDER BY alert_count DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Identifies which securities appear in both restrictions and alerts, signaling high targeted risk. "
+            "Finding: {signal} "
+            "Tables: RestrictedSecurity, TradeRequest, ComplianceAlert."
+        ),
+        "ttl_hours": 24,
+        "tags": ["security", "restriction", "alert", "risk"],
+        "tables_used": ["RestrictedSecurity", "TradeRequest", "ComplianceAlert"],
+        "key_columns": ["security_symbol", "restriction_count", "alert_count", "restriction_types"],
+        "staleness_trigger": "daily",
+        "linked_capsule_ids": [],
+        "relationship_types": [],
+    },
+
+    {
+        "capsule_id": "average_approval_time_by_department",
+        "capsule_type": "aggregation",
+        "priority": "P2",
+        "what": "Measures how long compliance reviews take on average for trade requests originating from each department — departments with slow turnaround indicate bottlenecks, understaffed reviewers, or structurally complex trade types that delay decisions",
+        "how": "Joins ApprovalWorkflow through TradeRequest to Employee.Department, averaging TurnaroundDays per department. WHERE TurnaroundDays IS NOT NULL excludes still-pending reviews with no decision yet. Also counts rejections and escalations per department as context for why turnaround may be high",
+        "sql": """
+SELECT
+    e.Department                           AS department,
+    AVG(CAST(aw.TurnaroundDays AS FLOAT))  AS avg_turnaround_days,
+    COUNT(aw.WorkflowID)                   AS total_reviews,
+    SUM(CASE WHEN aw.Decision = 'Rejected'  THEN 1 ELSE 0 END) AS rejections,
+    SUM(CASE WHEN aw.Decision = 'Escalated' THEN 1 ELSE 0 END) AS escalations
+FROM ApprovalWorkflow aw
+JOIN TradeRequest tr ON aw.TradeRequestID = tr.TradeRequestID
+JOIN Employee e ON tr.EmployeeID = e.EmployeeID
+WHERE aw.TurnaroundDays IS NOT NULL
+GROUP BY e.Department
+ORDER BY avg_turnaround_days DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Measures how long compliance reviews take on average for different departments. "
+            "Answers: Which departments have the slowest approval turnaround? "
+            "Finding: {signal} "
+            "Tables: ApprovalWorkflow, TradeRequest, Employee."
+        ),
+        "ttl_hours": 24,
+        "tags": ["department", "approval", "turnaround", "aggregation"],
+        "tables_used": ["ApprovalWorkflow", "TradeRequest", "Employee"],
+        "key_columns": ["department", "avg_turnaround_days", "total_reviews"],
+        "staleness_trigger": "daily",
+        "linked_capsule_ids": [],
+        "relationship_types": [],
+    },
+
+    {
+        "capsule_id": "average_review_time_by_reviewer",
+        "capsule_type": "aggregation",
+        "priority": "P3",
+        "what": "Shows which individual compliance reviewers take the longest to complete decisions — slow reviewers may need workload rebalancing, additional resources, or decision-criteria training. Also shows total_rejections to distinguish slow-but-thorough from slow-and-permissive reviewers",
+        "how": "Joins ApprovalWorkflow to Employee on ReviewerID, averaging TurnaroundDays per reviewer. WHERE TurnaroundDays IS NOT NULL excludes pending reviews. Counts total_rejections separately so reviewers can be assessed on both speed and strictness. Ordered by avg_turnaround_days DESC",
+        "sql": """
+SELECT
+    r.EmployeeName                         AS reviewer_name,
+    COUNT(aw.WorkflowID)                   AS total_reviews,
+    AVG(CAST(aw.TurnaroundDays AS FLOAT))  AS avg_turnaround_days,
+    SUM(CASE WHEN aw.Decision = 'Rejected' THEN 1 ELSE 0 END) AS total_rejections
+FROM ApprovalWorkflow aw
+JOIN Employee r ON aw.ReviewerID = r.EmployeeID
+WHERE aw.TurnaroundDays IS NOT NULL
+GROUP BY r.EmployeeID, r.EmployeeName
+ORDER BY avg_turnaround_days DESC
+""".strip(),
+        "signal_method": "rule_based",
+        "embed_text_template": (
+            "Identifies which reviewer takes the longest on average to complete reviews. "
+            "Answers: Which reviewer takes the longest on average to complete reviews? "
+            "Finding: {signal} "
+            "Tables: ApprovalWorkflow, Employee."
+        ),
+        "ttl_hours": 24,
+        "tags": ["reviewer", "approval", "turnaround", "aggregation"],
+        "tables_used": ["ApprovalWorkflow", "Employee"],
+        "key_columns": ["reviewer_name", "avg_turnaround_days", "total_reviews"],
+        "staleness_trigger": "daily",
+        "linked_capsule_ids": [],
+        "relationship_types": [],
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CATEGORY 9 — RANDOM SAMPLE VIEWS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    {
+        "capsule_id": "five_table_random_sample",
+        "capsule_type": "sample",
+        "priority": "P3",
+        "what": "A random spot-check of 50 complete compliance records drawn from all six core tables simultaneously — used for data quality checks, auditor walkthroughs, exploratory pattern discovery, and understanding what real end-to-end compliance records look like in practice",
+        "how": "Joins all six tables with TradeRequest as the fact table. Employee and BrokerDealer are INNER JOINs (required). ComplianceAlert, ApprovalWorkflow, and RestrictedSecurity are LEFT JOINs so records appear even without alerts or workflow entries. ORDER BY random() LIMIT 50 produces a different sample on each refresh",
+        "sql": (
+            "SELECT  "
+            "e.EmployeeName AS employee_name, e.Department AS department, "
+            "bd.BrokerDealerName AS broker_dealer, bd.Country AS broker_country, "
+            "tr.SecuritySymbol AS security_symbol, tr.TradeType AS trade_type, "
+            "tr.Status AS trade_status, tr.Quantity AS quantity, "
+            "tr.RequestDate AS request_date, "
+            "ca.AlertType AS alert_type, ca.Severity AS severity, ca.Status AS alert_status, "
+            "aw.Decision AS review_decision, aw.TurnaroundDays AS turnaround_days, "
+            "rs.RestrictionType AS restriction_type, "
+            "rs.StartDate AS restriction_start "
+            "FROM TradeRequest tr "
+            "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
+            "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
+            "LEFT JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID "
+            "LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID "
+            "LEFT JOIN RestrictedSecurity rs ON rs.SecuritySymbol = tr.SecuritySymbol "
+            "AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31') "
+            "ORDER BY random() LIMIT 50"
+        ),
+        "signal_method": "sample",
+        "embed_text_template": (
+            "A random spot-check sample of 50 live compliance records drawn from all five tables: "
+            "Employee, TradeRequest, BrokerDealer, ComplianceAlert, and ApprovalWorkflow. "
+            "Use this capsule to answer: what do real compliance records look like end to end, "
+            "show me example records with both alerts and decisions, "
+            "what does a typical trade request look like across broker and employee, "
+            "give me a ground-level view of actual compliance data for spot checking or audit preparation. "
+            "This capsule provides raw evidence rather than aggregated counts — "
+            "useful for data quality checks, auditor walkthroughs, and pattern discovery. "
+            "Synonyms: sample records, example data, spot check, raw compliance data, record examples. "
+            "Finding: {signal}"
+        ),
+        "ttl_hours": 12,
+        "tags": ["sample", "raw_data", "five_table_join", "exploratory", "spot_check", "audit"],
+        "tables_used": ["Employee", "TradeRequest", "BrokerDealer", "ComplianceAlert", "ApprovalWorkflow", "RestrictedSecurity"],
+        "key_columns": ["employee_name", "broker_dealer", "security_symbol", "trade_status", "alert_type", "review_decision"],
+        "staleness_trigger": "any new row in any of the five tables",
+        "linked_capsule_ids": ["violations_on_restricted_securities", "trade_requests_by_broker_dealer", "high_severity_open_alerts"],
+        "relationship_types": ["corroborates", "corroborates", "corroborates"],
+    },
+
+    {
+        "capsule_id": "violation_records_sample",
+        "capsule_type": "sample",
+        "priority": "P3",
+        "what": "A random sample of 50 confirmed violation records — actual trades where an employee submitted a request during a proven active restriction window. Used for auditor case building, evidence review, and understanding the real-world mechanics of restriction breaches",
+        "how": "INNER JOINs TradeRequest to RestrictedSecurity using the date-overlap condition (RequestDate BETWEEN StartDate AND COALESCE(EndDate, '9999-12-31')) — this ensures only confirmed violation records appear, not just trades near a restriction. Joins Employee and BrokerDealer for context. ORDER BY random() LIMIT 50",
+        "sql": (
+            "SELECT  "
+            "e.EmployeeName AS employee_name, e.Department AS department, "
+            "bd.BrokerDealerName AS broker_dealer, "
+            "tr.SecuritySymbol AS security_symbol, rs.RestrictionType AS restriction_type, "
+            "tr.TradeType AS trade_type, tr.Status AS trade_status, tr.Quantity AS quantity, "
+            "tr.RequestDate AS request_date, "
+            "rs.StartDate AS restriction_start, "
+            "COALESCE(rs.EndDate, '9999-12-31') AS restriction_end "
+            "FROM TradeRequest tr "
+            "JOIN RestrictedSecurity rs ON rs.SecuritySymbol = tr.SecuritySymbol "
+            "AND tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31') "
+            "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
+            "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
+            "ORDER BY random() LIMIT 50"
+        ),
+        "signal_method": "sample",
+        "embed_text_template": (
+            "A random sample of 50 raw violation records — trades that occurred while the security "
+            "was on an active restriction list such as a blackout, insider list, or watch list. "
+            "Use this capsule to answer: show me real violation examples, "
+            "what do restriction breach records look like, "
+            "give me example records of trades made during active bans or blackouts, "
+            "show me employees and brokers caught in restriction overlaps. "
+            "This capsule shows the raw evidence behind violation counts — "
+            "useful for auditor review, case building, and understanding which restriction types are most breached. "
+            "Synonyms: breach examples, violation records, non-compliant trade samples, policy break records. "
+            "Finding: {signal}"
+        ),
+        "ttl_hours": 12,
+        "tags": ["sample", "violation", "restriction", "raw_data", "breach", "audit", "date_overlap"],
+        "tables_used": ["TradeRequest", "RestrictedSecurity", "Employee", "BrokerDealer"],
+        "key_columns": ["employee_name", "broker_dealer", "security_symbol", "restriction_type", "trade_status", "request_date"],
+        "staleness_trigger": "new TradeRequest or RestrictedSecurity row",
+        "linked_capsule_ids": ["violations_on_restricted_securities", "violations_by_broker_dealer", "repeat_violators"],
+        "relationship_types": ["drills_down", "corroborates", "corroborates"],
+    },
+
+    {
+        "capsule_id": "high_risk_records_sample",
+        "capsule_type": "sample",
+        "priority": "P3",
+        "what": "A random sample of 50 open or investigating Critical/High severity compliance incidents — the live evidence behind the open alert count. Used for triage reviews, escalation decisions, and understanding what the most serious unresolved compliance cases look like in full detail",
+        "how": "INNER JOINs TradeRequest to ComplianceAlert filtered for Severity IN ('Critical', 'High') AND Status IN ('Open', 'Investigating') — only confirmed high-severity unresolved alerts appear. LEFT JOINs ApprovalWorkflow for reviewer decision context. ORDER BY random() LIMIT 50 gives a fresh evidence sample each refresh",
+        "sql": (
+            "SELECT  "
+            "e.EmployeeName AS employee_name, e.Department AS department, "
+            "bd.BrokerDealerName AS broker_dealer, "
+            "tr.SecuritySymbol AS security_symbol, tr.TradeType AS trade_type, tr.Status AS trade_status, "
+            "tr.RequestDate AS request_date, "
+            "ca.AlertType AS alert_type, ca.Severity AS severity, ca.Status AS alert_status, "
+            "ca.AlertDate AS alert_date, "
+            "aw.Decision AS review_decision, aw.TurnaroundDays AS turnaround_days "
+            "FROM TradeRequest tr "
+            "JOIN ComplianceAlert ca ON ca.TradeRequestID = tr.TradeRequestID "
+            "JOIN Employee e ON tr.EmployeeID = e.EmployeeID "
+            "JOIN BrokerDealer bd ON tr.BrokerDealerID = bd.BrokerDealerID "
+            "LEFT JOIN ApprovalWorkflow aw ON aw.TradeRequestID = tr.TradeRequestID "
+            "WHERE ca.Severity IN ('Critical', 'High') "
+            "AND ca.Status IN ('Open', 'Investigating') "
+            "ORDER BY random() LIMIT 50"
+        ),
+        "signal_method": "sample",
+        "embed_text_template": (
+            "A random sample of 50 high-risk compliance records where a Critical or High severity "
+            "alert is still open or actively being investigated. "
+            "Use this capsule to answer: show me examples of open critical alerts, "
+            "what do high severity unresolved incidents look like, "
+            "give me sample records of employees and brokers with active compliance flags, "
+            "show me unresolved issues that need immediate attention. "
+            "This capsule surfaces the raw evidence behind the open alert count — "
+            "ideal for triage reviews, escalation decisions, and understanding what high-risk records contain. "
+            "Synonyms: open critical alerts, unresolved high severity incidents, active compliance flags, urgent cases. "
+            "Finding: {signal}"
+        ),
+        "ttl_hours": 12,
+        "tags": ["sample", "high_severity", "open_alerts", "raw_data", "critical", "unresolved", "triage"],
+        "tables_used": ["TradeRequest", "ComplianceAlert", "Employee", "BrokerDealer", "ApprovalWorkflow"],
+        "key_columns": ["employee_name", "broker_dealer", "alert_type", "severity", "alert_status", "review_decision"],
+        "staleness_trigger": "new ComplianceAlert row or status change",
+        "linked_capsule_ids": ["high_severity_open_alerts", "repeat_violators", "broker_dealers_high_rejection_and_alerts"],
+        "relationship_types": ["drills_down", "corroborates", "corroborates"],
+    },
+
+]

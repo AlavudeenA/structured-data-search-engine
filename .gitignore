@@ -9,3 +9,12 @@
 /.vs/VSWorkspaceState.json
 /.vs/structured-data-search-engine.slnx
 /.vs/ProjectSettings.json
+/.vs/structured-data-search-engine/CopilotIndices/18.3.511.5503
+/src/qdrant_test_data/collection/test_col
+*.pyc
+/src/pipeline1/__pycache__/__init__.cpython-313.pyc
+/src/qdrant_test_data/.lock
+*.py.tmp.*
+/src/business_schema/dbscript.sql.tmp.*
+/vscode-lm-extension/node_modules/@types
+/vscode-lm-extension/node_modules

@@ -1,185 +1,83 @@
-# File: src/app_constants.py
-"""Shared constants for limits, defaults, and repeated labels."""
+"""Shared constants for the compliance capsule engine."""
 
 from __future__ import annotations
 
-# General models
-DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
-DEFAULT_EMBED_MODEL = "BAAI/bge-base-en-v1.5"
+from pathlib import Path
 
-# Intent routing constants
-INTENT_STRUCTURED_QUERY = "structured_query"
-INTENT_ANALYTICAL_QUERY = "analytical_query"
-ANALYTICAL_TERMS = {
-    "trend",
-    "pattern",
-    "patterns",
-    "anomaly",
-    "anomalies",
-    "forecast",
-    "correlation",
-    "relationship",
-    "compare",
-    "comparison",
-    "over time",
-    "change",
-    "increase",
-    "decrease",
-    "distribution",
-    "why",
-    "explain",
-    "insight",
-    "behavior",
-}
-STRUCTURED_TERMS = {
-    "show",
-    "list",
-    "count",
-    "how many",
-    "display",
-    "get",
-    "retrieve",
-    "select",
-    "where",
-    "group by",
-    "order by",
-}
+# ── LLM provider toggle ────────────────────────────────────────────────────────
+# True  → Groq API (requires GROQ_API_KEY in .env)
+# False → VS Code Language Model API via the local extension host (default)
+USE_GROQ: bool = True
 
-# Database defaults/safety
-DB_DEFAULT_CONN_STR = (
-    "DRIVER={ODBC Driver 17 for SQL Server};"
-    "SERVER=localhost\\SQLEXPRESS;"
-    "DATABASE=Compliance;"
-    "Trusted_Connection=yes;"
-)
-ALLOWED_TABLES = {
-    "Employee",
-    "BrokerDealer",
-    "Account",
-    "TradeRequest",
-}
+COLLECTION_ANALYTICAL = "analytical_capsules"
+COLLECTION_SCHEMA = "schema_context_capsules"
+COLLECTION_LINKED = "linked_capsules"
+ALL_COLLECTIONS = [COLLECTION_ANALYTICAL, COLLECTION_SCHEMA, COLLECTION_LINKED]
 
-# Capsule generation / ingestion
-DEFAULT_TARGET_CAPSULES = 1000
-DEFAULT_ROWS_PER_CAPSULE = 60
-DEFAULT_MAX_GROUP_COLS_PER_TABLE = 5
-DEFAULT_MAX_RANDOM_PER_TABLE = 5
+EMBED_DIM = 384
+EMBED_MODEL_DEFAULT = "BAAI/bge-small-en-v1.5"
 
-GEN_ROWS_MIN = 1
-GEN_ROWS_MAX_ALLOWED = 99
-GEN_ROWS_MAX_EXCLUSIVE = 100
-MANUAL_ROWS_MAX = 100
-
-MAX_GROUP_COLS_MIN = 1
-MAX_GROUP_COLS_MAX = 20
-TARGET_CAPSULES_MIN = 1
-TARGET_CAPSULES_MAX = 100000
-
-INGESTION_MODE_APPEND_UNIQUE = "append_unique"
-
-# Capsule planner
-DEFAULT_MAX_COLUMNS_PER_RANDOM_PROJECTION = 8
-DEFAULT_MAX_KEY_COLUMNS_IN_PROJECTION = 4
-DEFAULT_MAX_DATE_COLUMNS_PER_TABLE = 2
-DEFAULT_MAX_NUMERIC_OUTLIER_COLUMNS = 2
-
-CAPSULE_TYPE_RANDOM_SAMPLE = "random_sample"
 CAPSULE_TYPE_AGGREGATION = "aggregation"
-CAPSULE_TYPE_DISTRIBUTION = "distribution"
 CAPSULE_TYPE_TREND = "trend"
-CAPSULE_TYPE_ANOMALY = "anomaly"
-CAPSULE_TYPE_SUMMARY = "summary"
-CAPSULE_TYPE_SCHEMA_CONTEXT = "schema_context"
-ANALYTICAL_CAPSULE_TYPES = (
-    CAPSULE_TYPE_RANDOM_SAMPLE,
-    CAPSULE_TYPE_AGGREGATION,
-    CAPSULE_TYPE_DISTRIBUTION,
-    CAPSULE_TYPE_TREND,
-    CAPSULE_TYPE_ANOMALY,
-    CAPSULE_TYPE_SUMMARY,
-)
+CAPSULE_TYPE_VIOLATION = "violation"
+CAPSULE_TYPE_PATTERN = "pattern"
+CAPSULE_TYPE_RISK = "risk"
+CAPSULE_TYPE_OPERATIONAL = "operational"
+CAPSULE_TYPE_DISTRIBUTION = "distribution"
+CAPSULE_TYPE_LINKED = "linked"
+CAPSULE_TYPE_SAMPLE = "sample"
 
-# Retrieval / orchestration
-DEFAULT_ANALYTICAL_TOP_K = 5
-DEFAULT_TOP_K_PER_TYPE = 5
-DEFAULT_MIN_SCORE = 0.0
-DEFAULT_ANALYTICAL_MIN_SCORE = 0.2
-DEFAULT_ANALYTICAL_TOP_K_PER_TYPE = 3
-DEFAULT_SCHEMA_CONTEXT_TOP_K = 6
-SCHEMA_CONTEXT_MIN_SCORE = 0.15
-FORCED_ANALYTICAL_TOP_K = 10
-FORCED_ANALYTICAL_TOP_K_PER_TYPE = 5
-CONFIDENCE_LOW_THRESHOLD = 0.3
-CONFIDENCE_MEDIUM_THRESHOLD = 0.5
-CONFIDENCE_HIGH_THRESHOLD = 0.75
-INTENT_REASON_MAX_WORDS = 20
-ANALYTICAL_INSUFFICIENT_ANSWER_MARKERS = (
-    "no analytical context capsules found",
-    "could not interpret rows",
-    "no clear signal exists",
-    "no clear signal",
-    "lacks specific",
-    "no usable rows found",
-)
+PRIORITY_P1 = "P1"
+PRIORITY_P2 = "P2"
+PRIORITY_P3 = "P3"
+PRIORITY_P4 = "P4"
 
-# UI listing defaults
-UI_VIEW_MIN_ITEMS = 10
-UI_VIEW_MAX_ITEMS = 5000
-UI_VIEW_DEFAULT_ITEMS = 500
+INTENT_STRUCTURED = "structured"
+INTENT_ANALYTICAL = "analytical"
+INTENT_HYBRID = "hybrid"
+INTENT_OPERATIONAL = "operational"
 
-# SQL/text-to-SQL
-SQL_FALLBACK_TOP_N = 100
-HTTP_DEFAULT_TIMEOUT_SECONDS = 20
-SUMMARY_ROWS_SAMPLE_SIZE = 25
+ANALYTICAL_TOP_K = 5
+SCHEMA_TOP_K = 5
+LINKED_TOP_K = 5
+ANALYTICAL_MIN_SCORE = 0.30
+SCHEMA_MIN_SCORE = 0.20
+LINKED_MIN_SCORE = 0.25
+CONFIDENCE_THRESHOLD_CAPSULE_ANSWER = 0.65
 
-# Network/API
-GROQ_RESPONSES_API_URL = "https://api.groq.com/openai/v1/responses"
-DEFAULT_USER_AGENT = "Compliance-Data-Assistant/1.0"
-HTTP_INTENT_TIMEOUT_SECONDS = 15
-HTTP_LLM_SERVICE_TIMEOUT_SECONDS = 25
+ANOMALY_STDDEV_MULTIPLIER = 2.0
+ANOMALY_DETECTED_THRESHOLD = 0.7
+TREND_CHANGE_PCT = 10.0
 
-# LLM sampling/defaults
-TEMPERATURE_ZERO = 0.0
-DEFAULT_ANALYTICAL_TEMPERATURE = 0.1
-DEFAULT_ANALYTICAL_MAX_OUTPUT_TOKENS = 250
-DEFAULT_SQL_MAX_OUTPUT_TOKENS = 200
-DEFAULT_SUMMARY_TEMPERATURE = 0.2
-DEFAULT_CALL_LLM_MAX_OUTPUT_TOKENS = 300
+MAX_HOP_DEPTH = 2
+MAX_LINKED_CAPSULES = 3
+MIN_SHARED_TAGS_FOR_RELATION = 2
 
-# Analytical summarization/reranking
-ANALYTICAL_ROWS_SAMPLE_SIZE = 50
-ANALYTICAL_FALLBACK_PREVIEW_FIELDS = 3
-ANALYTICAL_FALLBACK_OTHERS_LIMIT = 4
-PRIORITY_BOOST_HIGH = 0.05
-PRIORITY_BOOST_MEDIUM = 0.02
-PRIORITY_BOOST_LOW = 0.0
+DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+ANALYTICAL_REFRESH_PLAN_FILE = DATA_DIR / ".analytical_refresh_plan.json"
+SCHEMA_FINGERPRINT_FILE = DATA_DIR / ".schema_fingerprint.json"
+CAPSULE_GRAPH_FILE = DATA_DIR / ".capsule_graph.json"
+DATA_FINGERPRINT_FILE = DATA_DIR / ".data_fingerprint.json"
 
-# Capsule summary generation
-CAPSULE_SUMMARY_SAMPLE_ROWS = 8
-CAPSULE_HEURISTIC_TAG_PREVIEW = 4
-CAPSULE_NUMERIC_COLUMNS_SUMMARY_LIMIT = 8
-CAPSULE_SUMMARY_MAX_SENTENCES = 3
-CAPSULE_SUMMARY_MAX_OUTPUT_TOKENS = 180
+CAPSULE_HISTORY_DIR = DATA_DIR / "capsule_history"
+CAPSULE_HISTORY_RETENTION_DAYS = 30
 
-# Routing confidence fallbacks
-INTENT_FALLBACK_COMPARATIVE_CONFIDENCE = 0.7
-INTENT_FALLBACK_DEFAULT_CONFIDENCE = 0.66
-INTENT_CONFIDENCE_CLAMP_DEFAULT = 0.5
+DB_MAX_RETRIES = 3
+DB_MAX_POOL = 10
+DB_EXECUTE_MAX_ROWS = 500
+CAPSULE_RESULT_MAX_ROWS = 50
 
-# Vector store operational defaults
-DEFAULT_COLLECTION = "context_capsules"
-DEFAULT_QDRANT_PATH = "qdrant_data"
-DEFAULT_REFRESH_PLAN_FILE = ".analytical_capsule_refresh_plan.json"
-DEFAULT_SCHEMA_FINGERPRINT_FILE = ".schema_capsule_fingerprint.json"
-VECTOR_LIST_LIMIT_DEFAULT = 1000
-VECTOR_SQL_SCROLL_LIMIT_DEFAULT = 10000
-VECTOR_SCROLL_BATCH_SMALL = 250
-VECTOR_SCROLL_BATCH_LARGE = 1000
-VECTOR_SCORE_DEFAULT = 1.0
-VECTOR_DELETE_SCROLL_LIMIT = 1000
-VECTOR_SCROLL_ALL_POINTS_LIMIT = 200000
-VECTOR_UPSERT_LOCK_STALE_SECONDS = 3600
+UI_MAX_HISTORY = 5
+UI_MAX_CAPSULE_ROWS = 500
 
-# Database operation defaults
-DB_CONNECTION_TIMEOUT_SECONDS = 10
-DB_EXECUTE_SELECT_MAX_ROWS = 500
+REL_CORROBORATES = "corroborates"
+REL_DRILLS_DOWN = "drills_down"
+REL_AGGREGATES_UP = "aggregates_up"
+REL_SAME_ENTITY = "same_entity"
+
+TAG_ANOMALY = "anomaly_detected"
+TAG_ESCALATING = "escalating_risk"
+
+VIOLATION_TYPES = [CAPSULE_TYPE_VIOLATION, CAPSULE_TYPE_RISK]
+

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from src.capsule_definitions import CAPSULE_DEFINITIONS, COVERAGE_COUNTS; print\\(f'Total capsules: {len\\(CAPSULE_DEFINITIONS\\)}'\\); [print\\(f'  {k}: {v}'\\) for k,v in COVERAGE_COUNTS.items\\(\\)]\")",
+      "Bash(python -c ' *)",
+      "Bash(git lfs *)"
+    ]
+  }
+}
