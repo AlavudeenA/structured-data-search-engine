@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 
-from ..app_constants import DATA_DIR
+from .app_constants import DATA_DIR
 
 logger = logging.getLogger(__name__)
 

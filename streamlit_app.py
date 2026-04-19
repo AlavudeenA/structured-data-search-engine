@@ -18,13 +18,13 @@ from src.app_constants import (
 )
 from src.capsule_builder.relationship_builder import load_graph
 from src.capsule_builder.store_manager import generate_all_capsule_collections, refresh_data_only, schema_refresh
-from src.capsule_builder.user_capsule_builder import build_single_capsule
+from src.capsule_builder.user_capsule_builder import build_single_capsule, enrich_user_capsule_metadata, generate_capsule_sql
 from src.capsule_history import available_snapshot_dates, load_capsules_in_range
 from src.data_fingerprint import check_schema_and_refresh_if_needed
 from src.query_engine.activity_comparator import compare_periods
 from src.user_capsules import delete_user_capsule_def, load_user_capsule_defs, save_user_capsule_def
 from src.query_engine.orchestrator import handle_query
-from src.vector_store import clear_collection, collection_counts, delete_by_capsule_id, reset_all_collections, scroll_all
+from src.vector_store import collection_counts, delete_by_capsule_id, reset_all_collections, scroll_all
 from src.database_connection import execute_select
 
 st.set_page_config(page_title="Analytical Search Engine", page_icon="", layout="wide")
@@ -45,6 +45,9 @@ def init_state() -> None:
         "explorer_capsules": [],
         "schema_checked": False,
         "_uc_preview": None,
+        "_uc_intent": "",
+        "_uc_sql_input": "",
+        "_uc_what_input": "",
         "activity_baseline": {},
         "activity_comparison": {},
         "activity_base_dates": None,
@@ -110,20 +113,24 @@ def record_telemetry(result) -> None:
 sidebar_collections = st.sidebar.empty()
 with sidebar_collections.container():
     st.markdown("### Collections")
-    st.json(collection_counts())
+    _counts = collection_counts()
+    st.json(_counts)
+    _uc_count = len(load_user_capsule_defs())
+    if _uc_count:
+        st.caption(f"↳ {_uc_count} user-created of {_counts.get('analytical_capsules', 0)} analytical")
 
 st.title("Analytical Search Engine")
 
-ask_tab, generate_tab, explorer_tab, graph_tab, telemetry_tab, insert_tab, activity_tab, reset_tab = st.tabs(
+ask_tab, generate_tab, insert_tab, activity_tab, telemetry_tab, explorer_tab, graph_tab, reset_tab = st.tabs(
     [
         "Ask Question",
         "Generate Capsules",
-        "Capsule Explorer",
-        "Capsule Graph",
-        "Telemetry",
         "Insert Capsule",
         "Data Activity",
-        "Reset",
+        "Telemetry",
+        "Capsule Explorer",
+        "Capsule Graph",
+        "Reset Capsules",
     ]
 )
 
@@ -438,12 +445,36 @@ with telemetry_tab:
 
 with insert_tab:
     st.subheader("Create User Capsule")
+    st.caption("Describe what you want to measure — AI writes the SQL. Or write SQL directly. AI derives all other metadata.")
 
-    # ── Step 1: SQL form ──────────────────────────────────────────────────────
+    # ── Step 0: Intent → SQL ──────────────────────────────────────────────────
+    st.markdown("**Intent** *(optional — describe what to measure in plain English)*")
+    intent_val = st.text_area(
+        "intent_area",
+        label_visibility="collapsed",
+        key="_uc_intent",
+        height=80,
+        placeholder="e.g. Show me brokers with the highest trade rejection rate in the last 90 days",
+    )
+    gen_btn_disabled = not (intent_val or "").strip()
+    if st.button("Generate SQL from Intent", disabled=gen_btn_disabled, key="_gen_sql_btn"):
+        with st.spinner("Generating SQL…"):
+            generated = generate_capsule_sql(intent_val.strip())
+        if generated:
+            st.session_state["_uc_sql_input"] = generated
+            st.session_state["_uc_what_input"] = intent_val.strip()
+            st.rerun()
+        else:
+            st.error("SQL generation failed — try rephrasing or write SQL manually.")
+
+    st.divider()
+
+    # ── Step 1: User fills only what they know ────────────────────────────────
     with st.form("capsule_form"):
-        c_name = st.text_input("Name*", placeholder="e.g. High Risk Broker Trades")
-        c_sql  = st.text_area(
-            "SQL*", height=180,
+        c_name = st.text_input("Name *", placeholder="e.g. High Risk Broker Trades")
+        c_sql = st.text_area(
+            "SQL *", height=180,
+            key="_uc_sql_input",
             placeholder=(
                 "SELECT tr.BrokerDealerID AS broker_id,\n"
                 "       COUNT(*) AS total_requests,\n"
@@ -455,70 +486,87 @@ with insert_tab:
                 "LIMIT 50"
             ),
         )
-        c_what = st.text_input("What does this measure?*", placeholder="e.g. Rejection rate per broker over the last 90 days")
-        col_t, col_p = st.columns(2)
-        c_type = col_t.selectbox("Type", ["aggregation", "trend", "violation", "pattern", "risk", "operational", "distribution", "sample"])
-        c_priority = col_p.selectbox("Priority", ["P3", "P1", "P2", "P4"])
-        c_tags = st.text_input("Tags (comma-separated)", placeholder="e.g. broker, rejection, risk")
-        validated = st.form_submit_button("Validate SQL", type="primary")
+        c_what = st.text_input(
+            "What does this measure? *",
+            key="_uc_what_input",
+            placeholder="e.g. Rejection rate per broker over the last 90 days",
+        )
+        c_priority = st.selectbox("Priority", ["P3", "P1", "P2", "P4"])
+        submitted = st.form_submit_button("Validate & Enrich", type="primary")
 
-    if validated:
-        if not c_name or not c_sql or not c_what:
+    if submitted:
+        if not c_name.strip() or not c_sql.strip() or not c_what.strip():
             st.error("Name, SQL, and What are required.")
         else:
-            with st.spinner("Validating SQL..."):
+            with st.spinner("Validating SQL and enriching metadata with AI…"):
                 try:
                     preview_rows = execute_select(c_sql, max_rows=50)
-                    st.session_state["_uc_preview"] = {
-                        "name": c_name, "sql": c_sql, "what": c_what,
-                        "type": c_type, "priority": c_priority, "tags": c_tags,
-                        "rows": preview_rows,
-                    }
-                    st.success(f"SQL valid — {len(preview_rows)} rows returned.")
                 except Exception as exc:
                     st.session_state.pop("_uc_preview", None)
                     st.error(f"SQL error: {exc}")
+                    preview_rows = None
 
-    # ── Step 2: Preview + Save ────────────────────────────────────────────────
+                if preview_rows is not None:
+                    enriched = enrich_user_capsule_metadata(c_what.strip(), c_sql.strip(), preview_rows)
+                    st.session_state["_uc_preview"] = {
+                        "name":     c_name.strip(),
+                        "sql":      c_sql.strip(),
+                        "what":     c_what.strip(),
+                        "priority": c_priority,
+                        "rows":     preview_rows,
+                        "enriched": enriched,
+                    }
+
+    # ── Step 2: Show preview + enriched metadata, then Save & Build ──────────
     preview = st.session_state.get("_uc_preview")
     if preview:
+        st.success(f"SQL valid — {len(preview['rows'])} rows returned.")
+
         st.markdown("**Preview (up to 50 rows)**")
         st.dataframe(preview["rows"], use_container_width=True)
+
+        enriched = preview["enriched"]
+        with st.expander("AI-enriched metadata — review before saving", expanded=True):
+            col_l, col_r = st.columns(2)
+            col_l.markdown(f"**Type:** `{enriched['capsule_type']}`")
+            col_r.markdown(f"**TTL:** `{enriched['ttl_hours']}h` · **Signal:** `{enriched['signal_method']}`")
+            st.markdown(f"**How:** {enriched['how']}")
+            st.markdown(f"**Tables used:** {', '.join(enriched['tables_used']) or '—'}")
+            st.markdown(f"**Key columns:** {', '.join(enriched['key_columns']) or '—'}")
+            st.markdown(f"**Tags:** {', '.join(enriched['tags']) or '—'}")
+            st.markdown(f"**Staleness trigger:** {enriched['staleness_trigger']}")
+            st.markdown(f"**Embed text:** {enriched['embed_text_template']}")
 
         if st.button("Save & Build Capsule", type="primary"):
             import re as _re
             capsule_id = "user_" + _re.sub(r"[^a-z0-9]+", "_", preview["name"].lower()).strip("_")
-            tags = [t.strip() for t in preview["tags"].split(",") if t.strip()] + ["user_defined", preview["type"]]
-            tables = sorted({t for t in _re.findall(r"(?:FROM|JOIN)\s+([A-Za-z_]\w*)", preview["sql"], _re.IGNORECASE)})
-
             capsule_def = {
                 "capsule_id":          capsule_id,
-                "capsule_type":        preview["type"],
+                "capsule_type":        enriched["capsule_type"],
                 "priority":            preview["priority"],
                 "what":                preview["what"],
-                "how":                 "User-defined SQL capsule",
-                "sql":                 preview["sql"].strip(),
-                "signal_method":       "rule_based",
-                "embed_text_template": preview["what"],
-                "ttl_hours":           24,
-                "tags":                tags,
-                "tables_used":         tables,
-                "key_columns":         list(preview["rows"][0].keys()) if preview["rows"] else [],
-                "staleness_trigger":   "data_change",
+                "how":                 enriched["how"],
+                "sql":                 preview["sql"],
+                "signal_method":       enriched["signal_method"],
+                "embed_text_template": enriched["embed_text_template"],
+                "ttl_hours":           enriched["ttl_hours"],
+                "tags":                enriched["tags"],
+                "tables_used":         enriched["tables_used"],
+                "key_columns":         enriched["key_columns"],
+                "staleness_trigger":   enriched["staleness_trigger"],
                 "linked_capsule_ids":  [],
                 "relationship_types":  [],
             }
-
-            with st.spinner("Building capsule..."):
+            with st.spinner("Building and linking capsule…"):
                 save_user_capsule_def(capsule_def)
                 ok = build_single_capsule(capsule_def)
 
             if ok:
-                st.success(f"Capsule '{capsule_id}' saved and built successfully.")
+                st.success(f"Capsule `{capsule_id}` saved, built, and linked to related capsules.")
                 st.session_state.pop("_uc_preview", None)
                 st.rerun()
             else:
-                st.error("Build failed — capsule definition saved but not indexed. Check logs.")
+                st.error("Build failed — definition saved but not indexed. Check logs.")
 
     # ── My Capsules (list + delete) ───────────────────────────────────────────
     st.divider()
@@ -658,8 +706,8 @@ with activity_tab:
                     st.markdown(result)
 
 with reset_tab:
-    st.subheader("Reset")
-    st.warning("This clears all Qdrant collections (analytical, schema, linked).")
+    st.subheader("Reset Capsules")
+    st.warning("This removes all indexed capsules (analytical, schema, linked). All capsule definitions are preserved — run **Generate All Capsules** in the **Generate Capsules** tab to rebuild.")
     user_caps_count = len(load_user_capsule_defs())
     if user_caps_count:
         st.info(

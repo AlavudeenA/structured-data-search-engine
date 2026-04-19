@@ -14,10 +14,12 @@ from ..app_constants import (
     REL_DRILLS_DOWN,
     REL_SAME_ENTITY,
 )
+from ..app_constants import COLLECTION_ANALYTICAL
 from ..embedding import embed_single, ensure_data_dir
 from ..llm_service import call_llm
 from ..models import CapsuleGraph, LinkedCapsule, GeneratedCapsule, RelationshipEdge
 from ..llm_instructions import LINKED_SIGNAL_SYSTEM, LINKED_SIGNAL_USER
+from ..vector_store import scroll_all, set_payload_fields
 
 logger = logging.getLogger(__name__)
 
@@ -150,3 +152,131 @@ def load_graph() -> CapsuleGraph | None:
     except Exception as exc:
         logger.error("Failed to load capsule graph: %s", exc)
         return None
+
+
+def _payload_to_capsule(payload: dict) -> GeneratedCapsule | None:
+    """Convert a Qdrant payload dict to a GeneratedCapsule for relationship inference.
+    Returns None if required fields are missing.
+    """
+    try:
+        return GeneratedCapsule(
+            capsule_id=payload["capsule_id"],
+            capsule_type=payload.get("capsule_type", "aggregation"),
+            priority=payload.get("priority", "P3"),
+            what=payload.get("what", ""),
+            how=payload.get("how", ""),
+            sql=payload.get("sql", ""),
+            signal_method=payload.get("signal_method", "rule_based"),
+            signal=payload.get("signal", ""),
+            embed_text=payload.get("embed_text", ""),
+            tables_used=payload.get("tables_used") or [],
+            key_columns=payload.get("key_columns") or [],
+            tags=payload.get("tags") or [],
+            ttl_hours=payload.get("ttl_hours", 24),
+            generated_at=payload.get("generated_at", ""),
+            expires_at=payload.get("expires_at", ""),
+            staleness_trigger=payload.get("staleness_trigger", ""),
+            result_rows=payload.get("result_rows") or [],
+            anomaly_score=float(payload.get("anomaly_score", 0.0)),
+            trend_direction=payload.get("trend_direction", "flat"),
+            linked_capsule_ids=payload.get("linked_capsule_ids") or [],
+            relationship_types=payload.get("relationship_types") or [],
+        )
+    except Exception as exc:
+        logger.warning("Could not convert payload to capsule (%s): %s", payload.get("capsule_id"), exc)
+        return None
+
+
+def link_user_capsule_to_existing(new_capsule: GeneratedCapsule) -> None:
+    """Scan all existing analytical capsules and wire bidirectional links for the new user capsule.
+
+    For each existing capsule that has an inferred relationship with the new capsule:
+      - Appends the existing capsule's ID to the new capsule's linked_capsule_ids (via set_payload)
+      - Appends the new capsule's ID to the existing capsule's linked_capsule_ids (via set_payload)
+      - Appends the new edge to .capsule_graph.json
+
+    Then generates a linked alert capsule if the new capsule has anomaly_score > 0.
+    """
+    from .store_manager import _persist_linked
+
+    payloads = scroll_all(COLLECTION_ANALYTICAL)
+    new_linked_ids: list[str] = list(new_capsule.linked_capsule_ids)
+    new_rel_types: list[str] = list(new_capsule.relationship_types)
+    new_edges: list[RelationshipEdge] = []
+
+    for payload in payloads:
+        existing_id = payload.get("capsule_id", "")
+        if not existing_id or existing_id == new_capsule.capsule_id:
+            continue
+
+        existing = _payload_to_capsule(payload)
+        if existing is None:
+            continue
+
+        relationship, join_key = _infer_relationship(new_capsule, existing)
+        if not relationship:
+            continue
+
+        logger.info(
+            "User capsule %s linked to %s via %s",
+            new_capsule.capsule_id, existing_id, relationship,
+        )
+
+        # Update new capsule's link list (in memory — flushed once at the end)
+        if existing_id not in new_linked_ids:
+            new_linked_ids.append(existing_id)
+            new_rel_types.append(relationship)
+
+        # Update existing capsule's link list in Qdrant immediately (payload-only, no re-embed)
+        updated_existing_ids = list(existing.linked_capsule_ids)
+        updated_existing_rels = list(existing.relationship_types)
+        if new_capsule.capsule_id not in updated_existing_ids:
+            updated_existing_ids.append(new_capsule.capsule_id)
+            updated_existing_rels.append(relationship)
+            set_payload_fields(
+                COLLECTION_ANALYTICAL,
+                existing_id,
+                {
+                    "linked_capsule_ids": updated_existing_ids,
+                    "relationship_types": updated_existing_rels,
+                },
+            )
+
+        new_edges.append(
+            RelationshipEdge(
+                from_id=new_capsule.capsule_id,
+                to_id=existing_id,
+                relationship=relationship,
+                join_key=join_key,
+            )
+        )
+
+    # Flush updated links for the new capsule itself
+    if new_edges:
+        set_payload_fields(
+            COLLECTION_ANALYTICAL,
+            new_capsule.capsule_id,
+            {
+                "linked_capsule_ids": new_linked_ids,
+                "relationship_types": new_rel_types,
+            },
+        )
+        # Append new edges to the saved graph
+        graph = load_graph()
+        if graph is None:
+            graph = CapsuleGraph(
+                built_at=datetime.now(timezone.utc).isoformat(),
+                edges=[],
+                linked_capsule_ids=[],
+            )
+        graph.edges.extend(new_edges)
+        save_graph(graph)
+        logger.info(
+            "User capsule %s: added %d graph edge(s)", new_capsule.capsule_id, len(new_edges)
+        )
+
+    # Generate anomaly alert linked capsule if warranted
+    if new_capsule.anomaly_score and new_capsule.anomaly_score > 0.0:
+        alert_capsules = generate_linked_capsules([new_capsule])
+        if alert_capsules:
+            _persist_linked(alert_capsules)

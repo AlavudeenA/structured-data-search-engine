@@ -131,6 +131,23 @@ def scroll_all(collection: str, limit: int = 10_000) -> list[dict[str, Any]]:
     finally:
         client.close()
 
+def set_payload_fields(collection: str, capsule_id: str, fields: dict[str, Any]) -> None:
+    """Update specific payload fields on an existing point without touching its vector."""
+    client = QdrantClient(path=_get_qdrant_path())
+    try:
+        if not client.collection_exists(collection):
+            return
+        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{collection}:{capsule_id}"))
+        client.set_payload(
+            collection_name=collection,
+            payload=fields,
+            points=qmodels.PointIdsList(points=[point_id]),
+        )
+    except Exception as exc:
+        logger.error("set_payload_fields failed in %s for %s: %s", collection, capsule_id, exc)
+    finally:
+        client.close()
+
 def delete_by_capsule_id(collection: str, capsule_id: str) -> None:
     """Delete one capsule using deterministic point id."""
     client = QdrantClient(path=_get_qdrant_path())
