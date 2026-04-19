@@ -19,7 +19,9 @@ from src.app_constants import (
 from src.capsule_builder.relationship_builder import load_graph
 from src.capsule_builder.store_manager import generate_all_capsule_collections, refresh_data_only, schema_refresh
 from src.capsule_builder.user_capsule_builder import build_single_capsule
+from src.capsule_history import available_snapshot_dates, load_capsules_in_range
 from src.data_fingerprint import check_schema_and_refresh_if_needed
+from src.query_engine.activity_comparator import compare_periods
 from src.user_capsules import delete_user_capsule_def, load_user_capsule_defs, save_user_capsule_def
 from src.query_engine.orchestrator import handle_query
 from src.vector_store import clear_collection, collection_counts, delete_by_capsule_id, reset_all_collections, scroll_all
@@ -43,6 +45,10 @@ def init_state() -> None:
         "explorer_capsules": [],
         "schema_checked": False,
         "_uc_preview": None,
+        "activity_baseline": {},
+        "activity_comparison": {},
+        "activity_base_dates": None,
+        "activity_comp_dates": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -108,7 +114,7 @@ with sidebar_collections.container():
 
 st.title("Analytical Search Engine")
 
-ask_tab, generate_tab, explorer_tab, graph_tab, telemetry_tab, insert_tab, reset_tab = st.tabs(
+ask_tab, generate_tab, explorer_tab, graph_tab, telemetry_tab, insert_tab, activity_tab, reset_tab = st.tabs(
     [
         "Ask Question",
         "Generate Capsules",
@@ -116,6 +122,7 @@ ask_tab, generate_tab, explorer_tab, graph_tab, telemetry_tab, insert_tab, reset
         "Capsule Graph",
         "Telemetry",
         "Insert Capsule",
+        "Data Activity",
         "Reset",
     ]
 )
@@ -528,6 +535,127 @@ with insert_tab:
                 delete_by_capsule_id(COLLECTION_ANALYTICAL, uc["capsule_id"])
                 st.success(f"Deleted {uc['capsule_id']}")
                 st.rerun()
+
+with activity_tab:
+    st.subheader("Data Activity")
+    st.caption(
+        "Compare analytical capsule snapshots across two time periods. "
+        "Snapshots are saved automatically when data changes are detected during a query."
+    )
+
+    snapshot_dates = available_snapshot_dates()
+
+    if not snapshot_dates:
+        st.info(
+            "No capsule snapshots yet. Snapshots are created automatically the first time "
+            "a data change is detected while running a query."
+        )
+    else:
+        earliest = snapshot_dates[0]
+        latest = snapshot_dates[-1]
+
+        st.markdown("**Available snapshot dates:** " + ", ".join(d.strftime("%m/%d/%Y") for d in snapshot_dates))
+        st.divider()
+
+        col_base, col_comp = st.columns(2)
+
+        with col_base:
+            st.markdown("### Baseline Period")
+            base_from = st.date_input(
+                "From", value=earliest, min_value=earliest, max_value=latest, key="base_from"
+            )
+            base_to = st.date_input(
+                "To", value=latest, min_value=earliest, max_value=latest, key="base_to"
+            )
+
+        with col_comp:
+            st.markdown("### Comparison Period")
+            comp_from = st.date_input(
+                "From", value=earliest, min_value=earliest, max_value=latest, key="comp_from"
+            )
+            comp_to = st.date_input(
+                "To", value=latest, min_value=earliest, max_value=latest, key="comp_to"
+            )
+
+        st.divider()
+
+        if st.button("Load Capsules", type="secondary"):
+            if base_from > base_to:
+                st.error("Baseline Period: 'From' date must be on or before 'To' date.")
+            elif comp_from > comp_to:
+                st.error("Comparison Period: 'From' date must be on or before 'To' date.")
+            else:
+                st.session_state.activity_baseline = load_capsules_in_range(base_from, base_to)
+                st.session_state.activity_comparison = load_capsules_in_range(comp_from, comp_to)
+                st.session_state.activity_base_dates = (base_from, base_to)
+                st.session_state.activity_comp_dates = (comp_from, comp_to)
+                st.session_state.activity_base_selected = set(st.session_state.activity_baseline.keys())
+                st.session_state.activity_comp_selected = set(st.session_state.activity_comparison.keys())
+
+        baseline_caps: dict = st.session_state.get("activity_baseline", {})
+        comparison_caps: dict = st.session_state.get("activity_comparison", {})
+
+        if baseline_caps or comparison_caps:
+            col_bl, col_cl = st.columns(2)
+
+            with col_bl:
+                st.markdown(f"**Baseline — {len(baseline_caps)} unique capsule(s)**")
+                if baseline_caps:
+                    all_base = st.checkbox("Select all (Baseline)", value=True, key="base_all")
+                    base_selected: set[str] = set()
+                    for cid, cap in baseline_caps.items():
+                        default = all_base
+                        checked = st.checkbox(
+                            f"{cid} · {cap.get('capsule_type','?')} · anomaly={cap.get('anomaly_score','?')}",
+                            value=default,
+                            key=f"base_cb_{cid}",
+                        )
+                        if checked:
+                            base_selected.add(cid)
+                else:
+                    st.info("No snapshots found in Baseline range.")
+                    base_selected = set()
+
+            with col_cl:
+                st.markdown(f"**Comparison — {len(comparison_caps)} unique capsule(s)**")
+                if comparison_caps:
+                    all_comp = st.checkbox("Select all (Comparison)", value=True, key="comp_all")
+                    comp_selected: set[str] = set()
+                    for cid, cap in comparison_caps.items():
+                        default = all_comp
+                        checked = st.checkbox(
+                            f"{cid} · {cap.get('capsule_type','?')} · anomaly={cap.get('anomaly_score','?')}",
+                            value=default,
+                            key=f"comp_cb_{cid}",
+                        )
+                        if checked:
+                            comp_selected.add(cid)
+                else:
+                    st.info("No snapshots found in Comparison range.")
+                    comp_selected = set()
+
+            st.divider()
+
+            if st.button("Compare Periods", type="primary"):
+                final_baseline = {k: v for k, v in baseline_caps.items() if k in base_selected}
+                final_comparison = {k: v for k, v in comparison_caps.items() if k in comp_selected}
+
+                if not final_baseline and not final_comparison:
+                    st.warning("Select at least one capsule on either side to compare.")
+                else:
+                    base_dates = st.session_state.get("activity_base_dates", (base_from, base_to))
+                    comp_dates = st.session_state.get("activity_comp_dates", (comp_from, comp_to))
+                    with st.spinner("Comparing periods via LLM..."):
+                        result = compare_periods(
+                            baseline_capsules=final_baseline,
+                            comparison_capsules=final_comparison,
+                            baseline_start=base_dates[0],
+                            baseline_end=base_dates[1],
+                            comparison_start=comp_dates[0],
+                            comparison_end=comp_dates[1],
+                        )
+                    st.markdown("### Analysis")
+                    st.markdown(result)
 
 with reset_tab:
     st.subheader("Reset")

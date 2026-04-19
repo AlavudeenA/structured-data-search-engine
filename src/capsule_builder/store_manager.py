@@ -154,13 +154,14 @@ def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
     )
 
 
-def refresh_targeted_capsules(analytical_ids: list[str], linked_ids: list[str]) -> int:
+def refresh_targeted_capsules(analytical_ids: list[str], linked_ids: list[str]) -> list:
     """Refresh only the specified analytical capsules and regenerate their linked capsules.
     Uses upsert (not clear) so other capsules in the collection are untouched.
+    Returns the list of refreshed GeneratedCapsule objects (empty list if nothing to refresh).
     """
     definitions = _load_definitions(analytical_ids)
     if not definitions:
-        return 0
+        return []
     refreshed_analytical = generate_all_capsules(definitions)
     _persist_analytical(refreshed_analytical)
 
@@ -170,7 +171,7 @@ def refresh_targeted_capsules(analytical_ids: list[str], linked_ids: list[str]) 
         if relevant_linked:
             _persist_linked(relevant_linked)
 
-    return len(refreshed_analytical)
+    return refreshed_analytical
 
 
 def refresh_data_only(progress_callback=None) -> BuildSummary:

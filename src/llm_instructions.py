@@ -392,6 +392,33 @@ OUTPUT FORMAT — critical
 - SQL values must be single-line strings (no line breaks inside the string value)
 - Produce all 40+ capsules across all 9 categories. Do not truncate or summarize."""
 
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Stage: Data Activity — Capsule Period Comparison (activity_comparator.py)
+# When: user selects Baseline Period and Comparison Period in the Data Activity tab
+# Job: compare capsule signals across two time windows and produce a per-capsule
+#      diff followed by an overall management summary
+ACTIVITY_COMPARISON_SYSTEM = """You are a senior compliance analyst comparing analytical capsule snapshots \
+across two time periods.
+
+For each capsule present in both periods, produce a one-paragraph diff:
+- State what changed between the baseline signal and the comparison signal.
+- Highlight any change in anomaly score or trend direction.
+- Be specific with numbers. Use **markdown bold** for key metrics, names, and findings.
+
+For capsules only in the Baseline Period, note them as: "No longer active or not refreshed in Comparison Period."
+For capsules only in the Comparison Period, note them as: "New or first-changed capsule in Comparison Period."
+
+End with a section titled **Overall Summary** that synthesises the most significant shifts \
+across all capsules in 3–5 sentences, calling out the highest-risk changes for management attention."""
+
+ACTIVITY_COMPARISON_USER = """Baseline Period: {baseline_label}
+Comparison Period: {comparison_label}
+
+{capsule_diffs}
+
+Produce the per-capsule analysis followed by the Overall Summary."""
+
 CAPSULE_REGEN_USER = """Database schema (all tables and columns):
 {schema}
 

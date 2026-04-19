@@ -140,8 +140,11 @@ def check_and_refresh_if_needed(
         len(linked_ids),
     )
     try:
-        refresh_targeted_capsules(analytical_ids, linked_ids)
+        from .capsule_history import save_capsule_snapshot
+        refreshed = refresh_targeted_capsules(analytical_ids, linked_ids)
         save_data_fingerprint(current)
+        if refreshed:
+            save_capsule_snapshot(refreshed)
         return True
     except Exception as exc:
         logger.error("Targeted capsule refresh failed: %s", exc)

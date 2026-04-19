@@ -142,9 +142,9 @@ There are three types:
 
 ---
 
-## Change Detection
+## Change Detection & Data Activity
 
-The engine automatically detects when your data has changed and refreshes only the capsules needed to answer the current question.
+The engine automatically detects when your data has changed, refreshes only the relevant capsules, and saves a timestamped snapshot so management can compare what changed over time.
 
 ### Data Change Detection (per query)
 
@@ -166,6 +166,23 @@ When the Streamlit app starts (once per browser session), the engine:
 3. If the schema changed (columns added/removed, tables restructured), triggers a **full capsule rebuild** automatically
 
 This means adding a new column or table in `dbscript.sql` and re-running the app will auto-rebuild all capsules without manual intervention.
+
+### Capsule Snapshot History (Data Activity)
+
+Every time a targeted refresh runs successfully, the refreshed capsules are saved to:
+```
+data/capsule_history/MM-DD-YYYY/{capsule_id}.json
+```
+- **One folder per day** — only created when a change is detected. No empty folders.
+- **Same-day overwrites** — if data changes twice in a day, the later snapshot replaces the earlier one for the same capsule, keeping only the latest state of that day.
+- **Full capsule format** — consistent with the live Qdrant payload; no trimming.
+- **Auto-pruning** — folders older than `CAPSULE_HISTORY_RETENTION_DAYS` (default 30) are deleted on each write.
+
+The **Data Activity** tab lets management compare any two date ranges:
+1. Pick a **Baseline Period** (from/to dates) — the engine loads all unique capsules from snapshots in that range, keeping the latest version per capsule
+2. Pick a **Comparison Period** (own from/to dates) — same independently
+3. Select any combination of capsules on both sides via checkboxes
+4. Click **Compare Periods** → LLM produces a per-capsule signal diff followed by an **Overall Summary** calling out the highest-risk shifts
 
 ---
 
@@ -263,6 +280,7 @@ src/
   embedding.py              ← Text → vector via fastembed (bge-small-en-v1.5); manages fingerprint + plan files
   vector_store.py           ← Qdrant read/write: upsert, scroll, search, delete, reset
   data_fingerprint.py       ← Data change detection: COUNT + MAX(UpdatedAt) per table → SHA-256 hash
+  capsule_history.py        ← Save/load/prune dated capsule snapshots under data/capsule_history/
   user_capsules.py          ← CRUD for user-created capsule definitions in data/user_capsules.json
 
   capsule_builder/          ← Pipeline 1 — runs offline to build the knowledge base
@@ -276,6 +294,7 @@ src/
 
   query_engine/             ← Pipeline 2 — runs on every user question
     orchestrator.py         ← Entry point: coordinates all steps, data fingerprint check, returns final answer
+    activity_comparator.py  ← Builds per-capsule diff blocks and calls LLM for Baseline vs Comparison analysis
     query_router.py         ← Classifies intent (structured/analytical/hybrid/operational); keyword fallback if LLM fails
     context_searcher.py     ← Vector searches all 3 Qdrant collections for relevant capsules
     context_packager.py     ← Ranks and packages primary + linked + schema + related context
@@ -299,6 +318,9 @@ data/                       ← Runtime cache files (auto-created, safe to delet
   .capsule_graph.json            ← Capsule relationship graph (used by Capsule Graph tab)
   .data_fingerprint.json         ← Hash of table row counts + MAX(UpdatedAt) (checked on every query)
   user_capsules.json             ← User-created capsule definitions (persisted across rebuilds)
+  capsule_history/               ← Dated capsule snapshots for the Data Activity tab
+    MM-DD-YYYY/                  ← One folder per day a data change was detected
+      {capsule_id}.json          ← Full capsule payload; same-day overwrites keep latest state
 
 qdrant_data/                ← Local Qdrant vector store persistence (auto-created)
 fastembed_cache/            ← Pre-bundled bge-small-en-v1.5 model (384-dim, ~63 MB, no download needed)
@@ -485,6 +507,7 @@ Any capsule with `anomaly_score > 0.0` triggers automatic creation of a linked c
 | **Capsule Graph**     | Visual graph of how capsules relate to each other and any anomaly alerts                 |
 | **Telemetry**         | Log of all questions asked, routes taken, confidence scores, and timing                  |
 | **Insert Capsule**    | Validate SQL → preview 50 rows → Save & Build a user capsule permanently                 |
+| **Data Activity**     | Compare capsule snapshots across two time periods — Baseline vs Comparison — via LLM analysis |
 | **Reset**             | Wipe all Qdrant collections; user_capsules.json is preserved                             |
 
 ---
@@ -511,6 +534,8 @@ Any capsule with `anomaly_score > 0.0` triggers automatic creation of a linked c
 - **Data change detection:** Per-query `COUNT(*) + MAX(UpdatedAt)` fingerprint → SHA-256; only changed capsules refreshed (3–5 instead of 50+)
 - **Schema change detection:** At app startup, PRAGMA-based schema fingerprint compared against saved hash; full rebuild triggered if different
 - **UpdatedAt requirement:** All tables must have an `UpdatedAt` column updated on every row change for data fingerprinting to detect modifications (not just insertions)
+- **Capsule snapshot history:** On every successful targeted refresh, the refreshed capsules are saved to `data/capsule_history/MM-DD-YYYY/` — one file per capsule, full format, same-day overwrites keep latest. Folders older than `CAPSULE_HISTORY_RETENTION_DAYS` days are pruned automatically.
+- **LLM provider toggle:** `USE_GROQ` in `app_constants.py` — `False` (default) uses VS Code LM API; `True` uses Groq (requires `GROQ_API_KEY` in `.env`)
 - **Anomaly & Trend Detection:** Pure deterministic statistical math via `numpy` (Z-scores for anomalies, moving averages for trends) — no LLM hallucination risk on data values
 - **Data folder:** Always written to the repo root `data/` via `Path(__file__)` anchor — consistent regardless of launch directory
 
