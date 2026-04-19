@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+# ── LLM provider toggle ────────────────────────────────────────────────────────
+# True  → Groq API (requires GROQ_API_KEY in .env)
+# False → VS Code Language Model API via the local extension host (default)
+USE_GROQ: bool = True
+
 COLLECTION_ANALYTICAL = "analytical_capsules"
 COLLECTION_SCHEMA = "schema_context_capsules"
 COLLECTION_LINKED = "linked_capsules"
