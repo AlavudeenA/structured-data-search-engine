@@ -1,6 +1,6 @@
 ﻿# Analytical Search Engine
 
-## Context-Driven Intelligence — Beyond Query Generation
+## Capsule Context-Driven Intelligence — Beyond Query Generation
 
 The simplest approach to answering questions from a database is to take a user's question, send it to an AI with the table structure, generate SQL, run it, and show the result. For ad-hoc exploration by a single analyst, that is the right choice. This system is built for a different requirement — compliance teams needing consistent, fast, and auditable answers at scale.
 
@@ -602,16 +602,16 @@ When a user creates a capsule via the Insert Capsule tab, the same relationship 
 
 ## The UI Tabs
 
-| Tab                    | What it does                                                                                                   |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Ask Question**       | Type a plain-English question and get an answer; shows "Data refreshed" banner if capsules were auto-refreshed |
-| **Generate Capsules**  | Build or refresh the engine's knowledge base                                                                   |
-| **Insert Capsule**     | Type intent → Generate SQL → Validate → AI enriches metadata → Save & Build; sidebar shows user capsule count  |
-| **Data Activity**      | Compare capsule snapshots across two time periods — Baseline vs Comparison — via LLM analysis                  |
-| **Telemetry**          | Log of all questions asked, routes taken, confidence scores, and timing                                        |
-| **Capsule Explorer**   | Browse all stored capsules with filters; delete user capsules; inspect SQL, signal, and metadata               |
-| **Capsule Graph**      | Visual graph of how capsules relate to each other and any anomaly alerts                                       |
-| **Reset Capsules**     | Wipe all indexed capsules (analytical, schema, linked); all capsule definitions are preserved                   |
+| Tab                   | What it does                                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Ask Question**      | Type a plain-English question and get an answer; shows "Data refreshed" banner if capsules were auto-refreshed |
+| **Generate Capsules** | Build or refresh the engine's knowledge base                                                                   |
+| **Insert Capsule**    | Type intent → Generate SQL → Validate → AI enriches metadata → Save & Build; sidebar shows user capsule count  |
+| **Data Activity**     | Compare capsule snapshots across two time periods — Baseline vs Comparison — via LLM analysis                  |
+| **Telemetry**         | Log of all questions asked, routes taken, confidence scores, and timing                                        |
+| **Capsule Explorer**  | Browse all stored capsules with filters; delete user capsules; inspect SQL, signal, and metadata               |
+| **Capsule Graph**     | Visual graph of how capsules relate to each other and any anomaly alerts                                       |
+| **Reset Capsules**    | Wipe all indexed capsules (analytical, schema, linked); all capsule definitions are preserved                  |
 
 ---
 
