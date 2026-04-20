@@ -41,7 +41,7 @@ The engine:
 | Requirement         | Details                                                                                                     |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **Python**          | 3.11 or 3.13 recommended                                                                                    |
-| **LLM provider**    | **Groq** (default — set `GROQ_API_KEY` in `.env`) **or** VS Code with GitHub Copilot (set `USE_GROQ=False`) |
+| **SLM provider**    | **Groq** (default — set `GROQ_API_KEY` in `.env`) **or** VS Code with GitHub Copilot (set `USE_GROQ=False`) |
 | **fastembed_cache** | Pre-bundled in the repo — no internet download needed                                                       |
 
 ### 1 — Clone the repo
@@ -84,7 +84,7 @@ py -3 -m pip install -r requirements.txt
 Create a file named `.env` in the project root:
 
 ```env
-# ── Required: choose one LLM provider ────────────────────────────────────────
+# ── Required: choose one SLM provider ────────────────────────────────────────
 
 # Groq (default — USE_GROQ=True in app_constants.py)
 GROQ_API_KEY=your_groq_api_key_here
@@ -111,16 +111,16 @@ The SQL schema and seed data script is at `src/business_schema/dbscript.sql`. It
 
 All tables include an `UpdatedAt TEXT DEFAULT (datetime('now'))` column used for data change detection.
 
-### 6 — Choose your LLM provider
+### 6 — Choose your SLM provider
 
-The `USE_GROQ` flag in `src/app_constants.py` controls which LLM backend is used:
+The `USE_GROQ` flag in `src/app_constants.py` controls which SLM backend is used:
 
 ```python
 USE_GROQ: bool = True   # True = Groq API;  False = VS Code LM API
 ```
 
 **Option A — Groq (default, `USE_GROQ=True`):**
-Set `GROQ_API_KEY` in `.env`. No VS Code or extension required. Each LLM task uses the model configured for that slot in `.env` (`GROQ_INTENT_MODEL`, `GROQ_SQL_MODEL`, `GROQ_SQL_FIX_MODEL`, `GROQ_ANALYTICAL_MODEL`, `GROQ_SIGNAL_MODEL`, `GROQ_SUMMARY_MODEL`).
+Set `GROQ_API_KEY` in `.env`. No VS Code or extension required. Each SLM task uses the model configured for that slot in `.env` (`GROQ_INTENT_MODEL`, `GROQ_SQL_MODEL`, `GROQ_SQL_FIX_MODEL`, `GROQ_ANALYTICAL_MODEL`, `GROQ_SIGNAL_MODEL`, `GROQ_SUMMARY_MODEL`).
 
 **Option B — VS Code LM API (`USE_GROQ=False`):**
 Install the companion extension:
@@ -164,7 +164,7 @@ Builds or refreshes the engine's knowledge base. Four buttons:
 | **Generate All Capsules** | Full rebuild — wipes Qdrant and regenerates everything from scratch (includes user capsules) | First run, after changing `capsule_definitions.py`, or when something is broken |
 | **Refresh Data** | Re-runs only the analytical SQL queries; leaves schema and linked capsules untouched | Routine refresh when DB data changed but structure hasn't |
 | **Schema Refresh** | Detects whether the DB schema changed (via fingerprint) and rebuilds everything if it has | After adding or removing columns/tables in the DB |
-| **Generate Capsule Definitions** | Sends live DB schema + FK relationships to LLM; regenerates the entire `CAPSULE_DEFINITIONS` list; validated with `ast.parse()` before writing | Bootstrap a new domain or after major schema changes |
+| **Generate Capsule Definitions** | Sends live DB schema + FK relationships to SLM; regenerates the entire `CAPSULE_DEFINITIONS` list; validated with `ast.parse()` before writing | Bootstrap a new domain or after major schema changes |
 
 The sidebar shows live collection counts (analytical, schema, linked) and updates after each build.
 
@@ -172,11 +172,11 @@ The sidebar shows live collection counts (analytical, schema, linked) and update
 
 Lets you create your own analytical capsules without editing any Python files.
 
-**Step 0 — Intent → SQL (optional):** Type a plain-English description of what you want to measure. The LLM reads the live database schema and FK relationships and generates a complete SQLite `SELECT` query pre-filled into the SQL box. You can edit it before proceeding, or skip this step and write SQL directly.
+**Step 0 — Intent → SQL (optional):** Type a plain-English description of what you want to measure. The SLM reads the live database schema and FK relationships and generates a complete SQLite `SELECT` query pre-filled into the SQL box. You can edit it before proceeding, or skip this step and write SQL directly.
 
 **Step 1 — Fill in the fields:** Provide a name, SQL query, a one-sentence description of what it measures, and a priority (P1–P4).
 
-**Step 2 — Validate & Enrich:** Click **Validate & Enrich** to execute the SQL against the live database (previews up to 50 rows), then send the SQL and rows to the LLM to derive all remaining metadata — `capsule_type`, `how`, `tags`, `ttl_hours`, `signal_method`, `embed_text`, etc. An expandable panel shows the enriched metadata for review before saving.
+**Step 2 — Validate & Enrich:** Click **Validate & Enrich** to execute the SQL against the live database (previews up to 50 rows), then send the SQL and rows to the SLM to derive all remaining metadata — `capsule_type`, `how`, `tags`, `ttl_hours`, `signal_method`, `embed_text`, etc. An expandable panel shows the enriched metadata for review before saving.
 
 **Step 3 — Save & Build:** Click **Save & Build Capsule**. The capsule is saved permanently to `data/user_capsules.json`, built immediately, upserted into Qdrant, and auto-linked to any related existing capsules. It is available for search in the next query.
 
@@ -189,7 +189,7 @@ Compare what the data looked like across two different time periods.
 1. Pick a **Baseline Period** (from/to dates) — the engine loads all unique capsule snapshots in that range, keeping the latest version per capsule per day.
 2. Pick a **Comparison Period** (its own from/to dates) — loaded independently.
 3. Select any combination of capsules via checkboxes on both sides.
-4. Click **Compare Periods** — the LLM produces a per-capsule signal diff followed by an **Overall Summary** highlighting the highest-risk shifts.
+4. Click **Compare Periods** — the SLM produces a per-capsule signal diff followed by an **Overall Summary** highlighting the highest-risk shifts.
 
 Snapshots are created automatically on each successful targeted refresh. Folders older than 30 days are pruned automatically.
 
@@ -228,10 +228,10 @@ src/
                                intent names, USE_GROQ flag, history retention days
   models.py                 ← Pydantic data models: GeneratedCapsule, SchemaContextCapsule,
                                LinkedCapsule, CapsuleDefinition, BuildSummary, IntentResult, etc.
-  llm_instructions.py       ← All LLM system + user prompt templates (neutral f-strings;
+  llm_instructions.py       ← All SLM system + user prompt templates (neutral f-strings;
                                domain-specific vars injected from business_schema/domain.py)
   database_connection.py    ← SQLite connection, schema discovery via PRAGMA, FK relationships
-  llm_service.py            ← Routes LLM calls to Groq or VS Code LM API via call_llm() / call_llm_json()
+  llm_service.py            ← Routes SLM calls to Groq or VS Code LM API via call_llm() / call_llm_json()
                                Holds module-level Groq client singleton
   embedding.py              ← Text → vector via fastembed (bge-small-en-v1.5, 384-dim)
                                Also manages schema fingerprint and refresh plan files
@@ -243,27 +243,27 @@ src/
 
   capsule_builder/          ← Pipeline 1 — builds the knowledge base (runs on demand)
     store_manager.py        ← Master orchestrator: calls all generators, persists to Qdrant, saves plan
-    capsule_generator.py    ← Runs each capsule's SQL, calls LLM for signal, applies ML enrichment
+    capsule_generator.py    ← Runs each capsule's SQL, calls SLM for signal, applies ML enrichment
     user_capsule_builder.py ← Builds and upserts a single user-created capsule
-                               generate_capsule_sql() — LLM writes SQL from plain-English intent
-                               enrich_user_capsule_metadata() — LLM derives all metadata
+                               generate_capsule_sql() — SLM writes SQL from plain-English intent
+                               enrich_user_capsule_metadata() — SLM derives all metadata
                                build_single_capsule() — builds, persists, auto-links
     schema_capsule_generator.py ← Turns SCHEMA_DEFINITIONS into embedded schema context capsules
     ml_enricher.py          ← Anomaly score (numpy Z-score) and trend direction (moving average)
     relationship_builder.py ← Builds relationship graph; generates linked risk alert capsules;
                                link_user_capsule_to_existing() for bidirectional Qdrant linking
     append_capsules.py      ← Injects a new capsule dict into capsule_definitions.py
-    definitions_generator.py ← LLM-driven full regeneration of CAPSULE_DEFINITIONS from live schema
+    definitions_generator.py ← SLM-driven full regeneration of CAPSULE_DEFINITIONS from live schema
 
   query_engine/             ← Pipeline 2 — runs on every user question
     orchestrator.py         ← Entry point: coordinates all steps, data fingerprint check, returns answer
-    query_router.py         ← Classifies intent (text_to_sql / analytical); keyword fallback if LLM fails
+    query_router.py         ← Classifies intent (text_to_sql / analytical); keyword fallback if SLM fails
     context_searcher.py     ← Vector searches all 3 Qdrant collections
     context_packager.py     ← Ranks and slots results; holds in-memory payload cache
     analytical_retriever.py ← Answers directly from capsule signal when confidence >= 0.65
-    sql_generator.py        ← LLM generates a SELECT query from question + schema context
+    sql_generator.py        ← SLM generates a SELECT query from question + schema context
     sql_executor.py         ← Executes the SQL against SQLite; triggers autofix on error
-    sql_autofix.py          ← One LLM repair attempt on broken SQL
+    sql_autofix.py          ← One SLM repair attempt on broken SQL
     result_summarizer.py    ← Summarizes SQL result rows into a plain-English answer
     activity_comparator.py  ← Builds per-capsule diff blocks for Data Activity tab
 
@@ -316,7 +316,7 @@ Inferred edges are written back to the in-memory capsule objects before persisti
 Any capsule whose `anomaly_score >= 0.7` (Z-score on numeric result columns) automatically triggers creation of a linked alert capsule:
 
 1. The first entity value from the capsule's top result row becomes the `entity_name`
-2. An LLM writes a 2-sentence risk alert tying the anomaly to that entity
+2. An SLM writes a 2-sentence risk alert tying the anomaly to that entity
 3. A `LinkedCapsule` is created with `risk_level = "critical"` (score ≥ 0.8) or `"high"`
 4. The alert is embedded and stored in the `linked` Qdrant collection
 
@@ -332,11 +332,81 @@ When a user saves a capsule via the Insert Capsule tab, the same relationship in
 
 ---
 
+## Where SLM Calls Are Made
+
+The engine makes SLM calls in 5 workflows. Every call routes through `call_llm()` in `llm_service.py` — the same function regardless of provider (Groq or VS Code LM).
+
+### Workflow 1 — Generate All Capsules (runs once, on demand)
+
+| Call | Purpose | Model slot | Rows sent to SLM | If SLM fails |
+|---|---|---|---|---|
+| Signal — `llm_summary` capsules | SLM reads result rows and writes a 2–3 sentence plain-English insight describing what the data means | `groq_signal_model` | 20 rows | Falls back to rule-based signal automatically (top value + concentration % + trend) |
+| Signal — `sample` capsules | SLM narrates patterns observed across a random wide-join sample (no numeric column to aggregate) | `groq_signal_model` | 15 rows | Falls back to a static placeholder string |
+| Linked alert signal | For every capsule with anomaly score ≥ 0.7, SLM writes a 2-sentence risk alert naming the entity and the anomaly | `groq_signal_model` | No rows — uses signal text only | Alert capsule is created but stored with an empty signal |
+
+> These calls fire **once per capsule** during a full build (~40 capsules = up to 40 SLM calls). Rule-based capsules (`signal_method = "rule_based"`) skip the SLM entirely — no call is made.
+
+---
+
+### Workflow 2 — User Asks a Question
+
+| Call | Purpose | Model slot | Rows sent to SLM | If SLM fails |
+|---|---|---|---|---|
+| Intent detection | Classifies the question as `text_to_sql` or `analytical` | `groq_intent_model` (fast) | No rows | Keyword fallback: scans for trend/anomaly/pattern words; defaults to `text_to_sql` |
+| SQL generation | Writes a SQLite SELECT query from the question + schema context + db_metadata | `groq_sql_model` (strong) | No rows | Returns no SQL; answer fails |
+| SQL route explanation | Writes 2 sentences explaining why SQL was used and which tables mattered | `groq_summary_model` | No rows | Falls back to a static explanation string |
+| SQL autofix | Fixes a broken SQL query using the error message — fires only if SQL execution fails | `groq_sql_fix_model` | No rows | Returns no fix; answer fails |
+| Result summarizer | Converts raw SQL result rows into a 2–3 sentence plain-English answer | `groq_summary_model` | 25 rows | Falls back to a mechanical row preview string |
+| Analytical answer | Writes an answer from pre-computed capsule signals — fires only on the capsule path | `groq_analytical_model` | No rows (uses signal text) | Falls back to first 800 chars of combined signal text |
+
+> A typical `text_to_sql` question makes **4 SLM calls** (intent → SQL → explanation → summarize). An `analytical` capsule hit makes **2** (intent → answer). SQL error adds 1 more (autofix).
+
+---
+
+### Workflow 3 — Insert Capsule
+
+| Call | Purpose | Model slot | Rows sent to SLM | If SLM fails |
+|---|---|---|---|---|
+| SQL generation from intent | SLM reads the live schema + FK relationships + db_metadata and writes an analytical SELECT query | `groq_sql_model` | No rows | Returns empty string; SQL box stays blank |
+| Metadata enrichment | SLM derives `capsule_type`, `how`, `tags`, `ttl_hours`, `signal_method`, `embed_text` from the SQL and its result rows | default | 10 rows | Falls back to safe defaults (type=aggregation, ttl=24h, etc.) |
+
+---
+
+### Workflow 4 — Generate Capsule Definitions (bootstrap)
+
+| Call | Purpose | Model slot | Rows sent to SLM | If SLM fails |
+|---|---|---|---|---|
+| Full definitions regen | SLM receives the live schema + FK relationships + db_metadata and regenerates the entire `CAPSULE_DEFINITIONS` list (40+ capsules) | `groq_sql_model` (strong, 8 000 max tokens) | No rows | Returns raw output; validated with `ast.parse()` before writing — rejected if invalid Python |
+
+---
+
+### Workflow 5 — Data Activity (Compare Periods)
+
+| Call | Purpose | Model slot | Rows sent to SLM | If SLM fails |
+|---|---|---|---|---|
+| Period comparison | SLM receives capsule signal pairs from two time windows and writes a per-capsule diff + an Overall Summary | `groq_summary_model` | 3 rows per capsule (signal preview only) | No fallback — empty response shown |
+
+---
+
+### Row Limits at a Glance
+
+| Stage | Rows fetched from DB | Rows stored in Qdrant | Rows sent to SLM |
+|---|---|---|---|
+| Capsule SQL execution (build) | 50 | 50 | — |
+| SLM signal — `llm_summary` capsules | 50 | 50 | 20 |
+| SLM signal — `sample` capsules | 50 | 50 | 15 |
+| User capsule metadata enrichment | 500 (DB default) | 50 | 10 |
+| Result summarizer (text_to_sql) | 500 (DB default) | — | 25 |
+| SQL rows shown in UI | — | — | — (UI shows 50) |
+| Data Activity comparison | — | — | 3 per capsule |
+
+---
+
 ## Technical Notes
 
 - **Embedding model:** `BAAI/bge-small-en-v1.5` via fastembed — 384 dimensions, bundled in `fastembed_cache/` (~63 MB, no download needed). Changing the model or dimension requires a full Qdrant wipe and rebuild.
-- **LLM provider toggle:** `USE_GROQ` in `src/app_constants.py` — `True` (default) uses Groq API; `False` uses VS Code LM API (GitHub Copilot via extension). Switching the flag is the only change needed — all call sites use `call_llm()` / `call_llm_json()` which route automatically.
-- **Groq model slots:** Each LLM task uses its own model slot (`GROQ_INTENT_MODEL`, `GROQ_SQL_MODEL`, `GROQ_SQL_FIX_MODEL`, `GROQ_ANALYTICAL_MODEL`, `GROQ_SIGNAL_MODEL`, `GROQ_SUMMARY_MODEL`). Defaults are set in `config.py` and can be overridden in `.env`.
+- **SLM provider toggle:** `USE_GROQ` in `src/app_constants.py` — `True` (default) uses Groq API; `False` uses VS Code LM API (GitHub Copilot via extension). Switching the flag is the only change needed — all call sites use `call_llm()` / `call_llm_json()` which route automatically.
+- **Groq model slots:** Each SLM task uses its own model slot (`GROQ_INTENT_MODEL`, `GROQ_SQL_MODEL`, `GROQ_SQL_FIX_MODEL`, `GROQ_ANALYTICAL_MODEL`, `GROQ_SIGNAL_MODEL`, `GROQ_SUMMARY_MODEL`). Defaults are set in `config.py` and can be overridden in `.env`.
 - **Vector database:** Qdrant running entirely locally — no cloud account needed.
 - **SQL database:** SQLite — no server or ODBC driver required.
 - **SQL dialect:** SQLite only. All generated queries are `SELECT` or `WITH` only. `LIMIT` not `TOP`, `COALESCE` not `ISNULL`, no `dbo.` prefix, no `SELECT *`, always `ORDER BY`, always explicit `AS` aliases.
@@ -345,6 +415,6 @@ When a user saves a capsule via the Insert Capsule tab, the same relationship in
 - **Schema change detection:** At app startup, a PRAGMA-based schema fingerprint is compared against the saved hash. Full rebuild triggered automatically if different.
 - **UpdatedAt requirement:** All tables must have an `UpdatedAt` column updated on every row change for data fingerprinting to detect modifications — not just insertions.
 - **Capsule snapshot history:** On every successful targeted refresh, the refreshed capsules are saved to `data/capsule_history/MM-DD-YYYY/`. Same-day rebuilds overwrite the earlier snapshot for that day. Folders older than 30 days are pruned automatically.
-- **Anomaly & trend detection:** Pure deterministic statistics via `numpy` — Z-scores for anomaly scoring, moving averages for trend direction. Minimum 4 rows required; returns `0.0` / `"flat"` for insufficient data. No LLM involved in data value scoring.
+- **Anomaly & trend detection:** Pure deterministic statistics via `numpy` — Z-scores for anomaly scoring, moving averages for trend direction. Minimum 4 rows required; returns `0.0` / `"flat"` for insufficient data. No SLM involved in data value scoring.
 - **Domain deployment:** Replace `src/business_schema/` with a new folder implementing the same interface (`domain.py`, `capsule_definitions.py`, `dbscript.sql`). No engine file changes required.
 - **Data folder:** Always resolved from `Path(__file__)` anchor — consistent regardless of launch directory.

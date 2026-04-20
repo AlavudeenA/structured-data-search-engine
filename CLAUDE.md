@@ -9,7 +9,7 @@ After the user confirms, implement the change AND update this file to reflect th
 **After every code change — without being asked — do all of these that apply:**
 1. Update `CLAUDE.md` if any rule, threshold, flow, or file ownership described here is now outdated or no longer accurate.
 2. Update `README.md` if any user-facing flow, tab description, architecture diagram, or feature description is affected by the change.
-3. Update `src/business_schema/db_metadata.md` if `dbscript.sql` changed — new tables, new columns, removed columns, or changed enum values (Status, AlertType, Severity, RestrictionType, Decision, etc.). This file is injected into every SQL-generation and capsule-regen LLM prompt; stale metadata produces wrong SQL.
+3. Update `src/business_schema/db_metadata.md` if `dbscript.sql` changed — new tables, new columns, removed columns, or changed enum values (Status, AlertType, Severity, RestrictionType, Decision, etc.). This file is injected into every SQL-generation and capsule-regen SLM prompt; stale metadata produces wrong SQL.
 
 ---
 
@@ -94,7 +94,7 @@ Prompts in `llm_instructions.py` are f-strings (domain vars injected at import t
 Changing either breaks **all existing vectors** in Qdrant — requires full wipe and rebuild.
 
 ### Rule 16 — SQL Generation Hard Rules
-Generated SQL must follow these rules (enforced via LLM prompt in `llm_instructions.py`):
+Generated SQL must follow these rules (enforced via SLM prompt in `llm_instructions.py`):
 - SQLite syntax only (`LIMIT` not `TOP`, `COALESCE` not `ISNULL`, no `dbo.` prefix)
 - No `SELECT *` — always name columns explicitly
 - Always include `ORDER BY`
@@ -135,8 +135,8 @@ Generated SQL must follow these rules (enforced via LLM prompt in `llm_instructi
 | DB query execution | 500 rows (`DB_EXECUTE_MAX_ROWS`) |
 | Capsule result rows stored in payload | 50 rows (`CAPSULE_RESULT_MAX_ROWS`) |
 | SQL rows returned to UI | 50 rows |
-| Sample signal rows sent to LLM | 15 rows |
-| Result summarizer rows sent to LLM | 25 rows |
+| Sample signal rows sent to SLM | 15 rows |
+| Result summarizer rows sent to SLM | 25 rows |
 | Analytical answer combined context | 4000 chars |
 | Activity comparison rows per capsule | 3 rows |
 
@@ -153,7 +153,7 @@ Generated SQL must follow these rules (enforced via LLM prompt in `llm_instructi
 ### User Asks a Question
 ```
 Question
- → Intent Detection  (fast LLM / keyword fallback)
+ → Intent Detection  (fast SLM / keyword fallback)
  ├─ analytical
  │    → Vector search Qdrant (analytical + schema collections)
  │    → confidence >= 0.65 AND not schema capsule?
@@ -162,11 +162,11 @@ Question
  └─ text_to_sql
       → SQL path
            → Schema context from Qdrant (in-memory cached)
-           → LLM generates SQL  (groq_sql_model, temp=0.0, max_tokens=700)
+           → SLM generates SQL  (groq_sql_model, temp=0.0, max_tokens=700)
            → Validate: must start with select/with
            → Execute on SQLite (max 500 rows)
            → Error? → one auto-fix attempt (temp=0.0, max_tokens=700)
-           → LLM summarizes first 25 rows  (groq_summary_model, temp=0.2, max_tokens=300)
+           → SLM summarizes first 25 rows  (groq_summary_model, temp=0.2, max_tokens=300)
            → Answer returned (UI shows max 50 rows)
 ```
 
@@ -187,8 +187,8 @@ Purge Qdrant storage entirely
 ### "Insert Capsule" (User-defined Capsule)
 ```
 User fills form (what, tables, filters, tags)
- → enrich_user_capsule_metadata()   LLM fills: how / signal / embed_text / ttl  (max_tokens=512)
- → generate_capsule_sql()           LLM writes SQL  (max_tokens=512)
+ → enrich_user_capsule_metadata()   SLM fills: how / signal / embed_text / ttl  (max_tokens=512)
+ → generate_capsule_sql()           SLM writes SQL  (max_tokens=512)
  → Preview shown → user confirms
  → build_single_capsule()           → GeneratedCapsule + embedding
  → append_to_capsule_definitions_file()   injected into capsule_definitions.py
@@ -216,7 +216,7 @@ check_schema_and_refresh_if_needed()
 | Domain config | `src/business_schema/domain.py`, `capsule_definitions.py` |
 | Intent routing | `src/query_engine/query_router.py`, `orchestrator.py` |
 | Capsule build pipeline | `src/capsule_builder/store_manager.py`, `capsule_generator.py` |
-| LLM prompts | `src/llm_instructions.py` — neutral; domain vars injected via f-string |
+| SLM prompts | `src/llm_instructions.py` — neutral; domain vars injected via f-string |
 | Vector store ops | `src/vector_store.py` |
 | UI | `streamlit_app.py` |
 | Constants | `src/app_constants.py` — single source for intents, collections, all thresholds |
