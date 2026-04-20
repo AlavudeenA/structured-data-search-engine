@@ -7,14 +7,15 @@ import logging
 from datetime import datetime, timezone
 
 from ..app_constants import (
+    ANOMALY_DETECTED_THRESHOLD,
     CAPSULE_GRAPH_FILE,
+    COLLECTION_ANALYTICAL,
     MIN_SHARED_TAGS_FOR_RELATION,
     REL_AGGREGATES_UP,
     REL_CORROBORATES,
     REL_DRILLS_DOWN,
     REL_SAME_ENTITY,
 )
-from ..app_constants import COLLECTION_ANALYTICAL
 from ..embedding import embed_single, ensure_data_dir
 from ..llm_service import call_llm
 from ..models import CapsuleGraph, LinkedCapsule, GeneratedCapsule, RelationshipEdge
@@ -56,9 +57,16 @@ def _infer_relationship(capsule_a: GeneratedCapsule, capsule_b: GeneratedCapsule
 
 
 def build_graph(capsules: list[GeneratedCapsule]) -> CapsuleGraph:
-    """Create graph edges from explicit relationships plus inferred relationships."""
+    """Create graph edges from explicit relationships plus inferred relationships.
+
+    Inferred edges are also written back onto the in-memory capsule objects so
+    that when the capsules are persisted to Qdrant their linked_capsule_ids
+    includes both explicit and inferred relationships — making them available
+    to _follow_links during query answering.
+    """
     edges: list[RelationshipEdge] = []
     seen: set[tuple[str, str]] = set()
+    capsule_map = {c.capsule_id: c for c in capsules}
 
     for capsule in capsules:
         for related_id, relationship in zip(capsule.linked_capsule_ids, capsule.relationship_types):
@@ -83,6 +91,14 @@ def build_graph(capsules: list[GeneratedCapsule]) -> CapsuleGraph:
                     )
                 )
                 seen.add(key)
+                # Write inferred edge back onto both capsule objects so Qdrant
+                # payloads carry the full relationship set after _persist_analytical.
+                if capsule_b.capsule_id not in capsule_a.linked_capsule_ids:
+                    capsule_a.linked_capsule_ids.append(capsule_b.capsule_id)
+                    capsule_a.relationship_types.append(relationship)
+                if capsule_a.capsule_id not in capsule_b.linked_capsule_ids:
+                    capsule_b.linked_capsule_ids.append(capsule_a.capsule_id)
+                    capsule_b.relationship_types.append(relationship)
 
     return CapsuleGraph(built_at=datetime.now(timezone.utc).isoformat(), edges=edges, linked_capsule_ids=[])
 
@@ -110,7 +126,7 @@ def generate_linked_capsules(capsules: list[GeneratedCapsule]) -> list[LinkedCap
     linked_capsules: list[LinkedCapsule] = []
 
     for capsule in capsules:
-        if capsule.anomaly_score is not None and capsule.anomaly_score > 0.0:
+        if capsule.anomaly_score is not None and capsule.anomaly_score >= ANOMALY_DETECTED_THRESHOLD:
             risk_level = "critical" if capsule.anomaly_score >= 0.8 else "high"
             signal = _build_linked_signal(
                 capsule.capsule_id,
@@ -276,7 +292,7 @@ def link_user_capsule_to_existing(new_capsule: GeneratedCapsule) -> None:
         )
 
     # Generate anomaly alert linked capsule if warranted
-    if new_capsule.anomaly_score and new_capsule.anomaly_score > 0.0:
+    if new_capsule.anomaly_score and new_capsule.anomaly_score >= ANOMALY_DETECTED_THRESHOLD:
         alert_capsules = generate_linked_capsules([new_capsule])
         if alert_capsules:
             _persist_linked(alert_capsules)

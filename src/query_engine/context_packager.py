@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 _payload_cache: dict[str, dict[str, Any]] = {}
 
 
+def invalidate_payload_cache() -> None:
+    """Clear the in-process payload cache. Call after any rebuild or targeted refresh
+    so the next query picks up fresh linked_capsule_ids from Qdrant."""
+    _payload_cache.clear()
+
+
 def _warm_cache() -> None:
     if _payload_cache:
         return

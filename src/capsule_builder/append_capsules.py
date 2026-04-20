@@ -8,7 +8,8 @@ logger = logging.getLogger(__name__)
 
 def append_to_capsule_definitions_file(new_capsule: dict) -> bool:
     """Read capsule_definitions.py, inject the new dictionary before the final list bracket, and save."""
-    target_file = Path(__file__).parent.parent / "business_schema" / "capsule_definitions.py"
+    from ..business_schema.domain import DB_SCRIPT_PATH
+    target_file = DB_SCRIPT_PATH.parent / "capsule_definitions.py"
     if not target_file.exists():
         logger.error(f"Cannot find {target_file}")
         return False

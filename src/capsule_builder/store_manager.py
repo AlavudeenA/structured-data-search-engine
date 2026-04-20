@@ -16,6 +16,7 @@ from ..embedding import (
 )
 from ..models import BuildStatus, BuildSummary, CapsuleDefinition, LinkedCapsule, GeneratedCapsule, SchemaContextCapsule
 from ..vector_store import clear_collection, collection_counts, purge_local_qdrant_storage, upsert_capsules_batch
+# Domain-specific definitions — swap src/business_schema/ to deploy against a new database.
 from ..business_schema.capsule_definitions import CAPSULE_DEFINITIONS
 from .capsule_generator import generate_all_capsules
 from .relationship_builder import build_graph, generate_linked_capsules, save_graph
@@ -102,6 +103,10 @@ def _load_definitions(plan_capsule_ids: list[str] | None = None) -> list[Capsule
     from ..user_capsules import load_user_capsule_defs
     user_defs = load_user_capsule_defs()
     all_defs = CAPSULE_DEFINITIONS + user_defs
+    all_ids = [d["capsule_id"] for d in all_defs]
+    duplicate_ids = {cid for cid in all_ids if all_ids.count(cid) > 1}
+    if duplicate_ids:
+        logger.error("Duplicate capsule_ids detected — later definition will overwrite earlier: %s", sorted(duplicate_ids))
     definitions = [CapsuleDefinition(**d) for d in all_defs]
     if plan_capsule_ids:
         # Always include user capsules even if not in the saved plan
@@ -141,6 +146,9 @@ def generate_all_capsule_collections(progress_callback=None) -> BuildSummary:
     schema_count = _persist_schema(schema_capsules)
     linked_count = _persist_linked(linked_capsules)
 
+    from ..query_engine.context_packager import invalidate_payload_cache
+    invalidate_payload_cache()
+
     save_refresh_plan([definition.model_dump() for definition in definitions])
     save_schema_fingerprint(get_schema_metadata(), get_fk_relationships())
 
@@ -175,10 +183,13 @@ def refresh_targeted_capsules(analytical_ids: list[str], linked_ids: list[str]) 
 
 
 def refresh_data_only(progress_callback=None) -> BuildSummary:
-    """Refresh analytical capsules from the canonical saved plan, keeping schema-context and related untouched."""
+    """Refresh analytical capsules from the canonical saved plan, keeping schema-context and related untouched.
+
+    Generates all capsules first, then clears and repopulates — so a generation
+    failure leaves the existing collection intact rather than producing an empty store.
+    """
     plan = load_refresh_plan()
     definitions = _load_definitions(plan.capsule_ids if plan else None)
-    clear_collection(COLLECTION_ANALYTICAL)
     statuses: list[BuildStatus] = []
 
     def _progress(capsule_id: str, status: str, signal_preview: str) -> None:
@@ -187,20 +198,28 @@ def refresh_data_only(progress_callback=None) -> BuildSummary:
             progress_callback(capsule_id, status, signal_preview)
 
     analytical_capsules = generate_all_capsules(definitions, progress_callback=_progress)
+    clear_collection(COLLECTION_ANALYTICAL)
     analytical_count = _persist_analytical(analytical_capsules)
+
+    from ..query_engine.context_packager import invalidate_payload_cache
+    invalidate_payload_cache()
+
     return BuildSummary(analytical_count=analytical_count, statuses=statuses)
 
 
 def schema_refresh(progress_callback=None) -> BuildSummary:
-    """Detect schema change and rebuild analytical, schema, and related collections to align with current schema."""
+    """Detect schema change and rebuild all collections only if the schema actually changed."""
     current_schema = get_schema_metadata()
     current_relationships = get_fk_relationships()
     current_fingerprint = compute_schema_fingerprint(current_schema, current_relationships)
     previous_fingerprint = load_schema_fingerprint()
     schema_changed = previous_fingerprint is None or previous_fingerprint.fingerprint != current_fingerprint
 
+    if not schema_changed:
+        return BuildSummary(schema_changed=False)
+
     summary = generate_all_capsule_collections(progress_callback=progress_callback)
-    summary.schema_changed = schema_changed
+    summary.schema_changed = True
     return summary
 
 

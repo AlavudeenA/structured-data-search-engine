@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -31,12 +32,22 @@ def _dominant_signal(rows: list[dict[str, Any]], capsule_def: CapsuleDefinition)
     if not rows:
         return "No data available for this capsule."
 
-    # Find the first purely numeric column (not an id column)
+    # Find the first count/sum column — skip rate/percentage/pct columns whose
+    # values cannot be summed into a meaningful total for concentration calculations.
+    _RATE_HINTS = {"rate", "pct", "percent", "ratio", "score", "avg", "average"}
     numeric_col: str | None = None
     for col in rows[0]:
         val = rows[0][col]
         if isinstance(val, (int, float)) and not isinstance(val, bool):
-            if "id" not in col.lower():
+            col_lower = col.lower()
+            if "id" not in col_lower and not any(h in col_lower for h in _RATE_HINTS):
+                numeric_col = col
+                break
+    # Fallback: accept any numeric column if all were rate-like
+    if numeric_col is None:
+        for col in rows[0]:
+            val = rows[0][col]
+            if isinstance(val, (int, float)) and not isinstance(val, bool) and "id" not in col.lower():
                 numeric_col = col
                 break
 
@@ -75,11 +86,12 @@ def _dominant_signal(rows: list[dict[str, Any]], capsule_def: CapsuleDefinition)
     )
 
     # Trend detection across date-grouped rows
+    _DATE_RE = re.compile(r"^\d{4}-\d{2}")
     date_col = next(
         (
             c
             for c in rows[0]
-            if isinstance(rows[0][c], str) and "-" in str(rows[0][c]) and len(str(rows[0][c])) >= 7
+            if isinstance(rows[0][c], str) and _DATE_RE.match(str(rows[0][c]))
         ),
         None,
     )

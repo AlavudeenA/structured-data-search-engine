@@ -11,9 +11,7 @@ from src.app_constants import (
     COLLECTION_LINKED,
     COLLECTION_SCHEMA,
     INTENT_ANALYTICAL,
-    INTENT_HYBRID,
-    INTENT_OPERATIONAL,
-    INTENT_STRUCTURED,
+    INTENT_TEXT_TO_SQL,
     UI_MAX_HISTORY,
 )
 from src.capsule_builder.relationship_builder import load_graph
@@ -30,10 +28,8 @@ from src.database_connection import execute_select
 st.set_page_config(page_title="Analytical Search Engine", page_icon="", layout="wide")
 
 INTENT_BADGE = {
-    INTENT_STRUCTURED: ("green", "Structured"),
+    INTENT_TEXT_TO_SQL: ("green", "Text-to-SQL"),
     INTENT_ANALYTICAL: ("blue", "Analytical"),
-    INTENT_HYBRID: ("orange", "Hybrid"),
-    INTENT_OPERATIONAL: ("red", "Operational"),
 }
 
 
@@ -70,7 +66,7 @@ _ROUTE_STYLE = {
     "sql_with_schema_guidance": ("steelblue", "SQL + Schema"),
     "capsule_direct":           ("green",     "Capsule Answer"),
     "vector_retrieval":         ("purple",    "Vector Retrieval"),
-    "hybrid":                   ("orange",    "Hybrid"),
+    "analytical_sql_fallback":  ("teal",      "Analytical SQL"),
     "sql_generation_failed":    ("crimson",   "Generation Failed"),
 }
 

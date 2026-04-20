@@ -28,10 +28,9 @@ from ..llm_service import call_llm
 
 logger = logging.getLogger(__name__)
 
-# Canonical file to overwrite — always points here regardless of UI-provided path
-_CANONICAL_PATH = (
-    Path(__file__).parent.parent / "business_schema" / "capsule_definitions.py"
-)
+# Canonical file to overwrite — resolved from domain config so swapping business_schema/ works automatically.
+from ..business_schema.domain import DB_SCRIPT_PATH as _DOMAIN_DB_SCRIPT_PATH
+_CANONICAL_PATH = _DOMAIN_DB_SCRIPT_PATH.parent / "capsule_definitions.py"
 
 
 # ── Format example builder ────────────────────────────────────────────────────

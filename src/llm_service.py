@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from typing import Any
 
@@ -20,6 +21,17 @@ logger = logging.getLogger(__name__)
 
 # ── Groq backend ───────────────────────────────────────────────────────────────
 
+_groq_client = None  # module-level singleton; created once on first call
+
+
+def _get_groq_client():
+    global _groq_client
+    if _groq_client is None:
+        from groq import Groq
+        _groq_client = Groq(api_key=get_settings().groq_api_key)
+    return _groq_client
+
+
 def _call_groq(
     system_prompt: str,
     user_prompt: str,
@@ -27,11 +39,11 @@ def _call_groq(
     temperature: float,
     max_tokens: int,
 ) -> str:
-    from groq import Groq, RateLimitError  # lazy import — not needed when USE_GROQ=False
+    from groq import RateLimitError  # lazy import — not needed when USE_GROQ=False
 
     settings = get_settings()
     model_name = getattr(settings, model_slot, settings.groq_analytical_model)
-    client = Groq(api_key=settings.groq_api_key)
+    client = _get_groq_client()
 
     for attempt in range(2):
         try:
@@ -136,7 +148,7 @@ def call_llm_json(
     if not raw or raw.startswith("[LLM"):
         return None
     if raw.startswith("```"):
-        raw = raw.replace("```json", "").replace("```", "").strip()
+        raw = re.sub(r"^```[a-zA-Z]*\s*", "", raw).replace("```", "").strip()
     try:
         return json.loads(raw)
     except Exception as exc:

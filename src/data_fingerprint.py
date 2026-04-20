@@ -13,22 +13,23 @@ from .models import DataFingerprint
 
 logger = logging.getLogger(__name__)
 
-# Map each table to its most meaningful "last changed" timestamp column.
-# None means no timestamp available — only row count is used.
-_TABLE_TIMESTAMP_COLS: dict[str, str | None] = {
-    "Employee":           "UpdatedAt",
-    "BrokerDealer":       "UpdatedAt",
-    "Account":            "UpdatedAt",
-    "RestrictedSecurity": "UpdatedAt",
-    "TradeRequest":       "UpdatedAt",
-    "ComplianceAlert":    "UpdatedAt",
-    "ApprovalWorkflow":   "UpdatedAt",
-}
+def _build_table_timestamp_map() -> dict[str, str | None]:
+    """Dynamically discover all tables and whether they have an UpdatedAt column."""
+    from .database_connection import get_schema_metadata
+    result: dict[str, str | None] = {}
+    try:
+        schema = get_schema_metadata()
+        for table, columns in schema.items():
+            col_names = {c["name"] for c in columns}
+            result[table] = "UpdatedAt" if "UpdatedAt" in col_names else None
+    except Exception as exc:
+        logger.warning("Could not build dynamic table map for fingerprint: %s", exc)
+    return result
 
 
 def _fetch_table_stats() -> dict[str, dict[str, str]]:
     stats: dict[str, dict[str, str]] = {}
-    for table, ts_col in _TABLE_TIMESTAMP_COLS.items():
+    for table, ts_col in _build_table_timestamp_map().items():
         try:
             sql = (
                 f"SELECT COUNT(*) AS cnt, MAX({ts_col}) AS latest FROM {table}"
@@ -141,10 +142,12 @@ def check_and_refresh_if_needed(
     )
     try:
         from .capsule_history import save_capsule_snapshot
+        from .query_engine.context_packager import invalidate_payload_cache
         refreshed = refresh_targeted_capsules(analytical_ids, linked_ids)
         save_data_fingerprint(current)
         if refreshed:
             save_capsule_snapshot(refreshed)
+        invalidate_payload_cache()
         return True
     except Exception as exc:
         logger.error("Targeted capsule refresh failed: %s", exc)

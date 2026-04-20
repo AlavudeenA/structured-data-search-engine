@@ -14,9 +14,7 @@ import time
 from ..app_constants import (
     CONFIDENCE_THRESHOLD_CAPSULE_ANSWER,
     INTENT_ANALYTICAL,
-    INTENT_HYBRID,
-    INTENT_OPERATIONAL,
-    INTENT_STRUCTURED,
+    INTENT_TEXT_TO_SQL,
 )
 from ..data_fingerprint import check_and_refresh_if_needed
 from ..models import ContextPackage, QueryResponse
@@ -119,11 +117,6 @@ def handle_query(question: str) -> QueryResponse:
         search_hits = search_all_collections(question)
         context_package = build_context_package(search_hits)
 
-    if intent.intent in {INTENT_STRUCTURED, INTENT_OPERATIONAL}:
-        response = _run_sql_path(question, intent_payload, context_package, "text_to_sql", started_at)
-        response.data_refreshed = data_refreshed
-        return response
-
     if intent.intent == INTENT_ANALYTICAL:
         if context_package.overall_confidence >= CONFIDENCE_THRESHOLD_CAPSULE_ANSWER and not _top_hit_is_schema_context(context_package):
             return QueryResponse(
@@ -137,18 +130,12 @@ def handle_query(question: str) -> QueryResponse:
                 intent_payload=intent_payload,
                 data_refreshed=data_refreshed,
             )
-        response = _run_sql_path(question, intent_payload, context_package, "vector_retrieval_schema_context_llm", started_at)
+        # Confidence too low — fall through to SQL
+        response = _run_sql_path(question, intent_payload, context_package, "analytical_sql_fallback", started_at)
         response.data_refreshed = data_refreshed
         return response
 
-    if intent.intent == INTENT_HYBRID:
-        capsule_answer = answer_from_capsules(question, context_package)
-        sql_response = _run_sql_path(question, intent_payload, context_package, "hybrid_sql", started_at)
-        sql_response.route_taken = "hybrid"
-        sql_response.answer = f"Capsule view: {capsule_answer}\n\nSQL view: {sql_response.answer}"
-        sql_response.data_refreshed = data_refreshed
-        return sql_response
-
+    # text_to_sql (default) — always run SQL directly
     response = _run_sql_path(question, intent_payload, context_package, "text_to_sql", started_at)
     response.data_refreshed = data_refreshed
     return response

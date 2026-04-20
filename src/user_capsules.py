@@ -16,10 +16,20 @@ def load_user_capsule_defs() -> list[dict]:
     if not _USER_CAPSULES_FILE.exists():
         return []
     try:
-        return json.loads(_USER_CAPSULES_FILE.read_text(encoding="utf-8"))
+        raw: list[dict] = json.loads(_USER_CAPSULES_FILE.read_text(encoding="utf-8"))
     except Exception as exc:
-        logger.error("Failed to load user capsules: %s", exc)
+        logger.error("Failed to parse user_capsules.json: %s", exc)
         return []
+    # Validate each entry against CapsuleDefinition; drop malformed ones with a clear warning.
+    from .models import CapsuleDefinition
+    valid: list[dict] = []
+    for entry in raw:
+        try:
+            CapsuleDefinition(**entry)
+            valid.append(entry)
+        except Exception as exc:
+            logger.warning("Skipping malformed user capsule '%s': %s", entry.get("capsule_id", "?"), exc)
+    return valid
 
 
 def save_user_capsule_def(definition: dict) -> None:

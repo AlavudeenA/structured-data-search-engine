@@ -1,4 +1,4 @@
-"""Summarize SQL result rows into concise compliance-facing language."""
+"""Summarize SQL result rows into concise plain-English answers."""
 
 from __future__ import annotations
 

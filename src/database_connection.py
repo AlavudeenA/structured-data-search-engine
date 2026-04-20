@@ -14,7 +14,7 @@ from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
-_SCRIPT_PATH = Path(__file__).parent / "business_schema" / "dbscript.sql"
+from .business_schema.domain import DB_SCRIPT_PATH as _SCRIPT_PATH
 _initialized = False
 
 

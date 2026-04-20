@@ -12,7 +12,20 @@ All LLM instruction templates for the engine. Two pipelines use this file:
     ANALYTICAL_ANSWER  → answer using pre-computed capsule signals (no SQL)
     RESULT_SUMMARIZER  → summarize live SQL result rows into plain English
     SQL_REASON         → explain why SQL was chosen and what schema guidance helped
+
+Domain-specific content (persona, SQL rules, coverage requirements) is imported from
+business_schema/domain.py so this file stays fully neutral across deployments.
 """
+
+from .business_schema.domain import (
+    DOMAIN_ANALYST_PERSONA,
+    DOMAIN_DATA_ENG_PERSONA,
+    DOMAIN_NAME,
+    DOMAIN_SQL_RULES,
+    EMBED_TEXT_STYLE,
+    EMBED_SEARCH_PERSONA,
+    REGEN_COVERAGE,
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PIPELINE 1 — CAPSULE BUILDER
@@ -38,7 +51,7 @@ Write a concise signal summary."""
 #       for each entity (broker, employee, security) that appears across
 #       multiple high-anomaly capsules
 # Job: write a 2-sentence risk alert tying the entity's cross-capsule signals together
-LINKED_SIGNAL_SYSTEM = """You are a compliance analyst generating a risk pattern alert.
+LINKED_SIGNAL_SYSTEM = f"""You are a {DOMAIN_ANALYST_PERSONA} generating a risk pattern alert.
 Describe the statistical anomaly pattern detected in the data. Do not name specific companies, people, or entities — the pattern should be domain-agnostic.
 Write exactly 2 sentences with the anomaly score and reference the source capsule for entity-level details."""
 
@@ -54,7 +67,7 @@ Write the anomaly pattern alert."""
 # Stage: Sample Capsule Signal Writing (capsule_generator.py)
 # When: capsule_type = "sample" — SQL returns random joined rows, not aggregates
 # Job: describe 2-3 patterns or notable observations visible across the sample rows
-SAMPLE_SIGNAL_SYSTEM = """You are a compliance data analyst reviewing a random sample of raw records.
+SAMPLE_SIGNAL_SYSTEM = f"""You are a {DOMAIN_ANALYST_PERSONA} reviewing a random sample of raw records.
 Identify 2 to 3 patterns, anomalies, or notable observations you can see across the rows.
 Mention specific values, names, or counts you observe. Do not invent data not present in the rows."""
 
@@ -72,21 +85,21 @@ Describe 2-3 patterns or notable observations you see across these records."""
 # When: first step on every user question, before any retrieval
 # Job: decide whether the question needs structured SQL, analytical capsule retrieval,
 #      a hybrid of both, or a live operational lookup
-INTENT_DETECTION_SYSTEM = """You are a smart data assistant query classifier.
+INTENT_DETECTION_SYSTEM = f"""You are a {DOMAIN_NAME} data assistant query classifier.
 Classify the user question into exactly one intent and return valid JSON only, with no markdown.
 
 Intents:
-- structured: exact count, ranking, lookup, filter, date range, list, show, display
-- analytical: trend, pattern, anomaly, comparison, "is X increasing", "which X is unusual", insight
-- hybrid: question requires both a data lookup and trend or pattern analysis
-- operational: live status needed, such as pending requests, open items, or active flags
+- text_to_sql: the question wants a specific fact, count, list, ranking, filter, or live status lookup.
+  Use this for: "which", "show me", "how many", "list", "top N", "pending", "active", "open", "right now", date ranges, exact lookups.
+- analytical: the question is asking about patterns, trends, anomalies, comparisons, or insights across data over time.
+  Use this for: "is X increasing", "trend", "unusual", "anomaly", "pattern", "compare periods", "why is", "highest risk overall".
+
+When in doubt, prefer text_to_sql — it always produces an answer. Choose analytical only when the question clearly needs pattern or trend reasoning.
 
 Output format:
 {
-  "intent": "structured|analytical|hybrid|operational",
+  "intent": "text_to_sql|analytical",
   "confidence": 0.0,
-  "structured_parts": [],
-  "analytical_parts": [],
   "reasoning": ""
 }"""
 
@@ -225,31 +238,13 @@ Explain the planning choice."""
 #      produce a full CAPSULE_DEFINITIONS list (35+ capsules, 8 categories)
 #      for the Compliance database with correct SQLite syntax and
 #      compliance domain rules baked into every query.
-CAPSULE_REGEN_SYSTEM = """You are a senior compliance data engineer generating analytical capsule \
-definitions for a SQLite Compliance database.
+CAPSULE_REGEN_SYSTEM = f"""You are a senior {DOMAIN_DATA_ENG_PERSONA} generating analytical capsule \
+definitions for a SQLite {DOMAIN_NAME} database.
 
 ═══════════════════════════════════════
-COMPLIANCE DOMAIN RULES — apply in every relevant SQL
+DOMAIN RULES — apply in every relevant SQL
 ═══════════════════════════════════════
-1. ACTIVE RESTRICTION: EndDate IS NULL means permanently active (no end set).
-   Check: rs.EndDate IS NULL OR rs.EndDate >= date('now')
-   Safe combined form: COALESCE(rs.EndDate, '9999-12-31') >= date('now')
-
-2. VIOLATION DATE OVERLAP — trade happened while restriction was active:
-   JOIN condition: tr.RequestDate BETWEEN rs.StartDate AND COALESCE(rs.EndDate, '9999-12-31')
-
-3. ApprovalWorkflow.ReviewerID references Employee.EmployeeID.
-   The REVIEWER is an employee (compliance/risk staff), NOT the trade requester.
-
-4. TurnaroundDays is already stored in ApprovalWorkflow — do NOT recalculate it.
-
-5. Escalated = sent to senior compliance review. It is NOT a rejection.
-
-6. Repeat violators = employees with COUNT(ComplianceAlert) >= 2.
-
-7. High severity = ca.Severity IN ('Critical', 'High')
-
-8. Unresolved alerts = ca.Status IN ('Open', 'Investigating')
+{DOMAIN_SQL_RULES}
 
 ═══════════════════════════════════════
 SQL RULES — strictly enforced
@@ -285,102 +280,12 @@ CAPSULE STRUCTURE — every capsule must have ALL keys
 ═══════════════════════════════════════
 EMBED_TEXT_TEMPLATE REQUIREMENTS
 ═══════════════════════════════════════
-- Write as if a compliance officer is typing a natural search query.
-- First sentence: what this capsule is about and its compliance relevance.
-- Middle section: list 3-5 specific questions this capsule answers (not bullet points, embed in prose).
-- Include domain synonyms inline:
-    violation = breach = non-compliant = policy break
-    restriction = ban = blackout = insider list = watch list
-    alert = incident = compliance flag = issue
-- End with exactly this text (no variation): "Finding: {signal}"
-- Total length: 150-250 words.
+{EMBED_TEXT_STYLE}
 
 ═══════════════════════════════════════
 COVERAGE REQUIREMENTS — generate at least these capsules
 ═══════════════════════════════════════
-CATEGORY 1 — Volume & Activity (type=aggregation): generate 5 capsules
-  trade requests by broker dealer (total, approved, rejected, escalated, rejection_rate_pct)
-  trade requests by department
-  trade requests by security symbol TOP 10
-  trade requests by trade type BUY vs SELL
-  monthly request volume last 6 months
-
-CATEGORY 2 — Violations (type=violation, ALL priority=P1): generate 6 capsules
-  trades made while security was on active restriction (date overlap join) — TTL=6h
-  violations by restriction type (Blackout/Insider List/Watch List)
-  violations by broker dealer
-  violations by department
-  repeat violators: employees with 2+ alerts
-  active restrictions with trade attempts in last 30 days — TTL=6h
-
-CATEGORY 3 — Trends (type=trend): generate 5 capsules
-  monthly alert volume last 6 months by severity
-  weekly trade request volume last 8 weeks
-  monthly rejection rate trend by broker dealer
-  escalation trend by department monthly
-  alert severity trend over time
-
-CATEGORY 4 — Risk Patterns (type=pattern or risk): generate 4 capsules
-  employees with multiple distinct alert types (HAVING COUNT(DISTINCT AlertType) >= 2)
-  high severity open alerts (Critical+High, Status Open or Investigating) — TTL=4h
-  broker dealers with both high rejection rate AND high alert count
-  escalation pattern: what dimensions (department, trade type) correlate with escalation
-
-CATEGORY 5 — Approval Workflow (type=operational): generate 5 capsules
-  reviewer decision distribution per reviewer (approved%, rejected%, escalated%)
-  average turnaround by requesting department
-  average turnaround by reviewer
-  pending requests with NO ApprovalWorkflow row — TTL=2h (most urgent)
-  requests pending more than 3 days
-
-CATEGORY 6 — Security Analysis (type=distribution): generate 4 capsules
-  most traded securities by total quantity TOP 20
-  securities with restriction history (count of past restrictions)
-  currently active restrictions (EndDate IS NULL or future)
-  securities appearing in both restrictions and compliance alerts
-
-CATEGORY 7 — Employee & Department Health (type=aggregation): generate 4 capsules
-  department compliance scorecard (requests + rejections + escalations + alerts combined)
-  employees with zero alerts (clean record, active employees only)
-  alert rate by job title (alerts per employee per title)
-  new employee compliance (HireDate >= 2 years ago, how many already have alerts)
-
-CATEGORY 8 — Cross-Entity Risk (type=risk, P1): generate 4 capsules
-  employees with compliance alerts across 2+ different broker dealers
-  department + restriction type concentration (which department hits which restriction most)
-  reviewer coverage gaps (departments with high % of unreviewed requests)
-  full five-table risk profile join: Employee + TradeRequest + ComplianceAlert +
-    ApprovalWorkflow + RestrictedSecurity (TOP 50, ordered by severity DESC)
-
-CATEGORY 9 — Random Sample Views (type=sample, signal_method="sample"): generate 3 capsules
-  Rules for sample capsules:
-  - SQL must use ORDER BY random() LIMIT 50 to return random rows
-  - Use LEFT JOIN so rows still appear even when related tables have no match
-  - Select 12-16 columns spanning all joined tables — mix entity names, dates, statuses, and amounts
-  - signal_method must be exactly "sample" (not "llm_summary" or "rule_based")
-  - priority = P3, ttl_hours = 12
-  - linked_capsule_ids must point to 2-3 aggregation/violation capsules from the same tables
-
-  Capsule 1 — full five-table random sample:
-    Join Employee + TradeRequest + BrokerDealer + ComplianceAlert (LEFT) + ApprovalWorkflow (LEFT) + RestrictedSecurity (LEFT, date-overlap)
-    Select: employee_name, department, broker_dealer, security_symbol, trade_type, trade_status,
-            request_date, alert_type, severity, alert_status, review_decision, turnaround_days,
-            restriction_type, restriction_start
-    Link to: violations_on_restricted_securities, trade_requests_by_broker_dealer, high_severity_open_alerts
-
-  Capsule 2 — violation records sample:
-    Join TradeRequest + RestrictedSecurity (INNER, date-overlap) + Employee + BrokerDealer
-    Only records where an active restriction overlapped the trade date
-    Select: employee_name, department, security_symbol, restriction_type, trade_type,
-            trade_status, request_date, restriction_start, restriction_end, broker_dealer
-    Link to: violations_on_restricted_securities, violations_by_broker_dealer, repeat_violators
-
-  Capsule 3 — high risk records sample:
-    Join TradeRequest + ComplianceAlert (INNER) + ApprovalWorkflow (LEFT) + Employee + BrokerDealer
-    Only records where Severity IN ('Critical','High') AND alert Status IN ('Open','Investigating')
-    Select: employee_name, department, broker_dealer, security_symbol, alert_type, severity,
-            alert_status, trade_status, review_decision, turnaround_days, request_date, alert_date
-    Link to: high_severity_open_alerts, repeat_violators, broker_dealers_high_rejection_and_alerts
+{REGEN_COVERAGE}
 
 ═══════════════════════════════════════
 OUTPUT FORMAT — critical
@@ -399,7 +304,7 @@ OUTPUT FORMAT — critical
 #       and the SQL has been validated (rows available)
 # Job: derive all remaining capsule metadata from the SQL text and result rows
 #      so the user only needs to supply the four fields they genuinely know
-CAPSULE_ENRICH_SYSTEM = """You are a compliance data engineer enriching analytical capsule metadata.
+CAPSULE_ENRICH_SYSTEM = f"""You are a {DOMAIN_DATA_ENG_PERSONA} enriching analytical capsule metadata.
 Given a SQL query, its intent description, and a sample of its result rows, derive the missing metadata fields.
 Return valid JSON only — no markdown fences, no explanation.
 
@@ -413,13 +318,13 @@ Field rules:
     operational = live pending/open/active state
     distribution = breakdown of a value across categories
 - how: one concise sentence describing how the metric is computed (joins used, aggregation logic)
-- tags: 5–8 specific snake_case tags derived from the SQL entities and intent; avoid generic words like "compliance" or "data"
+- tags: 5–8 specific snake_case tags derived from the SQL entities and intent; avoid generic words like "data"
 - tables_used: exact table names parsed from FROM and JOIN clauses in the SQL — derive from SQL, not from the description
 - key_columns: 3–6 most analytically meaningful column aliases from the SELECT clause
 - staleness_trigger: short phrase describing what DB event makes this capsule outdated (e.g. "new trade approved", "alert status updated")
 - ttl_hours: integer — 6 for violation/risk with live urgency, 12 for trend, 24 for aggregation/pattern/distribution, 2 for operational
 - signal_method: "rule_based" if the SQL returns clear counts/rates/aggregates; "llm_summary" if it returns joined narrative rows needing interpretation
-- embed_text: 2–3 sentences a compliance officer would type when searching for this capsule; include domain synonyms
+- embed_text: 2–3 sentences a {EMBED_SEARCH_PERSONA} would type when searching for this capsule; include domain synonyms
 
 Output exactly this JSON structure with no extra keys:
 {
@@ -452,7 +357,7 @@ Return the enriched metadata JSON."""
 # When: user selects Baseline Period and Comparison Period in the Data Activity tab
 # Job: compare capsule signals across two time windows and produce a per-capsule
 #      diff followed by an overall management summary
-ACTIVITY_COMPARISON_SYSTEM = """You are a senior compliance analyst comparing analytical capsule snapshots \
+ACTIVITY_COMPARISON_SYSTEM = f"""You are a senior {DOMAIN_ANALYST_PERSONA} comparing analytical capsule snapshots \
 across two time periods.
 
 For each capsule present in both periods, produce a one-paragraph diff:
@@ -482,7 +387,7 @@ Foreign key relationships:
 Format examples — follow this exact dict structure for every capsule:
 {format_example}
 
-Generate the complete CAPSULE_DEFINITIONS list for this Compliance database.
+Generate the complete CAPSULE_DEFINITIONS list for this {DOMAIN_NAME} database.
 Cover all 9 categories including the 3 sample capsules. Minimum 38 capsules. Return the Python list only."""
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -490,10 +395,10 @@ Cover all 9 categories including the 3 sample capsules. Minimum 38 capsules. Ret
 # Stage: User Capsule SQL Generation from Intent (user_capsule_builder.py)
 # When: user types plain-English intent in Insert Capsule tab and clicks "Generate SQL"
 # Job: write a complete, valid SQLite SELECT query suitable for storing as an analytical capsule
-CAPSULE_SQL_GEN_SYSTEM = """You are a senior SQLite compliance data engineer.
+CAPSULE_SQL_GEN_SYSTEM = f"""You are a senior SQLite {DOMAIN_DATA_ENG_PERSONA}.
 Given a plain-English description of what to measure, write one complete analytical SELECT query.
 
-Rules:
+SQL rules:
 - SQLite syntax only: LIMIT (not TOP), COALESCE (not ISNULL), date('now') (not GETDATE()), no dbo. prefix.
 - No SELECT *. Every selected column must have an AS alias.
 - Always include ORDER BY.
@@ -504,24 +409,16 @@ Rules:
 - Percentages: CAST(100.0 * numerator / NULLIF(denominator, 0) AS REAL).
 - Only use tables and columns that appear in the schema below.
 
-Compliance domain rules:
-- Active restriction: EndDate IS NULL OR EndDate >= date('now')
-  Safe form: COALESCE(EndDate, '9999-12-31') >= date('now')
-- Violation date overlap: RequestDate BETWEEN StartDate AND COALESCE(EndDate, '9999-12-31')
-- ApprovalWorkflow.ReviewerID → Employee.EmployeeID (reviewer is compliance staff, not requester)
-- TurnaroundDays is already stored — do NOT recalculate.
-- Escalated = senior review, NOT rejection.
-- Repeat violator: COUNT(ComplianceAlert) >= 2.
-- High severity: Severity IN ('Critical', 'High').
-- Unresolved: Status IN ('Open', 'Investigating').
+Domain rules:
+{DOMAIN_SQL_RULES}
 
 Output: raw SQL only — no markdown fences, no explanation, no comments.
 
 Schema:
-{schema}
+{{schema}}
 
 Foreign Keys:
-{fk_relationships}"""
+{{fk_relationships}}"""
 
 CAPSULE_SQL_GEN_USER = "Generate an analytical SQLite SELECT query for: {intent}"
 

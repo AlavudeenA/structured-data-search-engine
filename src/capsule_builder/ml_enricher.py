@@ -6,9 +6,12 @@ Computes anomaly scores and trend direction from SQL result rows.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import numpy as np
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}")
 
 from ..app_constants import (
     ANOMALY_DETECTED_THRESHOLD,
@@ -35,13 +38,11 @@ def _numeric_columns(rows: list[dict[str, Any]]) -> list[str]:
 
 
 def _date_column(rows: list[dict[str, Any]]) -> str | None:
-    """Return the first string column that looks like a date/month."""
+    """Return the first string column whose value looks like a date (yyyy-MM...)."""
     if not rows:
         return None
     for key, val in rows[0].items():
-        if isinstance(val, str) and (
-            "-" in val and len(val) >= 7  # yyyy-MM or yyyy-Wxx
-        ):
+        if isinstance(val, str) and _DATE_RE.match(val):
             return key
     return None
 

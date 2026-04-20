@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+# Domain-specific schema maps — swap src/business_schema/ to deploy against a new database.
 from ..business_schema.capsule_definitions import SCHEMA_DEFINITIONS
 from ..database_connection import get_fk_relationships, get_join_paths, get_schema_metadata
 from ..embedding import embed_single

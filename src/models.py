@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class CapsuleDefinition(BaseModel):
@@ -25,6 +25,16 @@ class CapsuleDefinition(BaseModel):
     staleness_trigger: str
     linked_capsule_ids: list[str] = Field(default_factory=list)
     relationship_types: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_linked_lengths(self) -> "CapsuleDefinition":
+        if len(self.linked_capsule_ids) != len(self.relationship_types):
+            raise ValueError(
+                f"Capsule '{self.capsule_id}': linked_capsule_ids has "
+                f"{len(self.linked_capsule_ids)} entries but relationship_types has "
+                f"{len(self.relationship_types)} — they must be the same length."
+            )
+        return self
 
 
 class GeneratedCapsule(BaseModel):
@@ -92,9 +102,7 @@ class IntentResult(BaseModel):
 
     intent: str
     confidence: float
-    structured_parts: list[str] = Field(default_factory=list)
-    analytical_parts: list[str] = Field(default_factory=list)
-    reasoning: str
+    reasoning: str = ""
 
 
 class CapsuleHit(BaseModel):
