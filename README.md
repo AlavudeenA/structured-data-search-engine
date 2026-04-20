@@ -390,15 +390,23 @@ The engine makes SLM calls in 5 workflows. Every call routes through `call_llm()
 
 ### Row Limits at a Glance
 
-| Stage | Rows fetched from DB | Rows stored in Qdrant | Rows sent to SLM |
-|---|---|---|---|
-| Capsule SQL execution (build) | 50 | 50 | — |
-| SLM signal — `llm_summary` capsules | 50 | 50 | 20 |
-| SLM signal — `sample` capsules | 50 | 50 | 15 |
-| User capsule metadata enrichment | 500 (DB default) | 50 | 10 |
-| Result summarizer (text_to_sql) | 500 (DB default) | — | 25 |
-| SQL rows shown in UI | — | — | — (UI shows 50) |
-| Data Activity comparison | — | — | 3 per capsule |
+| Stage | Rows fetched from DB | Rows stored in Qdrant | Rows sent to SLM | Code reference |
+|---|---|---|---|---|
+| DB execution cap (all queries) | 500 max | — | — | `DB_EXECUTE_MAX_ROWS` in `app_constants.py` |
+| Capsule SQL execution (build) | 50 | 50 | — | `CAPSULE_RESULT_MAX_ROWS` → `capsule_generator.py` |
+| Capsule result rows in Qdrant payload | 50 | 50 | — | `store_manager.py` → `result_rows[:50]` |
+| SLM signal — `llm_summary` capsules | 50 | 50 | 20 | `capsule_generator.py` → `rows[:20]` |
+| SLM signal — `sample` capsules | 50 | 50 | 15 | `capsule_generator.py` → `rows[:15]` |
+| User capsule metadata enrichment | 500 (DB default) | 50 | 10 | `user_capsule_builder.py` → `rows[:10]` |
+| Result summarizer (text_to_sql path) | 500 (DB default) | — | 25 | `result_summarizer.py` → `rows[:25]` |
+| SQL rows returned to UI | 500 (DB default) | — | — (UI shows 50) | `orchestrator.py` → `sql_rows[:50]` |
+| Data Activity comparison | — | — | 3 per capsule | `activity_comparator.py` → `_MAX_ROWS_PER_CAPSULE` |
+
+**Key distinction:**
+- **DB always fetches up to 500** — that is the raw execution cap for all queries
+- **Qdrant stores 50 rows max** per capsule payload — keeps the vector store lean
+- **SLM receives a smaller slice (10–25 rows)** — enough to understand the data shape; sending all 50 would add tokens with no quality gain for a 2–3 sentence output
+- **UI displays 50 rows** — from the orchestrator slice, not from Qdrant
 
 ---
 
