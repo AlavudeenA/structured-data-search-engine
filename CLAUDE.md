@@ -6,9 +6,10 @@ Before writing **any** code, check if the request contradicts a rule below.
 If it does: **stop immediately, explain the conflict in plain English, list what would break, and wait for explicit "yes" before touching a single file.**
 After the user confirms, implement the change AND update this file to reflect the new approved design.
 
-**After every code change — without being asked — do both:**
+**After every code change — without being asked — do all of these that apply:**
 1. Update `CLAUDE.md` if any rule, threshold, flow, or file ownership described here is now outdated or no longer accurate.
 2. Update `README.md` if any user-facing flow, tab description, architecture diagram, or feature description is affected by the change.
+3. Update `src/business_schema/db_metadata.md` if `dbscript.sql` changed — new tables, new columns, removed columns, or changed enum values (Status, AlertType, Severity, RestrictionType, Decision, etc.). This file is injected into every SQL-generation and capsule-regen LLM prompt; stale metadata produces wrong SQL.
 
 ---
 

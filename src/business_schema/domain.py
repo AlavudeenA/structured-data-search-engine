@@ -16,6 +16,20 @@ Interface contract (new domains must export all of these):
 
 from pathlib import Path
 
+_DB_METADATA_PATH = Path(__file__).parent / "db_metadata.md"
+
+
+def load_db_metadata() -> str:
+    """Return the contents of db_metadata.md — column descriptions, enum values, join patterns.
+    Called at SQL-generation time so the LLM understands column semantics, not just column names.
+    Update db_metadata.md whenever dbscript.sql changes (new tables, columns, or enum values).
+    """
+    try:
+        return _DB_METADATA_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
+
+
 # ── Identity ───────────────────────────────────────────────────────────────────
 
 DOMAIN_NAME = "Financial Compliance"

@@ -108,6 +108,7 @@ def generate_capsule_sql(intent: str) -> str:
     Returns the raw SQL string, or an empty string if generation fails.
     """
     from ..database_connection import get_fk_relationships, get_schema_metadata
+    from ..business_schema.domain import load_db_metadata
 
     schema_meta = get_schema_metadata()
     schema_text = "\n".join(
@@ -121,7 +122,11 @@ def generate_capsule_sql(intent: str) -> str:
     ) or "None"
 
     sql = call_llm(
-        system_prompt=CAPSULE_SQL_GEN_SYSTEM.format(schema=schema_text, fk_relationships=fk_text),
+        system_prompt=CAPSULE_SQL_GEN_SYSTEM.format(
+            schema=schema_text,
+            fk_relationships=fk_text,
+            db_metadata=load_db_metadata(),
+        ),
         user_prompt=CAPSULE_SQL_GEN_USER.format(intent=intent),
         max_tokens=512,
     )

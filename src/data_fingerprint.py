@@ -94,7 +94,10 @@ def check_schema_and_refresh_if_needed() -> bool:
     if previous is not None and previous.fingerprint == current_fp:
         return False
 
-    logger.info("DDL changed — triggering full capsule rebuild")
+    logger.warning(
+        "DDL schema changed — triggering full capsule rebuild. "
+        "If you added/removed tables or columns, update src/business_schema/db_metadata.md to match."
+    )
     try:
         generate_all_capsule_collections()
         save_schema_fingerprint(current_schema, current_fks)

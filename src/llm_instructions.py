@@ -133,7 +133,10 @@ Related Risk Context:
 {related_context}
 
 Schema Capsule Context (Use this to understand domain rules!):
-{capsule_context}"""
+{capsule_context}
+
+Column Semantics & Allowed Values:
+{db_metadata}"""
 
 SQL_GENERATION_USER = "Generate SQL for: {question}"
 
@@ -384,6 +387,9 @@ CAPSULE_REGEN_USER = """Database schema (all tables and columns):
 Foreign key relationships:
 {fk_relationships}
 
+Column semantics & allowed values:
+{db_metadata}
+
 Format examples — follow this exact dict structure for every capsule:
 {format_example}
 
@@ -418,7 +424,10 @@ Schema:
 {{schema}}
 
 Foreign Keys:
-{{fk_relationships}}"""
+{{fk_relationships}}
+
+Column Semantics & Allowed Values:
+{{db_metadata}}"""
 
 CAPSULE_SQL_GEN_USER = "Generate an analytical SQLite SELECT query for: {intent}"
 

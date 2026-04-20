@@ -6,6 +6,7 @@ import logging
 import re
 
 from ..database_connection import fk_to_text, get_fk_relationships, get_schema_metadata, schema_to_text
+from ..business_schema.domain import load_db_metadata
 from ..llm_service import call_llm
 from ..models import ContextPackage
 from ..llm_instructions import SQL_GENERATION_SYSTEM, SQL_GENERATION_USER, SQL_REASON_SYSTEM, SQL_REASON_USER
@@ -56,6 +57,7 @@ def generate_sql(question: str, context_package: ContextPackage) -> dict[str, st
         fk_relationships=fk_to_text(fk_relationships),
         related_context=_render_linked_context(context_package),
         capsule_context=_render_schema_capsules(context_package),
+        db_metadata=load_db_metadata(),
     )
     user_prompt = SQL_GENERATION_USER.format(question=question)
     raw_sql = call_llm(system_prompt, user_prompt, model_slot="groq_sql_model", temperature=0.0, max_tokens=700)

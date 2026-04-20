@@ -25,6 +25,7 @@ from pathlib import Path
 from ..database_connection import get_fk_relationships, get_schema_metadata
 from ..llm_instructions import CAPSULE_REGEN_SYSTEM, CAPSULE_REGEN_USER
 from ..llm_service import call_llm
+from ..business_schema.domain import load_db_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,7 @@ def generate_capsule_definitions_via_llm() -> str:
     user_prompt = CAPSULE_REGEN_USER.format(
         schema=schema_text,
         fk_relationships=fk_text,
+        db_metadata=load_db_metadata(),
         format_example=format_example,
     )
 
