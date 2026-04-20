@@ -97,11 +97,11 @@ Intents:
 When in doubt, prefer text_to_sql — it always produces an answer. Choose analytical only when the question clearly needs pattern or trend reasoning.
 
 Output format:
-{
+{{
   "intent": "text_to_sql|analytical",
   "confidence": 0.0,
   "reasoning": ""
-}"""
+}}"""
 
 INTENT_DETECTION_USER = "Question: {question}"
 
@@ -330,7 +330,7 @@ Field rules:
 - embed_text: 2–3 sentences a {EMBED_SEARCH_PERSONA} would type when searching for this capsule; include domain synonyms
 
 Output exactly this JSON structure with no extra keys:
-{
+{{
   "capsule_type": "",
   "how": "",
   "tags": [],
@@ -340,7 +340,7 @@ Output exactly this JSON structure with no extra keys:
   "ttl_hours": 24,
   "signal_method": "rule_based",
   "embed_text": ""
-}"""
+}}"""
 
 CAPSULE_ENRICH_USER = """Intent (what the user says this measures):
 {what}
