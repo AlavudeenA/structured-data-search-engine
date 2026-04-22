@@ -292,43 +292,59 @@ fastembed_cache/            ← Pre-bundled bge-small-en-v1.5 model (~63 MB, no 
 
 ## How Linked Capsules Are Established
 
-Linked capsules surface risk patterns that span multiple independent analytical signals. For example, if the same entity appears in a high-anomaly aggregation capsule and a separate trend capsule, that co-occurrence is automatically detected and stored as a navigable connection — without anyone needing to write a specific query for it.
+There are two completely separate linking mechanisms. One is **graph-based** (table and entity overlap between capsules). The other is **anomaly-based** (statistical spike in a capsule's own data). Both run automatically during Generate All Capsules.
 
-### Phase 1 — Relationship Graph
+---
 
-After all analytical capsules are generated, `build_graph()` maps how they relate to each other.
+### Mechanism 1 — Graph Edges (table and entity linking)
 
-**Explicit edges** are declared in `capsule_definitions.py` via `linked_capsule_ids` and `relationship_types`.
+After all analytical capsules are generated, `build_graph()` compares every pair of capsules and writes relationship edges based on what tables they query and what data they return.
 
-**Inferred edges** are computed automatically at build time:
+**Example:** You have two capsules:
+- `trade_requests_by_broker_dealer` — queries the `TradeRequests` table
+- `violations_on_restricted_securities` — queries `TradeRequests + RestrictedSecurities`
 
-| Condition | Inferred relationship |
+`{TradeRequests}` is a strict subset of `{TradeRequests, RestrictedSecurities}` → a `drills_down` edge is created. Both capsules get each other's ID written into their `linked_capsule_ids` field before being stored in Qdrant.
+
+**How edges are inferred:**
+
+| Condition | Relationship |
 | --- | --- |
-| Two capsules use the same tables but have different capsule types | `same_entity` |
-| Capsule A's tables are a strict subset of capsule B's tables | `drills_down` |
-| Capsule B's tables are a strict subset of capsule A's tables | `aggregates_up` |
-| Two capsules share ≥ 2 tags, or a shared entity value appears in both result sets | `corroborates` |
+| Two capsules query the exact same tables, different capsule types | `same_entity` |
+| Capsule A's tables are a strict subset of capsule B's | `drills_down` |
+| Capsule A's tables are a strict superset of capsule B's | `aggregates_up` |
+| Two capsules share ≥ 2 tags, or both result sets contain the same value in a shared column (e.g. same broker name) | `corroborates` |
 
-Inferred edges are written back to the in-memory capsule objects before persisting to Qdrant, so the full relationship set is stored in the payload. The complete graph is saved to `data/.capsule_graph.json` and visualized in the **Capsule Graph** tab.
+**Effect at query time:** When the user asks about broker trade counts, the top hit is `trade_requests_by_broker_dealer`. The context packager follows its `linked_capsule_ids`, pulls in the violations capsule signal too, and the answer includes — *"related: this broker also appears in restricted security violations"* — without the user asking a second question.
 
-### Phase 2 — Anomaly Alert Capsules
+The full graph is saved to `data/.capsule_graph.json` and visualized in the **Capsule Graph** tab.
 
-Any capsule whose `anomaly_score >= 0.7` (Z-score on numeric result columns) automatically triggers creation of a linked alert capsule:
+---
 
-1. The first entity value from the capsule's top result row becomes the `entity_name`
-2. An SLM writes a 2-sentence risk alert tying the anomaly to that entity
-3. A `LinkedCapsule` is created with `risk_level = "critical"` (score ≥ 0.8) or `"high"`
-4. The alert is embedded and stored in the `linked` Qdrant collection
+### Mechanism 2 — Anomaly Alert Capsules (statistical spike detection)
 
-These alert capsules appear in search results when a question is about that entity, surfacing the risk signal without the user needing to know it exists.
+This is independent of graph edges. It looks at each capsule's own SQL result rows and asks: *is any value statistically unusual compared to the rest?*
+
+The scorer computes the max z-score across all numeric columns and normalizes it: `min(max_z / 4.0, 1.0)`. A single value at mean+3σ produces a score of 0.75 — above the 0.70 alert threshold.
+
+**Example:** `violations_on_restricted_securities` returns monthly violation counts: 5, 3, 4, 47. The value 47 is far above the rest. Max z-score ≈ 3.2 → anomaly score = `3.2 / 4.0 = 0.80`. This is ≥ 0.70, so the system automatically creates a separate alert capsule:
+
+- ID: `alert_violations_on_restricted_securities`
+- Signal: *"Anomaly detected in restricted security violations (score: 0.80, trend: increasing). Review violations_on_restricted_securities for details."*
+- Risk level: `critical` (score ≥ 0.8) or `high` (score 0.70–0.79)
+- Stored in the **`linked` Qdrant collection** (separate from the `analytical` collection)
+
+**Effect at query time:** User asks *"Are there any unusual patterns in trade violations?"* Vector search hits both the analytical capsule (actual numbers) and the alert capsule (the anomaly warning). The answer surfaces both: the broker breakdown **plus** a flag that the spike is statistically abnormal — without the user knowing to ask about anomalies.
+
+---
 
 ### Phase 3 — User Capsule Auto-Linking
 
-When a user saves a capsule via the Insert Capsule tab, the same relationship inference runs against all existing analytical capsules (payload-only scan, no re-embedding). For each match:
+When a user saves a capsule via the Insert Capsule tab, both mechanisms run automatically:
 
-- The existing capsule's `linked_capsule_ids` is updated in Qdrant via `set_payload` — no re-embedding needed
-- The new capsule's links are flushed once at the end
-- New edges are appended to `data/.capsule_graph.json`
+- The same graph inference (`_infer_relationship`) scans all existing analytical capsules in Qdrant. For each match, both sides' `linked_capsule_ids` are updated via payload-only `set_payload` — no re-embedding needed.
+- If the new capsule's anomaly score ≥ 0.70, an alert capsule is generated and stored in the `linked` collection.
+- New edges are appended to `data/.capsule_graph.json`.
 
 ---
 
