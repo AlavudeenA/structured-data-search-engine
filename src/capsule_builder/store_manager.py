@@ -15,11 +15,11 @@ from ..embedding import (
     save_schema_fingerprint,
 )
 from ..models import BuildStatus, BuildSummary, CapsuleDefinition, LinkedCapsule, GeneratedCapsule, SchemaContextCapsule
-from ..vector_store import clear_collection, collection_counts, purge_local_qdrant_storage, upsert_capsules_batch
+from ..vector_store import clear_collection, collection_counts, purge_local_qdrant_storage, scroll_all, upsert_capsules_batch
 # Domain-specific definitions — swap src/business_schema/ to deploy against a new database.
 from ..business_schema.capsule_definitions import CAPSULE_DEFINITIONS
 from .capsule_generator import generate_all_capsules
-from .relationship_builder import build_graph, generate_linked_capsules, save_graph
+from .relationship_builder import build_graph, generate_linked_capsules, save_graph, _payload_to_capsule
 from .schema_capsule_generator import generate_schema_capsules
 
 logger = logging.getLogger(__name__)
@@ -171,6 +171,18 @@ def refresh_targeted_capsules(analytical_ids: list[str], linked_ids: list[str]) 
     if not definitions:
         return []
     refreshed_analytical = generate_all_capsules(definitions)
+
+    # Merge refreshed capsules with existing Qdrant capsules so build_graph()
+    # sees the full picture and writes correct cross-capsule edges.
+    refreshed_ids = {c.capsule_id for c in refreshed_analytical}
+    existing_capsules = [
+        cap
+        for p in scroll_all(COLLECTION_ANALYTICAL)
+        if (cap := _payload_to_capsule(p)) is not None
+        and cap.capsule_id not in refreshed_ids
+    ]
+    build_graph(existing_capsules + refreshed_analytical)
+
     _persist_analytical(refreshed_analytical)
 
     if linked_ids and refreshed_analytical:
@@ -198,6 +210,7 @@ def refresh_data_only(progress_callback=None) -> BuildSummary:
             progress_callback(capsule_id, status, signal_preview)
 
     analytical_capsules = generate_all_capsules(definitions, progress_callback=_progress)
+    build_graph(analytical_capsules)
     clear_collection(COLLECTION_ANALYTICAL)
     analytical_count = _persist_analytical(analytical_capsules)
 

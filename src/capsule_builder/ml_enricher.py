@@ -49,8 +49,9 @@ def _date_column(rows: list[dict[str, Any]]) -> str | None:
 
 def compute_anomaly_score(rows: list[dict[str, Any]]) -> float:
     """
-    Fraction of numeric values that exceed mean + N*stddev.
-    Returns 0.0 to 1.0. 0.0 if insufficient data.
+    Max z-score across all numeric columns, normalized to [0, 1] via min(max_z / 4.0, 1.0).
+    mean+2σ → 0.5, mean+3σ → 0.75 (alert threshold), mean+4σ+ → 1.0.
+    Returns 0.0 if insufficient data.
     """
     if len(rows) < 4:
         return 0.0
@@ -58,8 +59,7 @@ def compute_anomaly_score(rows: list[dict[str, Any]]) -> float:
     if not num_cols:
         return 0.0
 
-    anomaly_cells = 0
-    total_cells = 0
+    max_z = 0.0
     for col in num_cols:
         values = [row[col] for row in rows if row.get(col) is not None]
         if len(values) < 3:
@@ -68,13 +68,11 @@ def compute_anomaly_score(rows: list[dict[str, Any]]) -> float:
         mean, std = arr.mean(), arr.std()
         if std == 0:
             continue
-        threshold = mean + ANOMALY_STDDEV_MULTIPLIER * std
-        anomaly_cells += int(np.sum(arr > threshold))
-        total_cells += len(values)
+        col_max_z = float(np.max(np.abs(arr - mean) / std))
+        if col_max_z > max_z:
+            max_z = col_max_z
 
-    if total_cells == 0:
-        return 0.0
-    return round(min(anomaly_cells / total_cells, 1.0), 4)
+    return round(min(max_z / (ANOMALY_STDDEV_MULTIPLIER * 2.0), 1.0), 4)
 
 
 def compute_trend_direction(rows: list[dict[str, Any]]) -> str:
@@ -141,7 +139,7 @@ def enrich_capsule(
     trend_direction = compute_trend_direction(rows)
     updated_tags = list(tags)
 
-    if anomaly_score > ANOMALY_DETECTED_THRESHOLD:
+    if anomaly_score >= ANOMALY_DETECTED_THRESHOLD:
         if TAG_ANOMALY not in updated_tags:
             updated_tags.append(TAG_ANOMALY)
         logger.debug("Anomaly detected (score=%.3f)", anomaly_score)

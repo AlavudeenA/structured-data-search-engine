@@ -46,7 +46,7 @@ Serve a capsule answer directly only when `overall_confidence >= 0.65` AND top h
 - Risk level: `anomaly_score >= 0.8` → `"critical"`, else `"high"`.
 - `TAG_ESCALATING` added only when capsule type is `violation` AND trend is `"increasing"` AND anomaly > 0.7.
 - Anomaly and trend detection require **minimum 4 rows** — returns `0.0` / `"flat"` otherwise.
-- Anomaly uses `mean + 2 * stddev` (`ANOMALY_STDDEV_MULTIPLIER = 2.0`).
+- Anomaly uses **max z-score normalized**: `min(max_z / (ANOMALY_STDDEV_MULTIPLIER * 2.0), 1.0)` — a single value at mean+3σ scores 0.75 and triggers an alert. `ANOMALY_STDDEV_MULTIPLIER = 2.0` (denominator = 4.0).
 - Trend requires **≥ 10% change** between first and second half (`TREND_CHANGE_PCT = 10.0`).
 
 ### Rule 6 — Generate Before Clear (Never Clear First)
@@ -236,7 +236,7 @@ check_schema_and_refresh_if_needed()
 | Moving files out of `src/business_schema/` | Engine imports break |
 | Changing confidence threshold (0.65) | How often SQL fallback fires vs capsule answer |
 | Changing anomaly threshold (0.7) | Which capsules get linked — too low = noise |
-| Changing TREND_CHANGE_PCT or ANOMALY_STDDEV_MULTIPLIER | Trend/anomaly scoring changes across all capsules |
+| Changing TREND_CHANGE_PCT or ANOMALY_STDDEV_MULTIPLIER | Trend/anomaly scoring changes across all capsules — denominator is `ANOMALY_STDDEV_MULTIPLIER * 2.0`; changing it shifts the score curve |
 | Changing embedding model or EMBED_DIM | All existing Qdrant vectors become incompatible — full wipe required |
 | Changing min score thresholds | Search result quality and capsule retrieval changes |
 | Clearing collection before generation | Empty store on any generation failure |
